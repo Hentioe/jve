@@ -8,10 +8,11 @@ pub const Error = error{
     SdlInitFailed,
     SdlSetTextureBlendModeFailed,
     SdlUpdateTextureFailed,
+    OutOfMemory,
 };
 
 // 注意：以下代码是 SDL3
-pub fn render(loaded: LoadedImage) Error!void {
+pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 初始化 SDL
     if (!c.SDL_Init(c.SDL_INIT_VIDEO)) {
         printSdlError();
@@ -56,6 +57,41 @@ pub fn render(loaded: LoadedImage) Error!void {
         printSdlError();
         return Error.SdlUpdateTextureFailed;
     }
+    // 生成棋盘格（显示透明背景）
+    const tile_size = 12;
+    const parten_size = tile_size * 2;
+    const checker_pixels = try allocator.alloc(u8, @intCast(parten_size * parten_size * 4));
+    defer allocator.free(checker_pixels);
+    var y: usize = 0;
+    while (y < parten_size) : (y += 1) {
+        var x: usize = 0;
+        while (x < parten_size) : (x += 1) {
+            const offset = (y * parten_size + x) * 4;
+            const is_white = ((x / tile_size) % 2) == ((y / tile_size) % 2);
+            const color: u8 = if (is_white) 144 else 100;
+            checker_pixels[offset + 0] = color;
+            checker_pixels[offset + 1] = color;
+            checker_pixels[offset + 2] = color;
+            checker_pixels[offset + 3] = 255;
+        }
+    }
+    // 上传棋盘格纹理
+    const checker_texture = c.SDL_CreateTexture(
+        renderer,
+        c.SDL_PIXELFORMAT_RGBA32,
+        c.SDL_TEXTUREACCESS_STATIC,
+        parten_size,
+        parten_size,
+    );
+    if (!c.SDL_UpdateTexture(
+        checker_texture,
+        null,
+        checker_pixels.ptr,
+        parten_size * 4,
+    )) {
+        printSdlError();
+        return Error.SdlUpdateTextureFailed;
+    }
     // 循环并处理 SDL 事件
     var running = true;
     var event: c.SDL_Event = undefined;
@@ -67,10 +103,12 @@ pub fn render(loaded: LoadedImage) Error!void {
         }
         _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // 设置白色背景
         _ = c.SDL_RenderClear(renderer);
+        _ = c.SDL_RenderTextureTiled(renderer, checker_texture, null, 1.0, null);
         _ = c.SDL_RenderTexture(renderer, texture, null, null);
         _ = c.SDL_RenderPresent(renderer);
     }
     c.SDL_DestroyTexture(texture);
+    c.SDL_DestroyTexture(checker_texture);
     c.SDL_DestroyRenderer(renderer);
     c.SDL_DestroyWindow(window);
     c.SDL_Quit();
