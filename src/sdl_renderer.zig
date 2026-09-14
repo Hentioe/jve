@@ -11,11 +11,10 @@ pub const Error = error{
     OutOfMemory,
 };
 
-// 是否是窗口模式
-var is_window_mode: bool = false;
-
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
+    // 是否是窗口模式
+    var is_window_mode: bool = false;
     // 初始化 SDL
     if (!c.SDL_Init(c.SDL_INIT_VIDEO)) {
         printSdlError();
@@ -102,9 +101,9 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     var event: c.SDL_Event = undefined;
     while (running) {
         if (c.SDL_WaitEvent(&event)) {
-            if (event.type == c.SDL_EVENT_QUIT) {
+            if (isQuitEvent(event, is_window_mode)) {
                 running = false;
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN) {
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN) { // todo: 改为左键双击
                 is_window_mode = !is_window_mode;
                 _ = c.SDL_SetWindowBordered(window, is_window_mode);
             }
@@ -123,6 +122,17 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     c.SDL_DestroyRenderer(renderer);
     c.SDL_DestroyWindow(window);
     c.SDL_Quit();
+}
+
+// 是否是退出事件
+fn isQuitEvent(event: c.SDL_Event, is_window_mode: bool) bool {
+    if (event.type == c.SDL_EVENT_QUIT) {
+        return true;
+    }
+    if (!is_window_mode and event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_ESCAPE) {
+        return true;
+    }
+    return false;
 }
 
 fn printSdlError() void {
