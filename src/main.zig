@@ -3,10 +3,10 @@ const imageviewer = @import("root.zig");
 
 pub fn main() !void {
     // 内存分配器
-    const allocator = std.heap.page_allocator;
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    const allocator = gpa.allocator();
     // 载入图像
-    const loaded = try imageviewer.loadImage(allocator, "image.jpeg");
-    defer loaded.deinit();
+    const loaded = try imageviewer.loadImage(allocator, "image.png");
     // 输出基本信息
     std.debug.print("Image width: {}\n", .{loaded.width});
     std.debug.print("Image height: {}\n", .{loaded.height});

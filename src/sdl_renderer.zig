@@ -61,7 +61,6 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     const tile_size = 12;
     const parten_size = tile_size * 2;
     const checker_pixels = try allocator.alloc(u8, @intCast(parten_size * parten_size * 4));
-    defer allocator.free(checker_pixels);
     var y: usize = 0;
     while (y < parten_size) : (y += 1) {
         var x: usize = 0;
@@ -92,6 +91,9 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         printSdlError();
         return Error.SdlUpdateTextureFailed;
     }
+    // 回收图像内存
+    loaded.deinit();
+    allocator.free(checker_pixels);
     // 循环并处理 SDL 事件
     var running = true;
     var event: c.SDL_Event = undefined;
