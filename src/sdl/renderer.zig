@@ -1,44 +1,22 @@
 const std = @import("std");
-const c = @cImport({
-    @cInclude("SDL3/SDL.h");
-});
-const LoadedImage = @import("image_loader.zig").Loaded;
+const c = @import("c.zig").c;
+const LoadedImage = @import("../image_loader.zig").Loaded;
+const Error = @import("errors.zig").Error;
+const printSdlError = @import("helper.zig").printSdlError;
 
-pub const Error = error{
-    SdlInitFailed,
-    SdlSetTextureBlendModeFailed,
-    SdlUpdateTextureFailed,
-    OutOfMemory,
-};
-
-fn hintTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, _: ?*anyopaque) callconv(.c) c_uint {
-    return c.SDL_HITTEST_DRAGGABLE; // 允许通过拖动窗口的任意位置来移动窗口
-}
+const Window = @import("window.zig");
 
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
-    // 是否是窗口模式
-    var is_window_mode: bool = false;
-    // 初始化 SDL
-    if (!c.SDL_Init(c.SDL_INIT_VIDEO)) {
-        printSdlError();
-        return Error.SdlInitFailed;
-    }
-    // 创建窗口
-    const window = c.SDL_CreateWindow(
-        "Image Viewer",
-        @intCast(loaded.width),
-        @intCast(loaded.height),
-        c.SDL_EVENT_WINDOW_SHOWN | c.SDL_WINDOW_BORDERLESS | c.SDL_WINDOW_TRANSPARENT,
+    // 初始化窗口
+    var window = try Window.init(
+        loaded.width,
+        loaded.height,
+        false,
     );
-    if (window == null) {
-        printSdlError();
-        return Error.SdlInitFailed;
-    }
-    // 支持拖动窗口
-    _ = c.SDL_SetWindowHitTest(window, hintTestCallback, null);
+    defer window.deinit();
     // 创建渲染器
-    const renderer = c.SDL_CreateRenderer(window, null);
+    const renderer = c.SDL_CreateRenderer(window.sdl_window, null);
     const pitch: c_int = @intCast(loaded.width * loaded.bands);
     // 打印 pitch
     std.debug.print("Pitch: {d}\n", .{pitch});
@@ -107,17 +85,16 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     var event: c.SDL_Event = undefined;
     while (running) {
         if (c.SDL_WaitEvent(&event)) {
-            if (isQuitEvent(event, is_window_mode)) {
+            if (isQuitEvent(event, window.has_border)) {
                 running = false;
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN) { // todo: 改为左键双击
-                is_window_mode = !is_window_mode;
-                _ = c.SDL_SetWindowBordered(window, is_window_mode);
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN) { // todo: 改为右键单击
+                window.toggleBorder(); // 切换边框模式
             }
         }
-        const alpha: u8 = if (is_window_mode) 255 else 0;
+        const alpha: u8 = if (window.has_border) 255 else 0; // 根据边框模式设置背景透明度
         _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, alpha); // 设置白色背景
         _ = c.SDL_RenderClear(renderer);
-        if (is_window_mode) {
+        if (window.has_border) {
             _ = c.SDL_RenderTextureTiled(renderer, checker_texture, null, 1.0, null);
         }
         _ = c.SDL_RenderTexture(renderer, texture, null, null);
@@ -126,23 +103,15 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     c.SDL_DestroyTexture(texture);
     c.SDL_DestroyTexture(checker_texture);
     c.SDL_DestroyRenderer(renderer);
-    c.SDL_DestroyWindow(window);
-    c.SDL_Quit();
 }
 
 // 是否是退出事件
-fn isQuitEvent(event: c.SDL_Event, is_window_mode: bool) bool {
+fn isQuitEvent(event: c.SDL_Event, has_border: bool) bool {
     if (event.type == c.SDL_EVENT_QUIT) {
         return true;
     }
-    if (!is_window_mode and event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_ESCAPE) {
+    if (!has_border and event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_ESCAPE) {
         return true;
     }
     return false;
-}
-
-fn printSdlError() void {
-    const err = c.SDL_GetError();
-    std.debug.print("SDL Error: {s}\n", .{err});
-    _ = c.SDL_ClearError();
 }

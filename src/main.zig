@@ -7,7 +7,7 @@ pub fn main() !void {
     var gpa: std.heap.DebugAllocator(.{}) = .init;
     const allocator = gpa.allocator();
     // 解析命令行参数
-    const res = try cli.parse(allocator);
+    const res = try cli.init(allocator);
     defer res.deinit();
     // 图片路径（带默认值）
     var file_path: []const u8 = "image.png";
@@ -21,5 +21,5 @@ pub fn main() !void {
     std.debug.print("Image height: {}\n", .{loaded.height});
     std.debug.print("Image bands: {}\n", .{loaded.bands});
     // 渲染图像
-    try imageviewer.renderImage(allocator, loaded);
+    try imageviewer.SdlRenderer.render(allocator, loaded);
 }

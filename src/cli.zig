@@ -6,7 +6,7 @@ const params = clap.parseParamsComptime(
     \\
 );
 
-pub fn parse(allocator: std.mem.Allocator) !clap.Result(clap.Help, &params, clap.parsers.default) {
+pub fn init(allocator: std.mem.Allocator) !clap.Result(clap.Help, &params, clap.parsers.default) {
     var diag = clap.Diagnostic{};
     return clap.parse(clap.Help, &params, clap.parsers.default, .{
         .diagnostic = &diag,
