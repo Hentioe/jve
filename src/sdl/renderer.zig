@@ -10,6 +10,7 @@ const Window = @import("window.zig");
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 初始化窗口
     var window = try Window.init(
+        allocator,
         loaded.width,
         loaded.height,
         false,
@@ -87,7 +88,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         if (c.SDL_WaitEvent(&event)) {
             if (isQuitEvent(event, window.has_border)) {
                 running = false;
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN) { // todo: 改为右键单击
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT) {
                 window.toggleBorder(); // 切换边框模式
             }
         }
