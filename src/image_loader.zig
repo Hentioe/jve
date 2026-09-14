@@ -46,13 +46,33 @@ pub fn loadImage(allocator: std.mem.Allocator, path: []const u8) Error!Loaded {
     // 获取高度
     const height = c.vips_image_get_height(in);
     // 获取通道数
-    const bands = c.vips_image_get_bands(in);
+    var bands = c.vips_image_get_bands(in);
     // 获取格式
     const format = c.vips_image_get_format(in);
+    // 转换为 SRGB
+    var srgb: [*c]c.VipsImage = null;
+    if (c.vips_colourspace(in, &srgb, c.VIPS_INTERPRETATION_sRGB) != 0) {
+        printVipsError();
+        return Error.VipsImageLoadFailed;
+    }
+    defer c.g_object_unref(srgb);
+    // 转换为 RGBA
+    var rgba: [*c]c.VipsImage = null;
+    if (c.vips_image_hasalpha(srgb) != 0) {
+        rgba = srgb;
+    } else {
+        if (c.vips_addalpha(srgb, &rgba) != 0) {
+            printVipsError();
+            return Error.VipsImageLoadFailed;
+        }
+        bands += 1;
+    }
+    defer c.g_object_unref(rgba);
     // 提取像素数据
     var size: usize = 0;
-    const buffer_opaque = c.vips_image_write_to_memory(in, &size);
-    const pixels_ptr: [*]c_ushort = @ptrCast(@alignCast(buffer_opaque));
+    const pixels_ptr: [*]c_ushort = @ptrCast(@alignCast(
+        c.vips_image_write_to_memory(rgba, &size),
+    ));
 
     return Loaded{
         .allocator = allocator,
