@@ -11,6 +11,9 @@ pub const Error = error{
     OutOfMemory,
 };
 
+// 是否是窗口模式
+var is_window_mode: bool = false;
+
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 初始化 SDL
@@ -23,7 +26,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         "Image Viewer",
         @intCast(loaded.width),
         @intCast(loaded.height),
-        c.SDL_EVENT_WINDOW_SHOWN,
+        c.SDL_EVENT_WINDOW_SHOWN | c.SDL_WINDOW_BORDERLESS | c.SDL_WINDOW_TRANSPARENT,
     );
     if (window == null) {
         printSdlError();
@@ -101,11 +104,17 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         if (c.SDL_WaitEvent(&event)) {
             if (event.type == c.SDL_EVENT_QUIT) {
                 running = false;
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                is_window_mode = !is_window_mode;
+                _ = c.SDL_SetWindowBordered(window, is_window_mode);
             }
         }
-        _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // 设置白色背景
+        const alpha: u8 = if (is_window_mode) 255 else 0;
+        _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, alpha); // 设置白色背景
         _ = c.SDL_RenderClear(renderer);
-        _ = c.SDL_RenderTextureTiled(renderer, checker_texture, null, 1.0, null);
+        if (is_window_mode) {
+            _ = c.SDL_RenderTextureTiled(renderer, checker_texture, null, 1.0, null);
+        }
         _ = c.SDL_RenderTexture(renderer, texture, null, null);
         _ = c.SDL_RenderPresent(renderer);
     }
