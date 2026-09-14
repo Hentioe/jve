@@ -23,7 +23,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         "Image Viewer",
         @intCast(loaded.width),
         @intCast(loaded.height),
-        c.SDL_EVENT_WINDOW_SHOWN | c.SDL_WINDOW_RESIZABLE,
+        c.SDL_EVENT_WINDOW_SHOWN,
     );
     if (window == null) {
         printSdlError();
