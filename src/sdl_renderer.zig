@@ -11,6 +11,10 @@ pub const Error = error{
     OutOfMemory,
 };
 
+fn hintTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, _: ?*anyopaque) callconv(.c) c_uint {
+    return c.SDL_HITTEST_DRAGGABLE; // 允许通过拖动窗口的任意位置来移动窗口
+}
+
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 是否是窗口模式
@@ -31,6 +35,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         printSdlError();
         return Error.SdlInitFailed;
     }
+    // 支持拖动窗口
+    _ = c.SDL_SetWindowHitTest(window, hintTestCallback, null);
     // 创建渲染器
     const renderer = c.SDL_CreateRenderer(window, null);
     const pitch: c_int = @intCast(loaded.width * loaded.bands);
