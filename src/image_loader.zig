@@ -11,8 +11,8 @@ pub const Error = error{
 
 pub const Loaded = struct {
     allocator: std.mem.Allocator,
-    width: u32,
-    height: u32,
+    width: usize,
+    height: usize,
     bands: u32,
     format: u32,
     size: usize,

@@ -43,6 +43,11 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         helper.printSdlError();
         return Error.SdlUpdateTextureFailed;
     }
+    // 创建目标矩形
+    var dst_rect = c.SDL_FRect{};
+    rebuildImageRect(&dst_rect, window, loaded.width, loaded.height);
+
+    std.debug.print("Destination Rect: x={d}, y={d}, w={d}, h={d}\n", .{ dst_rect.x, dst_rect.y, dst_rect.w, dst_rect.h });
     // 生成棋盘格（显示透明背景）
     const tile_size = 12;
     const parten_size = tile_size * 2;
@@ -83,21 +88,35 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 循环并处理 SDL 事件
     var running = true;
     var event: c.SDL_Event = undefined;
+    // 累计缩放倍率
+    var factor: f32 = 1.0;
     while (running) {
         if (c.SDL_WaitEvent(&event)) {
             if (isQuitEvent(event, window.has_border)) {
                 running = false;
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT) {
                 window.toggleBorder(); // 切换边框模式
+                // 重建 dst_rect
+                rebuildImageRect(&dst_rect, window, window.image_width, window.image_height);
+            } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and !window.has_border) {
+                // 计算新的缩放率、宽度，并更新窗口大小
+                if (event.wheel.y > 0) factor *= 1.1 else factor /= 1.1;
+                if (factor > 3) factor = 3.0 else if (factor < 1) factor = 1.0;
+                const new_width: usize = @intFromFloat(@as(f32, @floatFromInt(loaded.width)) * factor);
+                const new_height: usize = @intFromFloat(@as(f32, @floatFromInt(loaded.height)) * factor);
+                // 重建 dst_rect
+                rebuildImageRect(&dst_rect, window, new_width, new_height);
+                // 更新窗口对象的图片大小信息
+                window.imageSizeUpdated(new_width, new_height);
             }
         }
-        const alpha: u8 = if (window.has_border) 255 else 0; // 根据边框模式设置背景透明度
-        _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, alpha); // 设置白色背景
+        const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
+        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha); // 设置白色背景
         _ = c.SDL_RenderClear(renderer);
         if (window.has_border) {
             _ = c.SDL_RenderTextureTiled(renderer, checker_texture, null, 1.0, null);
         }
-        _ = c.SDL_RenderTexture(renderer, texture, null, null);
+        _ = c.SDL_RenderTexture(renderer, texture, null, @ptrCast(&dst_rect));
         _ = c.SDL_RenderPresent(renderer);
     }
     c.SDL_DestroyTexture(texture);
@@ -114,4 +133,12 @@ fn isQuitEvent(event: c.SDL_Event, has_border: bool) bool {
         return true;
     }
     return false;
+}
+
+fn rebuildImageRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: usize, new_height: usize) void {
+    const window_width, const window_height = window.currentSize();
+    dst_rect.w = @floatFromInt(new_width);
+    dst_rect.h = @floatFromInt(new_height);
+    dst_rect.x = @floatFromInt((window_width - new_width) / 2);
+    dst_rect.y = @floatFromInt((window_height - new_height) / 2);
 }
