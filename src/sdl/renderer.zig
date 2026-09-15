@@ -100,11 +100,11 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
             if (isQuitEvent(event, window.has_border)) {
                 running = false;
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT) {
-                window.toggleBorder(); // 切换边框模式
-                // 重建 dst_rect
-                updateImageRect(&dst_rect, window, window.image_width, window.image_height);
-                if (window.has_border) {
-                    animating = false;
+                toggleWindowModel(window, &dst_rect, &animating); // 切换窗口模式
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT and !window.has_border) {
+                // 判断点击位置是否在 dst_rect 区域
+                if (!isInRect(event, &dst_rect)) {
+                    toggleWindowModel(window, &dst_rect, &animating); // 切换窗口模式
                 }
             } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and !window.has_border) {
                 // 计算新的缩放率、宽度，并更新窗口大小
@@ -155,6 +155,24 @@ fn isQuitEvent(event: c.SDL_Event, has_border: bool) bool {
         return true;
     }
     return false;
+}
+
+// 判断鼠标位置是否在图片上
+fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
+    const mouse_x = event.button.x;
+    const mouse_y = event.button.y;
+    return mouse_x >= dst_rect.x and mouse_x <= dst_rect.x + dst_rect.w and
+        mouse_y >= dst_rect.y and mouse_y <= dst_rect.y + dst_rect.h;
+}
+
+fn toggleWindowModel(window: *Window, dst_rect: *c.SDL_FRect, animating: *bool) void {
+    // 切换边框模式
+    window.toggleBorder();
+    // 重建 dst_rect
+    updateImageRect(dst_rect, window, window.image_width, window.image_height);
+    if (window.has_border) {
+        animating.* = false;
+    }
 }
 
 fn updateImageRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: usize, new_height: usize) void {
