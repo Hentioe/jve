@@ -117,6 +117,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
             current_scale += (target_scale - current_scale) * 0.002;
             if (c.SDL_fabsf(target_scale - current_scale) < 0.0001) {
                 current_scale = target_scale;
+            }
+            if (current_scale == target_scale) {
                 animating = false;
             }
             std.debug.print("current_scale: {any}, target_scale: {any}, diff: {d}\n", .{ current_scale, target_scale, target_scale - current_scale });
