@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
+const Checkerboard = @import("checkerboard.zig");
 const LoadedImage = @import("../loader.zig").Loaded;
 
 // 注意：以下代码是 SDL3
@@ -18,11 +19,11 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 更新窗口标题
     window.setTitle(loaded.file_name);
     // 创建渲染器
-    const renderer = c.SDL_CreateRenderer(window.sdl_window, null);
+    const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse unreachable;
+    // 计算 pitch
     const pitch: c_int = @intCast(loaded.width * loaded.bands);
-    // 打印 pitch
     std.debug.print("Pitch: {d}\n", .{pitch});
-    // 创建纹理
+    // 创建图片纹理
     const texture = c.SDL_CreateTexture(
         renderer,
         c.SDL_PIXELFORMAT_RGBA32,
@@ -30,63 +31,32 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         @intCast(loaded.width),
         @intCast(loaded.height),
     );
-    // 开启纹理混合模式
-    if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-        helper.printSdlError();
-        return Error.SdlSetTextureBlendModeFailed;
-    }
-    // 上传纹理
-    if (!c.SDL_UpdateTexture(
-        texture,
-        null,
-        loaded.pixels_ptr,
-        pitch,
-    )) {
-        helper.printSdlError();
-        return Error.SdlUpdateTextureFailed;
+    {
+        // 回收已载入图片的内存（代码块离开后执行）
+        defer loaded.deinit();
+        // 开启纹理混合模式
+        if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
+            helper.printSdlError();
+            return Error.SdlSetTextureBlendModeFailed;
+        }
+        // 上传纹理
+        if (!c.SDL_UpdateTexture(
+            texture,
+            null,
+            loaded.pixels_ptr,
+            pitch,
+        )) {
+            helper.printSdlError();
+            return Error.SdlUpdateTextureFailed;
+        }
     }
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
     updateImageRect(&dst_rect, window, loaded.width, loaded.height);
-
     std.debug.print("Destination Rect: x={d}, y={d}, w={d}, h={d}\n", .{ dst_rect.x, dst_rect.y, dst_rect.w, dst_rect.h });
     // 生成棋盘格（显示透明背景）
-    const tile_size = 12;
-    const parten_size = tile_size * 2;
-    const checker_pixels = try allocator.alloc(u8, @intCast(parten_size * parten_size * 4));
-    var y: usize = 0;
-    while (y < parten_size) : (y += 1) {
-        var x: usize = 0;
-        while (x < parten_size) : (x += 1) {
-            const offset = (y * parten_size + x) * 4;
-            const is_white = ((x / tile_size) % 2) == ((y / tile_size) % 2);
-            const color: u8 = if (is_white) 144 else 100;
-            checker_pixels[offset + 0] = color;
-            checker_pixels[offset + 1] = color;
-            checker_pixels[offset + 2] = color;
-            checker_pixels[offset + 3] = 255;
-        }
-    }
-    // 上传棋盘格纹理
-    const checker_texture = c.SDL_CreateTexture(
-        renderer,
-        c.SDL_PIXELFORMAT_RGBA32,
-        c.SDL_TEXTUREACCESS_STATIC,
-        parten_size,
-        parten_size,
-    );
-    if (!c.SDL_UpdateTexture(
-        checker_texture,
-        null,
-        checker_pixels.ptr,
-        parten_size * 4,
-    )) {
-        helper.printSdlError();
-        return Error.SdlUpdateTextureFailed;
-    }
-    // 回收图像内存
-    loaded.deinit();
-    allocator.free(checker_pixels);
+    const checkerboard = try Checkerboard.init(renderer);
+    defer checkerboard.deinit();
     // 循环并处理 SDL 事件
     var running = true;
     var animating = false;
@@ -135,14 +105,11 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
         _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha); // 设置白色背景
         _ = c.SDL_RenderClear(renderer);
-        if (window.has_border) {
-            _ = c.SDL_RenderTextureTiled(renderer, checker_texture, null, 1.0, null);
-        }
+        if (window.has_border) checkerboard.render(); // 边框模式渲染棋盘格
         _ = c.SDL_RenderTexture(renderer, texture, null, @ptrCast(&dst_rect));
         _ = c.SDL_RenderPresent(renderer);
     }
     c.SDL_DestroyTexture(texture);
-    c.SDL_DestroyTexture(checker_texture);
     c.SDL_DestroyRenderer(renderer);
 }
 
