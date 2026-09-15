@@ -12,7 +12,8 @@ renderer: *c.SDL_Renderer,
 texture: *c.SDL_Texture,
 
 pub fn init(renderer: *c.SDL_Renderer) Error!Self {
-    const allocator = std.heap.page_allocator;
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    const allocator = gpa.allocator();
     // 分配像素数据内存
     const checker_pixels = try allocator.alloc(u8, @intCast(parten_size * parten_size * 4));
     defer allocator.free(checker_pixels);

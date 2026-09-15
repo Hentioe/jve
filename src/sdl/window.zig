@@ -69,8 +69,10 @@ pub fn toggleBorder(self: *Self) void {
     _ = c.SDL_SetWindowBordered(self.sdl_window, self.has_border);
 }
 
-pub fn setTitle(self: *Self, title: []const u8) void {
-    _ = c.SDL_SetWindowTitle(self.sdl_window, @ptrCast(title));
+pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
+    const title_z = try std.fmt.allocPrintSentinel(self.allocator, "{s} ({d}x{d})", .{ file_name, self.image_width, self.image_height }, 0);
+    defer self.allocator.free(title_z);
+    _ = c.SDL_SetWindowTitle(self.sdl_window, title_z);
 }
 
 pub fn imageSizeUpdated(self: *Self, new_width: usize, new_height: usize) void {

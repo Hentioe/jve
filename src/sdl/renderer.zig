@@ -17,7 +17,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     );
     defer window.deinit();
     // 更新窗口标题
-    window.setTitle(loaded.file_name);
+    try window.setTitle(loaded.file_name);
     // 创建渲染器
     const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse unreachable;
     // 计算 pitch
@@ -32,8 +32,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         @intCast(loaded.height),
     );
     {
-        // 回收已载入图片的内存（代码块离开后执行）
-        defer loaded.deinit();
+        // 回收已载入图片的像素数据内存（代码块离开后执行）
+        defer loaded.free_pixels();
         // 开启纹理混合模式
         if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
             helper.printSdlError();

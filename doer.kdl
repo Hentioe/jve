@@ -1,6 +1,6 @@
 tasks {
   run "zig build run"
   format "zig fmt ."
-  release "zig build --release=small"
+  release "zig build --release=fast"
   clean "rm -rf .zig-cache/ zig-out/"
 }
