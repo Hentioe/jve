@@ -15,11 +15,11 @@ pub fn main() !void {
         file_path = pos;
     }
     // 载入图像
-    const loaded = try imageviewer.loadImage(allocator, file_path);
+    const loaded = try imageviewer.loader.load(allocator, file_path);
     // 输出基本信息
     std.debug.print("Image width: {}\n", .{loaded.width});
     std.debug.print("Image height: {}\n", .{loaded.height});
     std.debug.print("Image bands: {}\n", .{loaded.bands});
     // 渲染图像
-    try imageviewer.SdlRenderer.render(allocator, loaded);
+    try imageviewer.renderer.render(allocator, loaded);
 }

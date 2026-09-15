@@ -11,6 +11,7 @@ pub const Error = error{
 
 pub const Loaded = struct {
     allocator: std.mem.Allocator,
+    file_name: []const u8,
     width: usize,
     height: usize,
     bands: u32,
@@ -30,7 +31,7 @@ pub const Loaded = struct {
     }
 };
 
-pub fn loadImage(allocator: std.mem.Allocator, path: []const u8) Error!Loaded {
+pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!Loaded {
     if (c.vips_init("zig_image") != 0) {
         printVipsError();
         return Error.VipsInitFailed;
@@ -40,6 +41,8 @@ pub fn loadImage(allocator: std.mem.Allocator, path: []const u8) Error!Loaded {
         printVipsError();
         return Error.VipsImageLoadFailed;
     }
+    // 从 path 中提取文件名
+    const file_name = std.fs.path.basename(path);
     defer c.g_object_unref(in);
     // 获取宽度
     const width = c.vips_image_get_width(in);
@@ -76,6 +79,7 @@ pub fn loadImage(allocator: std.mem.Allocator, path: []const u8) Error!Loaded {
 
     return Loaded{
         .allocator = allocator,
+        .file_name = file_name,
         .width = @intCast(width),
         .height = @intCast(height),
         .bands = @intCast(bands),

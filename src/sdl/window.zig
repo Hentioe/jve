@@ -69,6 +69,10 @@ pub fn toggleBorder(self: *Self) void {
     _ = c.SDL_SetWindowBordered(self.sdl_window, self.has_border);
 }
 
+pub fn setTitle(self: *Self, title: []const u8) void {
+    _ = c.SDL_SetWindowTitle(self.sdl_window, @ptrCast(title));
+}
+
 pub fn imageSizeUpdated(self: *Self, new_width: usize, new_height: usize) void {
     if (new_width != self.image_width and new_height != self.image_height) {
         std.debug.print("new_width: {d}, new_height: {d}\n", .{ new_width, new_height });

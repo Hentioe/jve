@@ -3,7 +3,7 @@ const c = @import("c.zig").c;
 const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
-const LoadedImage = @import("../image_loader.zig").Loaded;
+const LoadedImage = @import("../loader.zig").Loaded;
 
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
@@ -15,6 +15,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         false,
     );
     defer window.deinit();
+    // 更新窗口标题
+    window.setTitle(loaded.file_name);
     // 创建渲染器
     const renderer = c.SDL_CreateRenderer(window.sdl_window, null);
     const pitch: c_int = @intCast(loaded.width * loaded.bands);
