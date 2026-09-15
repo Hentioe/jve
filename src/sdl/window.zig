@@ -1,7 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig").c;
+const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
-const printSdlError = @import("helper.zig").printSdlError;
 
 const Self = @This();
 
@@ -14,7 +14,7 @@ sdl_window: ?*c.SDL_Window = null,
 pub fn init(allocator: std.mem.Allocator, width: usize, height: usize, has_border: bool) Error!*Self {
     // 初始化 SDL
     if (!c.SDL_Init(c.SDL_INIT_VIDEO)) {
-        printSdlError();
+        helper.printSdlError();
         return Error.SdlInitFailed;
     }
     // 创建窗口
@@ -25,7 +25,7 @@ pub fn init(allocator: std.mem.Allocator, width: usize, height: usize, has_borde
         c.SDL_EVENT_WINDOW_SHOWN | c.SDL_WINDOW_BORDERLESS | c.SDL_WINDOW_TRANSPARENT,
     );
     if (sdl_window == null) {
-        printSdlError();
+        helper.printSdlError();
         return Error.SdlInitFailed;
     }
 

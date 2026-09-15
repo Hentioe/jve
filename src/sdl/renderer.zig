@@ -1,10 +1,9 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const LoadedImage = @import("../image_loader.zig").Loaded;
+const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
-const printSdlError = @import("helper.zig").printSdlError;
-
 const Window = @import("window.zig");
+const LoadedImage = @import("../image_loader.zig").Loaded;
 
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
@@ -31,7 +30,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     );
     // 开启纹理混合模式
     if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-        printSdlError();
+        helper.printSdlError();
         return Error.SdlSetTextureBlendModeFailed;
     }
     // 上传纹理
@@ -41,7 +40,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         loaded.pixels_ptr,
         pitch,
     )) {
-        printSdlError();
+        helper.printSdlError();
         return Error.SdlUpdateTextureFailed;
     }
     // 生成棋盘格（显示透明背景）
@@ -75,7 +74,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         checker_pixels.ptr,
         parten_size * 4,
     )) {
-        printSdlError();
+        helper.printSdlError();
         return Error.SdlUpdateTextureFailed;
     }
     // 回收图像内存
