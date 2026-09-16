@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
+const Backend = @import("enums.zig").Backend;
 
 const Self = @This();
 
@@ -13,23 +14,29 @@ display_height: usize,
 has_border: bool,
 sdl_window: ?*c.SDL_Window,
 
-pub fn init(allocator: std.mem.Allocator, image_width: usize, image_height: usize, has_border: bool) Error!*Self {
-    // 初始化 SDL
-    if (!c.SDL_Init(c.SDL_INIT_VIDEO)) {
-        helper.printSdlError();
-        return Error.SdlInitFailed;
-    }
+pub fn create(allocator: std.mem.Allocator, image_width: usize, image_height: usize, has_border: bool, backend: Backend) Error!*Self {
     // 获取主显示器尺寸
     const display_mode = c.SDL_GetCurrentDisplayMode(c.SDL_GetPrimaryDisplay());
     const display_width: usize = @intCast(display_mode.*.w);
     const display_height: usize = @intCast(display_mode.*.h);
-    std.debug.print("Display: width={d}, height={d}\n", .{ display_width, display_height });
+    var init_width = display_width;
+    var init_height = display_height;
     // 创建窗口
+    var flags: u64 = c.SDL_EVENT_WINDOW_SHOWN | c.SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    if (backend == .SdlRenderer) {
+        flags |= c.SDL_WINDOW_TRANSPARENT;
+    }
+    if (has_border) {
+        init_width = image_width;
+        init_height = image_height;
+    } else {
+        flags |= c.SDL_WINDOW_BORDERLESS;
+    }
     const sdl_window = c.SDL_CreateWindow(
         "Image Viewer",
-        @intCast(display_width),
-        @intCast(display_height),
-        c.SDL_EVENT_WINDOW_SHOWN | c.SDL_WINDOW_BORDERLESS | c.SDL_WINDOW_TRANSPARENT,
+        @intCast(init_width),
+        @intCast(init_height),
+        flags,
     );
     if (sdl_window == null) {
         helper.printSdlError();
@@ -55,14 +62,14 @@ pub fn init(allocator: std.mem.Allocator, image_width: usize, image_height: usiz
 
 pub fn toggleBorder(self: *Self) void {
     self.has_border = !self.has_border;
-    var window_width: c_int = @intCast(self.image_width);
-    var window_height: c_int = @intCast(self.image_height);
+    var window_width = self.image_width;
+    var window_height = self.image_height;
     if (!self.has_border) {
-        window_height = @intCast(self.display_height);
-        window_width = @intCast(self.display_width);
+        window_height = self.display_height;
+        window_width = self.display_width;
     }
     // 设置窗口大小
-    _ = c.SDL_SetWindowSize(self.sdl_window, window_width, window_height);
+    _ = c.SDL_SetWindowSize(self.sdl_window, @intCast(window_width), @intCast(window_height));
     // 让窗口居中
     _ = c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED);
     // 显示窗口边框
@@ -83,15 +90,7 @@ pub fn imageSizeUpdated(self: *Self, new_width: usize, new_height: usize) void {
     }
 }
 
-pub fn currentSize(self: *Self) struct { usize, usize } {
-    if (self.has_border) {
-        return .{ self.image_width, self.image_height };
-    } else {
-        return .{ self.display_width, self.display_height };
-    }
-}
-
-pub fn deinit(self: *Self) void {
+pub fn destroy(self: *Self) void {
     c.SDL_DestroyWindow(self.sdl_window);
     c.SDL_Quit();
     self.allocator.destroy(self);

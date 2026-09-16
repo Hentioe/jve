@@ -1,5 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
+const initialization = @import("initialization.zig");
 const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
@@ -8,14 +9,17 @@ const LoadedImage = @import("../loader.zig").Loaded;
 
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
-    // 初始化窗口
-    var window = try Window.init(
+    // 执行初始化
+    try initialization.initialize(.SdlRenderer);
+    // 创建窗口
+    var window = try Window.create(
         allocator,
         loaded.width,
         loaded.height,
         false,
+        .SdlRenderer,
     );
-    defer window.deinit();
+    defer window.destroy();
     // 更新窗口标题
     try window.setTitle(loaded.file_name);
     // 创建渲染器
@@ -143,7 +147,12 @@ fn toggleWindowModel(window: *Window, dst_rect: *c.SDL_FRect, animating: *bool) 
 }
 
 fn updateImageRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: usize, new_height: usize) void {
-    const window_width, const window_height = window.currentSize();
+    var window_width: usize = window.display_width;
+    var window_height: usize = window.display_height;
+    if (window.has_border) {
+        window_width = window.image_width;
+        window_height = window.image_height;
+    }
     dst_rect.w = @floatFromInt(new_width);
     dst_rect.h = @floatFromInt(new_height);
     dst_rect.x = @floatFromInt((window_width - new_width) / 2);
