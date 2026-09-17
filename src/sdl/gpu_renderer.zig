@@ -44,8 +44,9 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         helper.printSdlError();
         return Error.SdlClaimWindowForGPUDeviceFailed;
     }
-    // 创建纹理
-    const texture_desc = c.SDL_GPUTextureCreateInfo{
+    // --- 纹理 (Texture)---
+    // 1. 创建 GPU 纹理
+    const texture_info = c.SDL_GPUTextureCreateInfo{
         .type = c.SDL_GPU_TEXTURETYPE_2D,
         .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 对应常见的 RGBA8888 像素格式
         .usage = c.SDL_GPU_TEXTUREUSAGE_SAMPLER, // 作为采样器供 Pipeline 渲染
@@ -54,28 +55,27 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
-    const gpu_texture = c.SDL_CreateGPUTexture(device, &texture_desc);
-    // 将 CPU 像素数据上传至 GPU 纹理
+    const texture = c.SDL_CreateGPUTexture(device, &texture_info);
+    // 2. 将 CPU 像素数据上传至 GPU
     const image_size: u32 = @intCast(loaded.width * loaded.height * 4); // RGBA8888 字节大小
-    // 创建传输缓冲区 (指定为 UPLOAD 模式，即 CPU -> GPU)
-    const transfer_desc = c.SDL_GPUTransferBufferCreateInfo{
-        .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+    const transfer_info = c.SDL_GPUTransferBufferCreateInfo{
+        .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, // 指定为 UPLOAD 模式，即 CPU -> GPU
         .size = image_size,
     };
-    const transfer_buffer = c.SDL_CreateGPUTransferBuffer(device, &transfer_desc);
-    // 映射内存并直接拷贝你的像素数据指针 (pixels_ptr)
-    const map_ptr = c.SDL_MapGPUTransferBuffer(device, transfer_buffer, false);
-    _ = c.SDL_memcpy(map_ptr, loaded.pixels_ptr, image_size); // 直接使用你的像素数据指针
-    c.SDL_UnmapGPUTransferBuffer(device, transfer_buffer);
+    const txu_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &transfer_info);
+    // 映射内存并拷贝像素数据至传输缓冲区
+    const map_ptr = c.SDL_MapGPUTransferBuffer(device, txu_transfer_buf, false);
+    _ = c.SDL_memcpy(map_ptr, loaded.pixels_ptr, image_size); // 执行复制（像素数据指针作为拷贝源）
+    c.SDL_UnmapGPUTransferBuffer(device, txu_transfer_buf); // 解除映射
     // 创建 Command Buffer 并开启复制 Pass，将传输缓冲区的数据写入纹理
     const txu_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
     const copy_pass = c.SDL_BeginGPUCopyPass(txu_cmd_buf);
     const source = c.SDL_GPUTextureTransferInfo{
-        .transfer_buffer = transfer_buffer,
+        .transfer_buffer = txu_transfer_buf,
         .offset = 0,
     };
     const destination = c.SDL_GPUTextureRegion{
-        .texture = gpu_texture,
+        .texture = texture,
         .w = @intCast(loaded.width),
         .h = @intCast(loaded.height),
         .d = 1,
@@ -84,11 +84,13 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     c.SDL_UploadToGPUTexture(copy_pass, &source, &destination, false);
     c.SDL_EndGPUCopyPass(copy_pass);
     _ = c.SDL_SubmitGPUCommandBuffer(txu_cmd_buf);
-    // 传输完成后即可释放 TransferBuffer（纹理内容已上传至显存）
-    _ = c.SDL_ReleaseGPUTransferBuffer(device, transfer_buffer);
+    // 释放 TransferBuffer（纹理内容已上传至显存）
+    _ = c.SDL_ReleaseGPUTransferBuffer(device, txu_transfer_buf);
+    // 释放像素数据
+    loaded.free_pixels();
 
-    // 创建顶点
-    // 铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
+    // --- 顶点 ---
+    // 1. 创建顶点：铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
     const vertices: [6]Vertex = .{
         // 三角形 1
         .{ .x = -1.0, .y = 1.0, .z = 0.0, .u = 0.0, .v = 0.0 }, // 左上
@@ -101,29 +103,30 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         .{ .x = -1.0, .y = -1.0, .z = 0.0, .u = 0.0, .v = 1.0 }, // 左下
     };
     const vertices_size = @sizeOf(Vertex) * vertices.len;
-    // 将顶点上传到 GPU Vertex Buffer
+    // 2. 将顶点上传到 GPU Buffer
     // 创建 GPU Buffer
-    const buffer_desc = c.SDL_GPUBufferCreateInfo{ .usage = c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = vertices_size };
-    const vertex_buffer = c.SDL_CreateGPUBuffer(device, &buffer_desc);
-    // 通过 TransferBuffer 将内存顶点复制进去
-    const vtx_transfer_desc = c.SDL_GPUTransferBufferCreateInfo{ .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = vertices_size };
-    const vtx_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &vtx_transfer_desc);
-    const vtx_map_ptr = c.SDL_MapGPUTransferBuffer(device, vtx_transfer_buf, false);
-    _ = c.SDL_memcpy(vtx_map_ptr, @ptrCast(&vertices), vertices_size);
-    c.SDL_UnmapGPUTransferBuffer(device, vtx_transfer_buf);
-    // 提交上传指令
-    const vtx_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
-    const vtx_copy_pass = c.SDL_BeginGPUCopyPass(vtx_cmd_buf);
-    const src = c.SDL_GPUTransferBufferLocation{ .transfer_buffer = vtx_transfer_buf, .offset = 0 };
+    const buffer_info = c.SDL_GPUBufferCreateInfo{ .usage = c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = vertices_size };
+    const vertex_buffer = c.SDL_CreateGPUBuffer(device, &buffer_info);
+    // 通过 TransferBuffer 将顶点复制到 GPU Buffer
+    const vert_transfer_info = c.SDL_GPUTransferBufferCreateInfo{ .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = vertices_size };
+    const vert_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &vert_transfer_info);
+    const vert_map_ptr = c.SDL_MapGPUTransferBuffer(device, vert_transfer_buf, false);
+    _ = c.SDL_memcpy(vert_map_ptr, @ptrCast(&vertices), vertices_size);
+    c.SDL_UnmapGPUTransferBuffer(device, vert_transfer_buf);
+    // 3. 提交上传指令
+    const vert_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
+    const vert_copy_pass = c.SDL_BeginGPUCopyPass(vert_cmd_buf);
+    const src = c.SDL_GPUTransferBufferLocation{ .transfer_buffer = vert_transfer_buf, .offset = 0 };
     const dst = c.SDL_GPUBufferRegion{ .buffer = vertex_buffer, .offset = 0, .size = vertices_size };
-    c.SDL_UploadToGPUBuffer(vtx_copy_pass, &src, &dst, false);
-    c.SDL_EndGPUCopyPass(vtx_copy_pass);
-    _ = c.SDL_SubmitGPUCommandBuffer(vtx_cmd_buf);
-    _ = c.SDL_ReleaseGPUTransferBuffer(device, vtx_transfer_buf); // 释放临时传输缓存
+    c.SDL_UploadToGPUBuffer(vert_copy_pass, &src, &dst, false);
+    c.SDL_EndGPUCopyPass(vert_copy_pass);
+    _ = c.SDL_SubmitGPUCommandBuffer(vert_cmd_buf);
+    _ = c.SDL_ReleaseGPUTransferBuffer(device, vert_transfer_buf); // 释放传输缓存
 
-    // 创建纹理采样器 (Sampler)
+    // --- 纹理采样器 (Sampler) ---
+    // 创建采样器
     const sampler_desc = c.SDL_GPUSamplerCreateInfo{
-        .min_filter = c.SDL_GPU_FILTER_LINEAR,
+        .min_filter = c.SDL_GPU_FILTER_LINEAR, // 线性过滤
         .mag_filter = c.SDL_GPU_FILTER_LINEAR,
         .mipmap_mode = c.SDL_GPU_SAMPLERMIPMAPMODE_LINEAR,
         .address_mode_u = c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
@@ -131,19 +134,33 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     };
     const sampler = c.SDL_CreateGPUSampler(device, &sampler_desc);
 
-    // 配置图形管线 (Graphics Pipeline)
-    // 顶点布局：告诉 GPU 顶点数据的结构
+    // --- 图形管线 (Graphics Pipeline) ---
+    // 1. 构造顶点布局
     const vert_attrs: [2]c.SDL_GPUVertexAttribute = .{
         .{ .location = 0, .format = c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = @offsetOf(Vertex, "x") }, // Position
         .{ .location = 1, .format = c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u") }, // UV
     };
-    const vert_buffer_desc: c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
+    // 2. 加载着色器
     const vert_shader = try shader_loader.loadAndCompileHLSL(device, "src/shaders/vert.hlsl", "main", c.SDL_GPU_SHADERSTAGE_VERTEX, 0);
     const frag_shader = try shader_loader.loadAndCompileHLSL(device, "src/shaders/frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1);
-    const color_target_desc: c.SDL_GPUColorTargetDescription = .{ .format = c.SDL_GetGPUSwapchainTextureFormat(device, window.sdl_window) };
-    const pipeline_desc: c.SDL_GPUGraphicsPipelineCreateInfo = .{
-        .vertex_shader = vert_shader, // 你编译好的 Vertex Shader (SPIR-V / DXIL / MSL)
-        .fragment_shader = frag_shader, // 采样 Texture 的 Fragment Shader
+    // 3. 构造管线
+    const vert_buffer_desc: c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
+    const color_target_desc: c.SDL_GPUColorTargetDescription = .{
+        .format = c.SDL_GetGPUSwapchainTextureFormat(device, window.sdl_window),
+        .blend_state = .{ // 启用 Alpha 混合
+            .enable_blend = true,
+            .src_color_blendfactor = c.SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+            .dst_color_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .color_blend_op = c.SDL_GPU_BLENDOP_ADD,
+            .src_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE,
+            .dst_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .alpha_blend_op = c.SDL_GPU_BLENDOP_ADD,
+            .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
+        },
+    };
+    const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
+        .vertex_shader = vert_shader, // 编译好的顶点着色器
+        .fragment_shader = frag_shader, // 编译好的片段着色器
         .vertex_input_state = .{
             .num_vertex_buffers = 1,
             .vertex_buffer_descriptions = &vert_buffer_desc,
@@ -153,7 +170,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
     };
-    const pipeline: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_desc) orelse unreachable;
+    const pipeline: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse unreachable;
 
     // 渲染循环 (Render Pass 绘制)
     var running = true;
@@ -184,7 +201,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                 c.SDL_BindGPUVertexBuffers(render_pass, 0, &vertex_binding, 1);
                 // 绑定之前上传的像素纹理 (gpu_texture) 以及采样器 (sampler)
                 const tex_binding: c.SDL_GPUTextureSamplerBinding = .{
-                    .texture = gpu_texture, // 对应上一步中包含像素数据的 SDL_GPUTexture
+                    .texture = texture,
                     .sampler = sampler,
                 };
                 c.SDL_BindGPUFragmentSamplers(render_pass, 0, &tex_binding, 1);
