@@ -3,6 +3,7 @@ const clap = @import("clap");
 
 const params = clap.parseParamsComptime(
     \\<str>
+    \\-b, --backend <str>
     \\
 );
 

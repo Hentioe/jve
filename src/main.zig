@@ -20,6 +20,16 @@ pub fn main() !void {
     std.debug.print("Image width: {}\n", .{loaded.width});
     std.debug.print("Image height: {}\n", .{loaded.height});
     std.debug.print("Image bands: {}\n", .{loaded.bands});
+    // 读取后端参数
+    const backend: []const u8 = res.args.backend orelse "sdl_renderer";
+    std.debug.print("Backend: {s}\n", .{backend});
     // 渲染图像
-    try imageviewer.renderer.render(allocator, loaded);
+    if (std.mem.eql(u8, backend, "sdl_renderer")) {
+        try imageviewer.renderer.render(allocator, loaded);
+    } else if (std.mem.eql(u8, backend, "sdl_gpu")) {
+        try imageviewer.gpu_renderer.render(allocator, loaded);
+    } else {
+        std.debug.print("Unknown backend: {s}\n", .{backend});
+        return error.UnknownBackend;
+    }
 }
