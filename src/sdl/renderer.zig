@@ -1,6 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const initialization = @import("initialization.zig");
+const initializer = @import("initializer.zig");
 const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
@@ -10,7 +10,7 @@ const LoadedImage = @import("../loader.zig").Loaded;
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 执行初始化
-    try initialization.initialize(.SdlRenderer);
+    try initializer.initialize(.SdlRenderer);
     // 创建窗口
     var window = try Window.create(
         allocator,

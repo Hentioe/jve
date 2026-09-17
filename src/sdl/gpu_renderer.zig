@@ -1,6 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const initialization = @import("initialization.zig");
+const initializer = @import("initializer.zig");
 const shader_loader = @import("shader_loader.zig");
 const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
@@ -19,8 +19,8 @@ const Vertex = struct {
 // 基于 SDL_GPU 渲染图片
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 执行初始化
-    try initialization.initialize(.SdlGpu);
-    // 初始化窗口
+    try initializer.initialize(.SdlGpu);
+    // 创建窗口
     var window = try Window.create(
         allocator,
         loaded.width,
