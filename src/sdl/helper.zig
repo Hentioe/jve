@@ -3,6 +3,6 @@ const c = @import("c.zig").c;
 
 pub fn printSdlError() void {
     const err = c.SDL_GetError();
-    std.debug.print("SDL Error: {s}\n", .{err});
+    std.log.err("SDL Error: {s}", .{err});
     _ = c.SDL_ClearError();
 }

@@ -58,7 +58,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
             helper.printSdlError();
         }
     } else {
-        std.debug.print("IMMEDIATE Present Mode not supported\n", .{});
+        std.log.warn("IMMEDIATE Present Mode not supported", .{});
     }
     // --- 纹理 (Texture)---
     // 1. 创建 GPU 纹理
@@ -104,6 +104,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     _ = c.SDL_ReleaseGPUTransferBuffer(device, txu_transfer_buf);
     // 释放像素数据
     loaded.free_pixels();
+    std.log.debug("Image pixels have been released", .{});
 
     // --- 顶点 ---
     // 1. 创建顶点：铺满屏幕的 6 个顶点（两个三角形组成一个矩形）

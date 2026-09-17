@@ -26,7 +26,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse unreachable;
     // 计算 pitch
     const pitch: c_int = @intCast(loaded.width * loaded.bands);
-    std.debug.print("Pitch: {d}\n", .{pitch});
+    std.log.info("Pitch: {d}", .{pitch});
     // 创建图片纹理
     const texture = c.SDL_CreateTexture(
         renderer,
@@ -57,7 +57,6 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
     updateImageRect(&dst_rect, window, loaded.width, loaded.height);
-    std.debug.print("Destination Rect: x={d}, y={d}, w={d}, h={d}\n", .{ dst_rect.x, dst_rect.y, dst_rect.w, dst_rect.h });
     // 生成棋盘格（显示透明背景）
     const checkerboard = try Checkerboard.init(renderer);
     defer checkerboard.deinit();
@@ -95,7 +94,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
             if (current_scale == target_scale) {
                 animating = false;
             }
-            std.debug.print("current_scale: {any}, target_scale: {any}, diff: {d}\n", .{ current_scale, target_scale, target_scale - current_scale });
+            std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ current_scale, target_scale, target_scale - current_scale });
             const new_width: usize = @intFromFloat(@as(f32, @floatFromInt(loaded.width)) * current_scale);
             const new_height: usize = @intFromFloat(@as(f32, @floatFromInt(loaded.height)) * current_scale);
             updateImageRect(

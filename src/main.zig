@@ -18,19 +18,17 @@ pub fn main() !void {
     // 载入图像
     const loaded = try imageviewer.loader.load(file_path);
     // 输出基本信息
-    std.debug.print("Image width: {}\n", .{loaded.width});
-    std.debug.print("Image height: {}\n", .{loaded.height});
-    std.debug.print("Image bands: {}\n", .{loaded.bands});
+    std.log.info("Image size: {d}x{d}", .{ loaded.width, loaded.height });
     // 读取后端参数
     const backend: []const u8 = res.args.backend orelse "sdl_renderer";
-    std.debug.print("Backend: {s}\n", .{backend});
+    std.log.info("Using backend: {s}", .{backend});
     // 渲染图像
     if (std.mem.eql(u8, backend, "sdl_renderer")) {
         try imageviewer.renderer.render(allocator, loaded);
     } else if (std.mem.eql(u8, backend, "sdl_gpu")) {
         try imageviewer.renderer_gpu.render(allocator, loaded);
     } else {
-        std.debug.print("Unknown backend: {s}\n", .{backend});
+        std.log.err("Unknown backend: {s}", .{backend});
         return error.UnknownBackend;
     }
 }

@@ -92,6 +92,6 @@ pub fn load(path: []const u8) Error!Loaded {
 
 fn printVipsError() void {
     const err = c.vips_error_buffer();
-    std.debug.print("VIPS Error: {s}\n", .{err});
+    std.log.err("VIPS Error: {s}", .{err});
     c.vips_error_clear();
 }

@@ -16,7 +16,8 @@ pub fn loadAndCompileHLSL(
     const allocator = gpa.allocator();
     const file_path = try std.fmt.allocPrint(allocator, "src/shaders/{s}", .{file_name});
     defer allocator.free(file_path);
-    std.debug.print("Shader: {s}\n", .{file_name});
+    // 正在加载着色器
+    std.log.info("Loading shader: {s}", .{file_name});
     var file_size: usize = 0;
     // todo: 处理加载错误
     const hlsl_source = c.SDL_LoadFile(@ptrCast(file_path), &file_size);
