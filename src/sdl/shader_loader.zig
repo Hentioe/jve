@@ -5,15 +5,21 @@ const Error = @import("errors.zig").Error;
 
 pub fn loadAndCompileHLSL(
     device: *c.SDL_GPUDevice,
-    filepath: [*:0]const u8,
+    file_name: [*:0]const u8,
     entrypoint: [*:0]const u8,
     stage: c.SDL_GPUShaderStage,
     num_samplers: u32,
     num_uniform_buffers: u32,
 ) Error!?*c.SDL_GPUShader {
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    const file_path = try std.fmt.allocPrint(allocator, "src/shaders/{s}", .{file_name});
+    defer allocator.free(file_path);
+    std.debug.print("Shader: {s}\n", .{file_name});
     var file_size: usize = 0;
     // todo: 处理加载错误
-    const hlsl_source = c.SDL_LoadFile(filepath, &file_size);
+    const hlsl_source = c.SDL_LoadFile(@ptrCast(file_path), &file_size);
     const hlsl_source_ptr: [*c]const u8 = @ptrCast(hlsl_source);
 
     var hlsl_info = c.SDL_ShaderCross_HLSL_Info{

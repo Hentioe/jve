@@ -5,6 +5,7 @@ const imageviewer = @import("root.zig");
 pub fn main() !void {
     // 内存分配器
     var gpa: std.heap.DebugAllocator(.{}) = .init;
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
     // 解析命令行参数
     const res = try cli.init(allocator);
@@ -27,7 +28,7 @@ pub fn main() !void {
     if (std.mem.eql(u8, backend, "sdl_renderer")) {
         try imageviewer.renderer.render(allocator, loaded);
     } else if (std.mem.eql(u8, backend, "sdl_gpu")) {
-        try imageviewer.gpu_renderer.render(allocator, loaded);
+        try imageviewer.renderer_gpu.render(allocator, loaded);
     } else {
         std.debug.print("Unknown backend: {s}\n", .{backend});
         return error.UnknownBackend;

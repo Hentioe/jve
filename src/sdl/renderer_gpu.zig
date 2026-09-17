@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const initializer = @import("initializer.zig");
 const shader_loader = @import("shader_loader.zig");
+const CheckerboardGpu = @import("checkerboard_gpu.zig");
 const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
@@ -156,8 +157,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         .{ .location = 1, .format = c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u") }, // UV
     };
     // 2. 加载着色器
-    const vert_shader = try shader_loader.loadAndCompileHLSL(device, "src/shaders/vert.hlsl", "main", c.SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
-    const frag_shader = try shader_loader.loadAndCompileHLSL(device, "src/shaders/frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    const vert_shader = try shader_loader.loadAndCompileHLSL(device, "base_vert.hlsl", "main", c.SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
+    const frag_shader = try shader_loader.loadAndCompileHLSL(device, "base_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     // 3. 构造管线
     const vert_buffer_desc: c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
@@ -187,6 +188,9 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     };
     const pipeline: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse unreachable;
 
+    // 构造棋盘格
+    const checkerboard_gpu = try CheckerboardGpu.init(device, window);
+    defer checkerboard_gpu.deinit();
     // 渲染循环 (Render Pass 绘制)
     var running = true;
     var event: c.SDL_Event = undefined;
@@ -204,7 +208,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         const render_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
         if (c.SDL_WaitAndAcquireGPUSwapchainTexture(render_cmd_buf, window.sdl_window, @constCast(&swapchain_texture), null, null)) {
             if (swapchain_texture != null) {
-                // 开启渲染 Pass
+                // 开启 Render Pass
                 const color_target: c.SDL_GPUColorTargetInfo = .{
                     .texture = swapchain_texture,
                     .clear_color = .{ .r = 0.1, .g = 0.1, .b = 0.1, .a = 1.0 }, // 清屏背景色（深灰）
@@ -212,6 +216,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                     .store_op = c.SDL_GPU_STOREOP_STORE,
                 };
                 const render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
+                // 绘制棋盘格作为背景
+                checkerboard_gpu.draw(render_pass);
                 // 绑定图形管线
                 c.SDL_BindGPUGraphicsPipeline(render_pass, pipeline);
                 // 准备要传递的参数
