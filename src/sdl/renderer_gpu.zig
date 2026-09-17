@@ -189,8 +189,34 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     const pipeline: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse unreachable;
 
     // 构造棋盘格
-    const checkerboard_gpu = try CheckerboardGpu.init(device, window);
-    defer checkerboard_gpu.deinit();
+    const checkerboard = try CheckerboardGpu.init(device, window);
+    defer checkerboard.deinit();
+    // 创建离屏渲染纹理
+    const offscreen_texture_info: c.SDL_GPUTextureCreateInfo = .{
+        .type = c.SDL_GPU_TEXTURETYPE_2D,
+        .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 与 Swapchain 格式一致
+        .usage = c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | c.SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        .width = @intCast(loaded.width),
+        .height = @intCast(loaded.height),
+        .layer_count_or_depth = 1,
+        .num_levels = 1,
+    };
+    const offscreen_texture: *c.SDL_GPUTexture = c.SDL_CreateGPUTexture(device, &offscreen_texture_info) orelse unreachable;
+    // 创建后处理管线
+    const post_frag_shader = try shader_loader.loadAndCompileHLSL(device, "post_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
+    const post_pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
+        .vertex_shader = vert_shader, // 编译好的顶点着色器
+        .fragment_shader = post_frag_shader, // 编译好的片段着色器
+        .vertex_input_state = .{
+            .num_vertex_buffers = 1,
+            .vertex_buffer_descriptions = &vert_buffer_desc,
+            .num_vertex_attributes = 2,
+            .vertex_attributes = &vert_attrs,
+        },
+        .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+        .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
+    };
+    const post_pipeline: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &post_pipeline_info) orelse unreachable;
     // 渲染循环 (Render Pass 绘制)
     var running = true;
     var event: c.SDL_Event = undefined;
@@ -203,45 +229,66 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                 need_invert = !need_invert;
             }
         }
-        // 获取当前帧的 CommandBuffer 和 交换链 Swapchain 纹理 (即屏幕画面)
-        var swapchain_texture: ?*c.SDL_GPUTexture = null;
+        // 获取当前帧的 Command Buffer
         const render_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
+        // 开启 Render Pass
+        const color_target: c.SDL_GPUColorTargetInfo = .{
+            .texture = offscreen_texture,
+            .clear_color = .{ .r = 0, .g = 0, .b = 0, .a = 0 }, // 清屏背景色（透明）
+            .load_op = c.SDL_GPU_LOADOP_CLEAR,
+            .store_op = c.SDL_GPU_STOREOP_STORE,
+        };
+        const render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
+        // 绑定图形管线
+        c.SDL_BindGPUGraphicsPipeline(render_pass, pipeline);
+        // 准备要传递的参数
+        const invert: i32 = if (need_invert) 1 else 0;
+        const uniforms: FragUniforms = .{ .invert = invert };
+        // 将参数推送到片段着色器 (Fragment Shader) 的 slot 0 槽位
+        c.SDL_PushGPUFragmentUniformData(render_cmd_buf, // 当前命令缓冲区
+            0, // 着色器中的 slot 索引（对应 register b0）
+            &uniforms, // 数据指针
+            @sizeOf(FragUniforms) // 数据字节大小
+        );
+        // 绑定顶点缓冲区
+        const vertex_binding: c.SDL_GPUBufferBinding = .{ .buffer = vertex_buffer, .offset = 0 };
+        c.SDL_BindGPUVertexBuffers(render_pass, 0, &vertex_binding, 1);
+        // 绑定之前上传的像素纹理 (gpu_texture) 以及采样器 (sampler)
+        const tex_binding: c.SDL_GPUTextureSamplerBinding = .{
+            .texture = texture,
+            .sampler = sampler,
+        };
+        c.SDL_BindGPUFragmentSamplers(render_pass, 0, &tex_binding, 1);
+        // 绘制矩形 (绘制 6 个顶点 = 2 个三角形)
+        c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
+        // 结束 Pass
+        c.SDL_EndGPURenderPass(render_pass);
+
+        // 获取当前帧的 Swapchain 纹理
+        var swapchain_texture: ?*c.SDL_GPUTexture = null;
         if (c.SDL_WaitAndAcquireGPUSwapchainTexture(render_cmd_buf, window.sdl_window, @constCast(&swapchain_texture), null, null)) {
             if (swapchain_texture != null) {
-                // 开启 Render Pass
-                const color_target: c.SDL_GPUColorTargetInfo = .{
+                const post_color_target: c.SDL_GPUColorTargetInfo = .{
                     .texture = swapchain_texture,
-                    .clear_color = .{ .r = 0.1, .g = 0.1, .b = 0.1, .a = 1.0 }, // 清屏背景色（深灰）
                     .load_op = c.SDL_GPU_LOADOP_CLEAR,
                     .store_op = c.SDL_GPU_STOREOP_STORE,
+                    .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
                 };
-                const render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
+                const post_render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &post_color_target, 1, null);
                 // 绘制棋盘格作为背景
-                checkerboard_gpu.draw(render_pass);
-                // 绑定图形管线
-                c.SDL_BindGPUGraphicsPipeline(render_pass, pipeline);
-                // 准备要传递的参数
-                const invert: i32 = if (need_invert) 1 else 0;
-                const uniforms: FragUniforms = .{ .invert = invert };
-                // 将参数推送到片段着色器 (Fragment Shader) 的 slot 0 槽位
-                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, // 当前命令缓冲区
-                    0, // 着色器中的 slot 索引（对应 register b0）
-                    &uniforms, // 数据指针
-                    @sizeOf(FragUniforms) // 数据字节大小
-                );
+                checkerboard.draw(post_render_pass);
                 // 绑定顶点缓冲区
-                const vertex_binding: c.SDL_GPUBufferBinding = .{ .buffer = vertex_buffer, .offset = 0 };
-                c.SDL_BindGPUVertexBuffers(render_pass, 0, &vertex_binding, 1);
-                // 绑定之前上传的像素纹理 (gpu_texture) 以及采样器 (sampler)
-                const tex_binding: c.SDL_GPUTextureSamplerBinding = .{
-                    .texture = texture,
+                c.SDL_BindGPUVertexBuffers(post_render_pass, 0, &vertex_binding, 1);
+                // 绑定后处理管线
+                c.SDL_BindGPUGraphicsPipeline(post_render_pass, post_pipeline);
+                const post_binding: c.SDL_GPUTextureSamplerBinding = .{
+                    .texture = offscreen_texture, // 渲染好的离屏纹理作为输入传给后着色器
                     .sampler = sampler,
                 };
-                c.SDL_BindGPUFragmentSamplers(render_pass, 0, &tex_binding, 1);
-                // 绘制矩形 (绘制 6 个顶点 = 2 个三角形)
-                c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
-                // 结束 Pass
-                c.SDL_EndGPURenderPass(render_pass);
+                c.SDL_BindGPUFragmentSamplers(post_render_pass, 0, &post_binding, 1);
+
+                c.SDL_DrawGPUPrimitives(post_render_pass, 6, 1, 0, 0);
+                c.SDL_EndGPURenderPass(post_render_pass);
             }
         }
         // 提交绘制命令，渲染到屏幕
