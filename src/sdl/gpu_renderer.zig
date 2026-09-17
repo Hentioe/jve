@@ -16,6 +16,11 @@ const Vertex = struct {
     v: f32,
 };
 
+const FragUniforms = extern struct {
+    invert: i32,
+    padding: [3]f32 = .{ 0.0, 0.0, 0.0 },
+};
+
 // 基于 SDL_GPU 渲染图片
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 执行初始化
@@ -141,8 +146,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         .{ .location = 1, .format = c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u") }, // UV
     };
     // 2. 加载着色器
-    const vert_shader = try shader_loader.loadAndCompileHLSL(device, "src/shaders/vert.hlsl", "main", c.SDL_GPU_SHADERSTAGE_VERTEX, 0);
-    const frag_shader = try shader_loader.loadAndCompileHLSL(device, "src/shaders/frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1);
+    const vert_shader = try shader_loader.loadAndCompileHLSL(device, "src/shaders/vert.hlsl", "main", c.SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
+    const frag_shader = try shader_loader.loadAndCompileHLSL(device, "src/shaders/frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     // 3. 构造管线
     const vert_buffer_desc: c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
@@ -175,10 +180,13 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 渲染循环 (Render Pass 绘制)
     var running = true;
     var event: c.SDL_Event = undefined;
+    var need_invert = false;
     while (running) {
-        if (c.SDL_WaitEvent(&event)) {
+        while (c.SDL_PollEvent(&event)) {
             if (event.type == c.SDL_EVENT_QUIT) {
                 running = false;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R) { // R 键反转颜色
+                need_invert = !need_invert;
             }
         }
         // 获取当前帧的 CommandBuffer 和 交换链 Swapchain 纹理 (即屏幕画面)
@@ -196,6 +204,15 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                 const render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
                 // 绑定图形管线
                 c.SDL_BindGPUGraphicsPipeline(render_pass, pipeline);
+                // 准备要传递的参数
+                const invert: i32 = if (need_invert) 1 else 0;
+                const uniforms: FragUniforms = .{ .invert = invert };
+                // 将参数推送到片段着色器 (Fragment Shader) 的 slot 0 槽位
+                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, // 当前命令缓冲区
+                    0, // 着色器中的 slot 索引（对应 register b0）
+                    &uniforms, // 数据指针
+                    @sizeOf(FragUniforms) // 数据字节大小
+                );
                 // 绑定顶点缓冲区
                 const vertex_binding: c.SDL_GPUBufferBinding = .{ .buffer = vertex_buffer, .offset = 0 };
                 c.SDL_BindGPUVertexBuffers(render_pass, 0, &vertex_binding, 1);

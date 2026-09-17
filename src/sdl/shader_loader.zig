@@ -9,6 +9,7 @@ pub fn loadAndCompileHLSL(
     entrypoint: [*:0]const u8,
     stage: c.SDL_GPUShaderStage,
     num_samplers: u32,
+    num_uniform_buffers: u32,
 ) Error!?*c.SDL_GPUShader {
     var file_size: usize = 0;
     // todo: 处理加载错误
@@ -42,12 +43,12 @@ pub fn loadAndCompileHLSL(
     const shader = c.SDL_ShaderCross_CompileGraphicsShaderFromSPIRV(
         device,
         &spirv_info,
-        &.{ .num_samplers = num_samplers },
+        &.{ .num_samplers = num_samplers, .num_uniform_buffers = num_uniform_buffers },
         0,
     );
     if (shader == null) {
         helper.printSdlError();
-        return error.SdlCompileShaderFailed;
+        return Error.SdlCompileShaderFailed;
     }
     c.SDL_free(spirv_bytes);
     return shader;
