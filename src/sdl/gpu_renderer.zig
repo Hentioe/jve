@@ -45,9 +45,19 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         helper.printSdlError();
         return Error.SdlCreateGPUDeviceFailed;
     };
+    // 绑定窗口到 GPU 设备
     if (!c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window)) {
         helper.printSdlError();
         return Error.SdlClaimWindowForGPUDeviceFailed;
+    }
+    // 关闭垂直同步（修改交换链的 Present Mode）
+    // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
+    if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
+        if (!c.SDL_SetGPUSwapchainParameters(device, window.sdl_window, c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
+            helper.printSdlError();
+        }
+    } else {
+        std.debug.print("IMMEDIATE Present Mode not supported\n", .{});
     }
     // --- 纹理 (Texture)---
     // 1. 创建 GPU 纹理
@@ -182,7 +192,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     var event: c.SDL_Event = undefined;
     var need_invert = false;
     while (running) {
-        while (c.SDL_PollEvent(&event)) {
+        if (c.SDL_WaitEvent(&event)) {
             if (event.type == c.SDL_EVENT_QUIT) {
                 running = false;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R) { // R 键反转颜色
