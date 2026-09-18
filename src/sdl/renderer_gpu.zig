@@ -21,9 +21,13 @@ const Vertex = struct {
 };
 
 // 基础片段着色器 Uniforms
-const FragUniforms = extern struct {
-    invert: i32,
-    padding: [3]f32 = .{ 0.0, 0.0, 0.0 },
+const BaseUniforms = extern struct {
+    invert: f32, // 0.0 ~ 1.0
+    grayscale: f32, // 0.0 为全彩，1.0 为完全灰阶（0.5 为半去色）
+    brightness: f32, // 0.0 为正常，正数为增亮，负数为变暗
+    contrast: f32, // 1.0 为正常，>1.0 增加对比度
+    gamma: f32, // 1.0 为正常
+    padding: [3]f32 = .{ 0.0, 0.0, 0.0 }, // 补齐 16 字节对齐 (5 * 4 = 20 字节，加 12 字节凑齐 32 字节)
 };
 
 // 锐化效果的片段着色器 Uniforms
@@ -143,6 +147,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 创建 GPU Buffer
     const verts_buffer_info = c.SDL_GPUBufferCreateInfo{ .usage = c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
     const verts_buffer = c.SDL_CreateGPUBuffer(device, &verts_buffer_info);
+    const verts_binding: c.SDL_GPUBufferBinding = .{ .buffer = verts_buffer, .offset = 0 }; // 顶点绑定
     // 通过 TransferBuffer 将顶点复制到 GPU Buffer
     const verts_transfer_info = c.SDL_GPUTransferBufferCreateInfo{ .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = verts_size };
     const verts_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &verts_transfer_info);
@@ -169,6 +174,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         .address_mode_v = c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
     };
     const sampler = c.SDL_CreateGPUSampler(device, &sampler_desc);
+    // 创建纹理采样器绑定
+    const tex_binding: c.SDL_GPUTextureSamplerBinding = .{ .texture = texture, .sampler = sampler };
 
     // --- 图形管线 (Graphics Pipeline) ---
     // 1. 构造顶点布局
@@ -244,34 +251,49 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     const pipelines = [_]*PostPipeline{ &sharpen, &blur_x, &blur_y };
 
     // --- 渲染循环 (Render Pass 绘制) ---
-    const texel_size_w = 1.0 / @as(f32, @floatFromInt(loaded.width)); // 模糊着色器需要
-    const texel_size_h = 1.0 / @as(f32, @floatFromInt(loaded.height));
-    const hor_float2 = .{ 1.0, 0.0 }; // 横方向
-    const ver_float2 = .{ 0.0, 1.0 };
     var running = true;
     var event: c.SDL_Event = undefined;
-    var need_invert = false;
-    var horizontal_adjusting = false; // 是否在横向调节
-    var horizontal_value: f32 = 0; // 横向调节的值
-    const horizontal_sensitivity = 100; // 横向调节灵敏度
+    // 一些常量
+    const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
+    // 模糊着色器参数
+    const texel_size_w = 1.0 / @as(f32, @floatFromInt(loaded.width));
+    const texel_size_h = 1.0 / @as(f32, @floatFromInt(loaded.height));
+    const hor_float2 = .{ 1.0, 0.0 }; // 横方向
+    const ver_float2 = .{ 0.0, 1.0 }; // 纵方向
+    // 基础着色器控制变量
+    var is_inverted = false; // 是否反转颜色
+    var is_grayscale = false; // 是否灰阶化
+    var brightness: f32 = 0; // 亮度调整值（暂未实现）
+    var contrast: f32 = 1; // 对比度调整值（暂未实现）
+    var gamma: f32 = 1; // Gamma 校正值（暂未实现）
+    // 横向调节控制变量
+    var hor_adjusting = false; // 是否正在横向调节
+    var hor_value: f32 = 0; // 横向调节的值
+    const hor_sensitivity = 100; // 横向调节灵敏度
     while (running) {
         if (c.SDL_WaitEvent(&event)) {
             if (event.type == c.SDL_EVENT_QUIT) {
                 running = false;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
-                need_invert = false;
-                horizontal_value = 0;
+                is_inverted = false;
+                is_grayscale = false;
+                brightness = 0;
+                contrast = 1;
+                gamma = 1;
+                hor_value = 0;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R) { // R 键反转颜色
-                need_invert = !need_invert;
+                is_inverted = !is_inverted;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
+                is_grayscale = !is_grayscale;
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) {
-                horizontal_adjusting = true;
+                hor_adjusting = true;
                 std.log.debug("Mouse wheel event down: {}", .{event.button.button});
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_MIDDLE) {
-                horizontal_adjusting = false;
+                hor_adjusting = false;
                 std.log.debug("Mouse wheel event up: {}", .{event.button.button});
-            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and horizontal_adjusting) {
-                horizontal_value += event.motion.xrel / horizontal_sensitivity;
-                std.log.debug("Horizontal value updated: {}", .{horizontal_value});
+            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and hor_adjusting) {
+                hor_value += event.motion.xrel / hor_sensitivity;
+                std.log.debug("Horizontal value updated: {}", .{hor_value});
             }
         }
         // 获取当前帧的 Command Buffer
@@ -281,29 +303,29 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
             .texture = tex_src,
             .load_op = c.SDL_GPU_LOADOP_CLEAR,
             .store_op = c.SDL_GPU_STOREOP_STORE,
-            .clear_color = .{ .r = 0, .g = 0, .b = 0, .a = 0 },
+            .clear_color = color_transparent,
         };
         const render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &base_color_target, 1, null);
         // 绑定图形管线
         c.SDL_BindGPUGraphicsPipeline(render_pass, base_pipeline);
+        // 绑定顶点缓冲区
+        c.SDL_BindGPUVertexBuffers(render_pass, 0, &verts_binding, 1);
+        // 绑定图像的像素纹理以及采样器
+        c.SDL_BindGPUFragmentSamplers(render_pass, 0, &tex_binding, 1);
         // 准备要传递的参数
-        const invert: i32 = if (need_invert) 1 else 0;
-        const uniforms: FragUniforms = .{ .invert = invert };
+        const uniforms: BaseUniforms = .{
+            .invert = if (is_inverted) 1.0 else 0.0,
+            .brightness = brightness,
+            .contrast = contrast,
+            .gamma = gamma,
+            .grayscale = if (is_grayscale) 1.0 else 0.0,
+        };
         // 将参数推送到片段着色器 (Fragment Shader) 的 slot 0 槽位
         c.SDL_PushGPUFragmentUniformData(render_cmd_buf, // 当前命令缓冲区
             0, // 着色器中的 slot 索引（对应 register b0）
             &uniforms, // 数据指针
-            @sizeOf(FragUniforms) // 数据字节大小
+            @sizeOf(BaseUniforms) // 数据字节大小
         );
-        // 绑定顶点缓冲区
-        const vertex_binding: c.SDL_GPUBufferBinding = .{ .buffer = verts_buffer, .offset = 0 };
-        c.SDL_BindGPUVertexBuffers(render_pass, 0, &vertex_binding, 1);
-        // 绑定之前上传的像素纹理 (gpu_texture) 以及采样器 (sampler)
-        const tex_binding: c.SDL_GPUTextureSamplerBinding = .{
-            .texture = texture,
-            .sampler = sampler,
-        };
-        c.SDL_BindGPUFragmentSamplers(render_pass, 0, &tex_binding, 1);
         // 绘制矩形 (绘制 6 个顶点 = 2 个三角形)
         c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
         // 结束 Pass
@@ -312,21 +334,21 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         // 后处理管线
         for (pipelines) |pipeline| {
             // 是否进入管线
-            if (pipeline.effect_type == .Sharpen and horizontal_value <= 0) continue;
-            if ((pipeline.effect_type == .BlurX or pipeline.effect_type == .BlurY) and horizontal_value >= 0) continue;
+            if (pipeline.effect_type == .Sharpen and hor_value <= 0) continue;
+            if ((pipeline.effect_type == .BlurX or pipeline.effect_type == .BlurY) and hor_value >= 0) continue;
             // 绑定管线
-            pipeline.bind(tex_dst, tex_src, sampler, render_cmd_buf, &vertex_binding);
+            pipeline.bind(tex_dst, tex_src, sampler, render_cmd_buf, &verts_binding);
             if (pipeline.effect_type == .Sharpen) {
                 // 传递锐化参数
                 const sharpen_uniforms: SharpenUniforms = .{
-                    .strength = horizontal_value,
+                    .strength = hor_value,
                     .textureSize = .{ @floatFromInt(loaded.width), @floatFromInt(loaded.height) },
                 };
                 c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &sharpen_uniforms, @sizeOf(SharpenUniforms));
             } else if (pipeline.effect_type == .BlurX or pipeline.effect_type == .BlurY) {
                 // 传递模糊参数
                 const blur_uniforms: BlurParams = .{
-                    .blurIntensity = -horizontal_value,
+                    .blurIntensity = -hor_value, // 从负数转换而来
                     .texelSize = .{ texel_size_w, texel_size_h },
                     .direction = if (pipeline.effect_type == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
                 };
