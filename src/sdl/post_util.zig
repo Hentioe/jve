@@ -22,6 +22,6 @@ pub fn createPipeline(
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = color_target_desc },
     };
     return c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse {
-        return Error.CreateGPUGraphicsPipelineFailed;
+        return Error.SdlCreateGPUGraphicsPipelineFailed;
     };
 }

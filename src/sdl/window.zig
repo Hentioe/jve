@@ -12,7 +12,7 @@ image_height: usize,
 display_width: usize,
 display_height: usize,
 has_border: bool,
-sdl_window: ?*c.SDL_Window,
+sdl_window: ?*c.SDL_Window, // todo: 重构为非可选类型
 
 pub fn create(allocator: std.mem.Allocator, image_width: usize, image_height: usize, has_border: bool, backend: Backend) Error!*Self {
     // 获取主显示器尺寸
@@ -39,7 +39,7 @@ pub fn create(allocator: std.mem.Allocator, image_width: usize, image_height: us
         flags,
     );
     if (sdl_window == null) {
-        helper.printSdlError();
+        helper.printError();
         return Error.SdlInitFailed;
     }
     const self_ptr = try allocator.create(Self);

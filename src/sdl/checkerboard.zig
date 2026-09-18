@@ -45,7 +45,7 @@ pub fn init(renderer: *c.SDL_Renderer) Error!Self {
         checker_pixels.ptr,
         parten_size * 4,
     )) {
-        helper.printSdlError();
+        helper.printError();
         return Error.SdlUpdateTextureFailed;
     }
 

@@ -8,6 +8,7 @@ const writer = @import("../root.zig").writer;
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const LoadedImage = @import("../root.zig").loader.Image;
+const TextEngine = @import("text_engine_gpu.zig");
 const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
@@ -68,23 +69,36 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
         false,
         null,
     ) orelse {
-        helper.printSdlError();
+        helper.printError();
         return Error.SdlCreateGPUDeviceFailed;
     };
     // 绑定窗口到 GPU 设备
     if (!c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window)) {
-        helper.printSdlError();
+        helper.printError();
         return Error.SdlClaimWindowForGPUDeviceFailed;
     }
     // 关闭垂直同步（修改交换链的 Present Mode）
     // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
     if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
         if (!c.SDL_SetGPUSwapchainParameters(device, window.sdl_window, c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-            helper.printSdlError();
+            helper.printError();
         }
     } else {
         std.log.warn("IMMEDIATE Present Mode not supported", .{});
     }
+    // 初始化文本引擎与字体
+    const text_engine = try TextEngine.init(
+        device,
+        window.sdl_window,
+        "/nix/store/wi8qvgc6dhkbpqy50x80xqa9nfiwm16d-noto-fonts-cjk-sans-2.004/share/fonts/opentype/noto-cjk/NotoSansCJK-VF.otf.ttc",
+    );
+    defer text_engine.deinit();
+
+    // 创建可复用的文本对象并设置颜色
+    const text_texture = try text_engine.createTextTexture("Hello", .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+    // 创建文本渲染管线
+    const text_pipeline = try text_engine.createPipeline();
+
     // --- 纹理 (Texture)---
     // 1. 创建 GPU 纹理
     const texture_info = c.SDL_GPUTextureCreateInfo{
@@ -254,6 +268,8 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     // --- 渲染循环 (Render Pass 绘制) ---
     var running = true;
     var event: c.SDL_Event = undefined;
+    var sw: u32 = 0;
+    var sh: u32 = 0;
     // 一些常量
     const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
     // 一些功能控制
@@ -370,7 +386,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
 
         // 获取当前帧的 Swapchain 纹理
         var swapchain_texture: ?*c.SDL_GPUTexture = null;
-        if (c.SDL_WaitAndAcquireGPUSwapchainTexture(render_cmd_buf, window.sdl_window, @constCast(&swapchain_texture), null, null)) {
+        if (c.SDL_WaitAndAcquireGPUSwapchainTexture(render_cmd_buf, window.sdl_window, @constCast(&swapchain_texture), &sw, &sh)) {
             if (swapchain_texture != null) {
                 // 用 SDL_GPUBlitInfo 直接将 tex_src 贴到屏幕，更加高效但无法渲染棋盘格
                 {
@@ -396,6 +412,22 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
                 checkerboard.drawByPass(passthrough.render_pass);
                 // 渲染到屏幕
                 passthrough.endRenderPass(tex_src, sampler);
+                // 绘制文字
+                c.SDL_BindGPUGraphicsPipeline(passthrough.render_pass, text_pipeline);
+                text_engine.drawText(
+                    render_cmd_buf,
+                    passthrough.render_pass,
+                    &text_texture,
+                    0,
+                    @intCast(@as(i32, @intCast(image.height)) - text_texture.height),
+                    1.0,
+                    sw,
+                    sh,
+                    1.0,
+                ) catch |err| {
+                    std.log.err("Failed to draw text: {}", .{err});
+                };
+
                 // 处理截图
                 if (save_screenshot) {
                     // 1. 创建用于接收像素的下载缓冲区

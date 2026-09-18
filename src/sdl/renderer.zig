@@ -40,7 +40,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
         defer image.free_pixels();
         // 开启纹理混合模式
         if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-            helper.printSdlError();
+            helper.printError();
             return Error.SdlSetTextureBlendModeFailed;
         }
         // 上传纹理
@@ -50,7 +50,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
             image.pixels_ptr,
             pitch,
         )) {
-            helper.printSdlError();
+            helper.printError();
             return Error.SdlUpdateTextureFailed;
         }
     }

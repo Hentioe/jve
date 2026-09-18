@@ -94,6 +94,8 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("glib-2.0");
     // 链接 SDL3_shadercross
     exe.linkSystemLibrary("SDL3_shadercross");
+    // 链接 SDL3_ttf
+    exe.linkSystemLibrary("SDL3_ttf");
 
     const sdl_dep = b.dependency("sdl", .{
         .target = target,
