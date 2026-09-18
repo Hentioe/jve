@@ -48,20 +48,20 @@ const BlurParams = extern struct {
 };
 
 // 基于 SDL_GPU 渲染图片
-pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
+pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     // 执行初始化
     try initializer.initialize(.SdlGpu);
     // 创建窗口
     var window = try Window.create(
         allocator,
-        loaded.width,
-        loaded.height,
+        image.width,
+        image.height,
         true,
         .SdlGpu,
     );
     defer window.destroy();
     // 更新窗口标题
-    try window.setTitle(loaded.file_name);
+    try window.setTitle(image.file_name);
     // 创建 GPU 设备
     const device = c.SDL_CreateGPUDevice(
         c.SDL_GPU_SHADERFORMAT_SPIRV | c.SDL_GPU_SHADERFORMAT_DXIL | c.SDL_GPU_SHADERFORMAT_MSL,
@@ -91,14 +91,14 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         .type = c.SDL_GPU_TEXTURETYPE_2D,
         .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 对应常见的 RGBA8888 像素格式
         .usage = c.SDL_GPU_TEXTUREUSAGE_SAMPLER, // 作为采样器供 Pipeline 渲染
-        .width = @intCast(loaded.width),
-        .height = @intCast(loaded.height),
+        .width = @intCast(image.width),
+        .height = @intCast(image.height),
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
     const texture = c.SDL_CreateGPUTexture(device, &texture_info);
     // 2. 将 CPU 像素数据上传至 GPU
-    const image_size: u32 = @intCast(loaded.width * loaded.height * 4); // RGBA8888 字节大小
+    const image_size: u32 = @intCast(image.width * image.height * 4); // RGBA8888 字节大小
     const transfer_info = c.SDL_GPUTransferBufferCreateInfo{
         .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, // 指定为 UPLOAD 模式，即 CPU -> GPU
         .size = image_size,
@@ -106,7 +106,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     const txu_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &transfer_info);
     // 映射内存并拷贝像素数据至传输缓冲区
     const map_ptr = c.SDL_MapGPUTransferBuffer(device, txu_transfer_buf, false);
-    _ = c.SDL_memcpy(map_ptr, loaded.pixels_ptr, image_size); // 执行复制（像素数据指针作为拷贝源）
+    _ = c.SDL_memcpy(map_ptr, image.pixels_ptr, image_size); // 执行复制（像素数据指针作为拷贝源）
     c.SDL_UnmapGPUTransferBuffer(device, txu_transfer_buf); // 解除映射
     // 创建 Command Buffer 并开启复制 Pass，将传输缓冲区的数据写入纹理
     const txu_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
@@ -117,8 +117,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     };
     const destination = c.SDL_GPUTextureRegion{
         .texture = texture,
-        .w = @intCast(loaded.width),
-        .h = @intCast(loaded.height),
+        .w = @intCast(image.width),
+        .h = @intCast(image.height),
         .d = 1,
     };
     // 提交上传命令
@@ -128,8 +128,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 释放 TransferBuffer（纹理内容已上传至显存）
     _ = c.SDL_ReleaseGPUTransferBuffer(device, txu_transfer_buf);
     // 释放像素数据
-    loaded.free_pixels();
-    std.log.debug("Image pixels have been released", .{});
+    image.free_pixels();
+    std.log.debug("Image pixel data has been released", .{});
 
     // --- 顶点 (Vertex) ---
     // 1. 创建顶点：铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
@@ -230,8 +230,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         .type = c.SDL_GPU_TEXTURETYPE_2D,
         .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 与 Swapchain 格式一致
         .usage = c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | c.SDL_GPU_TEXTUREUSAGE_SAMPLER,
-        .width = @intCast(loaded.width),
-        .height = @intCast(loaded.height),
+        .width = @intCast(image.width),
+        .height = @intCast(image.height),
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
@@ -259,8 +259,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 一些功能控制
     var save_screenshot = false; // 是否保存截图
     // 模糊着色器参数
-    const texel_size_w = 1.0 / @as(f32, @floatFromInt(loaded.width));
-    const texel_size_h = 1.0 / @as(f32, @floatFromInt(loaded.height));
+    const texel_size_w = 1.0 / @as(f32, @floatFromInt(image.width));
+    const texel_size_h = 1.0 / @as(f32, @floatFromInt(image.height));
     const hor_float2 = .{ 1.0, 0.0 }; // 横方向
     const ver_float2 = .{ 0.0, 1.0 }; // 纵方向
     // 基础着色器控制变量
@@ -347,7 +347,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                 // 传递锐化参数
                 const sharpen_uniforms: SharpenUniforms = .{
                     .strength = hor_value,
-                    .textureSize = .{ @floatFromInt(loaded.width), @floatFromInt(loaded.height) },
+                    .textureSize = .{ @floatFromInt(image.width), @floatFromInt(image.height) },
                 };
                 c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &sharpen_uniforms, @sizeOf(SharpenUniforms));
             } else if (pipeline.effect_type == .BlurX or pipeline.effect_type == .BlurY) {
@@ -377,13 +377,13 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                     // const blit_info: c.SDL_GPUBlitInfo = .{
                     //     .source = .{
                     //         .texture = tex_src,
-                    //         .w = @intCast(loaded.width),
-                    //         .h = @intCast(loaded.height),
+                    //         .w = @intCast(image.width),
+                    //         .h = @intCast(image.height),
                     //     },
                     //     .destination = .{
                     //         .texture = swapchain_texture,
-                    //         .w = @intCast(loaded.width),
-                    //         .h = @intCast(loaded.height),
+                    //         .w = @intCast(image.width),
+                    //         .h = @intCast(image.height),
                     //     },
                     //     .load_op = c.SDL_GPU_LOADOP_CLEAR,
                     //     .filter = c.SDL_GPU_FILTER_NEAREST,
@@ -399,7 +399,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                 // 处理截图
                 if (save_screenshot) {
                     // 1. 创建用于接收像素的下载缓冲区
-                    const buffer_size: u32 = @intCast(loaded.width * loaded.height * 4); // 以 32 位 RGBA 为例
+                    const buffer_size: u32 = @intCast(image.width * image.height * 4); // 以 32 位 RGBA 为例
                     const tb_create_info: c.SDL_GPUTransferBufferCreateInfo = .{
                         .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD,
                         .size = buffer_size,
@@ -410,15 +410,15 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                     const download_pass = c.SDL_BeginGPUCopyPass(cmd_buf);
                     const src_region: c.SDL_GPUTextureRegion = .{
                         .texture = tex_src, // 管线渲染/处理后的输出纹理
-                        .w = @intCast(loaded.width),
-                        .h = @intCast(loaded.height),
+                        .w = @intCast(image.width),
+                        .h = @intCast(image.height),
                         .d = 1,
                     };
                     const dst_transfer: c.SDL_GPUTextureTransferInfo = .{
                         .transfer_buffer = download_buffer,
                         .offset = 0,
-                        .pixels_per_row = @intCast(loaded.width),
-                        .rows_per_layer = @intCast(loaded.height),
+                        .pixels_per_row = @intCast(image.width),
+                        .rows_per_layer = @intCast(image.height),
                     };
                     // 执行下载拷贝
                     c.SDL_DownloadFromGPUTexture(download_pass, &src_region, &dst_transfer);
@@ -434,8 +434,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                     // 执行写入
                     if (writer.saveRawPixels(
                         pixels_ptr,
-                        loaded.width,
-                        loaded.height,
+                        image.width,
+                        image.height,
                         4,
                         "imageviewer-screenshot.png", // todo: 输出名基于原文件名
                     )) {

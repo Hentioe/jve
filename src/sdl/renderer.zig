@@ -8,36 +8,36 @@ const Checkerboard = @import("checkerboard.zig");
 const LoadedImage = @import("../root.zig").loader.Image;
 
 // 注意：以下代码是 SDL3
-pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
+pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     // 执行初始化
     try initializer.initialize(.SdlRenderer);
     // 创建窗口
     var window = try Window.create(
         allocator,
-        loaded.width,
-        loaded.height,
+        image.width,
+        image.height,
         false,
         .SdlRenderer,
     );
     defer window.destroy();
     // 更新窗口标题
-    try window.setTitle(loaded.file_name);
+    try window.setTitle(image.file_name);
     // 创建渲染器
     const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse unreachable;
     // 计算 pitch
-    const pitch: c_int = @intCast(loaded.width * loaded.bands);
+    const pitch: c_int = @intCast(image.width * image.bands);
     std.log.info("Pitch: {d}", .{pitch});
     // 创建图片纹理
     const texture = c.SDL_CreateTexture(
         renderer,
         c.SDL_PIXELFORMAT_RGBA32,
         c.SDL_TEXTUREACCESS_STATIC,
-        @intCast(loaded.width),
-        @intCast(loaded.height),
+        @intCast(image.width),
+        @intCast(image.height),
     );
     {
         // 回收已载入图片的像素数据内存（代码块离开后执行）
-        defer loaded.free_pixels();
+        defer image.free_pixels();
         // 开启纹理混合模式
         if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
             helper.printSdlError();
@@ -47,7 +47,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         if (!c.SDL_UpdateTexture(
             texture,
             null,
-            loaded.pixels_ptr,
+            image.pixels_ptr,
             pitch,
         )) {
             helper.printSdlError();
@@ -56,7 +56,7 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     }
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
-    updateImageRect(&dst_rect, window, loaded.width, loaded.height);
+    updateImageRect(&dst_rect, window, image.width, image.height);
     // 生成棋盘格（显示透明背景）
     const checkerboard = try Checkerboard.init(renderer);
     defer checkerboard.deinit();
@@ -95,8 +95,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                 animating = false;
             }
             std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ current_scale, target_scale, target_scale - current_scale });
-            const new_width: usize = @intFromFloat(@as(f32, @floatFromInt(loaded.width)) * current_scale);
-            const new_height: usize = @intFromFloat(@as(f32, @floatFromInt(loaded.height)) * current_scale);
+            const new_width: usize = @intFromFloat(@as(f32, @floatFromInt(image.width)) * current_scale);
+            const new_height: usize = @intFromFloat(@as(f32, @floatFromInt(image.height)) * current_scale);
             updateImageRect(
                 &dst_rect,
                 window,
