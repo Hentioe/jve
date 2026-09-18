@@ -33,6 +33,15 @@ const SharpenUniforms = extern struct {
     padding: f32 = 0.0,
 };
 
+// 模糊效果的片段着色器 Uniforms
+const BlurParams = extern struct {
+    blurIntensity: f32,
+    texelSize: [2]f32,
+    _pad0: f32 = 0.0,
+    direction: [2]f32,
+    _pad1: [2]f32 = .{ 0.0, 0.0 },
+};
+
 // 基于 SDL_GPU 渲染图片
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 执行初始化
@@ -204,14 +213,10 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     defer checkerboard.deinit();
     // 创建后处理管线
     const sharpen_frag_shader = try shader_util.loadAndCompileHLSL(device, "sharpen_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
-    var sharpen = try PostPipeline.init(
-        .Sharpen,
-        device,
-        .{ .vert = vert_shader, .frag = sharpen_frag_shader },
-        &vert_buffer_desc,
-        &vert_attrs,
-        &color_target_desc,
-    );
+    var sharpen = try PostPipeline.init(.Sharpen, device, .{ .vert = vert_shader, .frag = sharpen_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    const blur_frag_shader = try shader_util.loadAndCompileHLSL(device, "blur_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    var blur_x = try PostPipeline.init(.BlurX, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    var blur_y = try PostPipeline.init(.BlurY, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     // 创建离屏渲染纹理 A 和 B
     const offscreen_texture_info: c.SDL_GPUTextureCreateInfo = .{
         .type = c.SDL_GPU_TEXTURETYPE_2D,
@@ -236,9 +241,13 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         &color_target_desc,
     );
     // 创建后处理管线列表
-    const pipelines = [_]*PostPipeline{&sharpen};
+    const pipelines = [_]*PostPipeline{ &sharpen, &blur_x, &blur_y };
 
     // --- 渲染循环 (Render Pass 绘制) ---
+    const texel_size_w = 1.0 / @as(f32, @floatFromInt(loaded.width)); // 模糊着色器需要
+    const texel_size_h = 1.0 / @as(f32, @floatFromInt(loaded.height));
+    const hor_float2 = .{ 1.0, 0.0 }; // 横方向
+    const ver_float2 = .{ 0.0, 1.0 };
     var running = true;
     var event: c.SDL_Event = undefined;
     var need_invert = false;
@@ -299,7 +308,10 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
 
         // 后处理管线
         for (pipelines) |pipeline| {
-            // 绑定管道
+            // 是否进入管线
+            if (pipeline.effect_type == .Sharpen and horizontal_value <= 0) continue;
+            if ((pipeline.effect_type == .BlurX or pipeline.effect_type == .BlurY) and horizontal_value >= 0) continue;
+            // 绑定管线
             pipeline.bind(tex_dst, tex_src, sampler, render_cmd_buf, &vertex_binding);
             if (pipeline.effect_type == .Sharpen) {
                 // 传递锐化参数
@@ -308,8 +320,17 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                     .textureSize = .{ @floatFromInt(loaded.width), @floatFromInt(loaded.height) },
                 };
                 c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &sharpen_uniforms, @sizeOf(SharpenUniforms));
+            } else if (pipeline.effect_type == .BlurX or pipeline.effect_type == .BlurY) {
+                // 传递模糊参数
+                const blur_uniforms: BlurParams = .{
+                    .blurIntensity = -horizontal_value,
+                    .texelSize = .{ texel_size_w, texel_size_h },
+                    .direction = if (pipeline.effect_type == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
+                };
+                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &blur_uniforms, @sizeOf(BlurParams));
             }
-            // 绘制当前管道内容
+
+            // 绘制管线内容
             pipeline.draw();
             // 乒乓交换：把这一轮的输出 dst，作为下一轮的输入 src
             const temp = tex_src;

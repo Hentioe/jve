@@ -8,6 +8,8 @@ const Self = @This();
 // 功能类型枚举
 const PostEffectType = enum {
     Sharpen, // 锐化
+    BlurX, // 横向模糊
+    BlurY, // 纵向模糊
 };
 
 effect_type: PostEffectType,
