@@ -258,6 +258,9 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         if (c.SDL_WaitEvent(&event)) {
             if (event.type == c.SDL_EVENT_QUIT) {
                 running = false;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
+                need_invert = false;
+                horizontal_value = 0;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R) { // R 键反转颜色
                 need_invert = !need_invert;
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) {
