@@ -33,8 +33,11 @@ pub fn loadAndCompileHLSL(
     };
 
     var spirv_size: usize = 0;
-    // todo: 处理编译错误
     const spirv_bytes = c.SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size);
+    if (spirv_bytes == null) {
+        helper.printSdlError();
+        return Error.SdlCompileShaderFailed;
+    }
 
     const spirv_bytes_ptr: [*c]const u8 = @ptrCast(spirv_bytes);
     c.SDL_free(hlsl_source);

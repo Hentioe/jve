@@ -8,6 +8,7 @@ const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const LoadedImage = @import("../loader.zig").Loaded;
 const Checkerboard = @import("checkerboard_gpu.zig");
+const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
 
 // 定义顶点与 UV 坐标
@@ -19,9 +20,17 @@ const Vertex = struct {
     v: f32,
 };
 
+// 基础片段着色器 Uniforms
 const FragUniforms = extern struct {
     invert: i32,
     padding: [3]f32 = .{ 0.0, 0.0, 0.0 },
+};
+
+// 锐化效果的片段着色器 Uniforms
+const SharpenUniforms = extern struct {
+    strength: f32,
+    textureSize: [2]f32,
+    padding: f32 = 0.0,
 };
 
 // 基于 SDL_GPU 渲染图片
@@ -194,10 +203,11 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     const checkerboard = try Checkerboard.init(device, window);
     defer checkerboard.deinit();
     // 创建后处理管线
-    const post_frag_shader = try shader_util.loadAndCompileHLSL(device, "post_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 0);
-    const post_pipeline = try post_util.createPipeline(
+    const sharpen_frag_shader = try shader_util.loadAndCompileHLSL(device, "sharpen_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    var sharpen = try PostPipeline.init(
+        .Sharpen,
         device,
-        .{ .vert = vert_shader, .frag = post_frag_shader },
+        .{ .vert = vert_shader, .frag = sharpen_frag_shader },
         &vert_buffer_desc,
         &vert_attrs,
         &color_target_desc,
@@ -217,8 +227,6 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     // 创建 src/dst 纹理引用
     var tex_src = tex_a;
     var tex_dst = tex_b;
-    // 创建后处理管线列表
-    const pipelines = [_]*c.SDL_GPUGraphicsPipeline{post_pipeline};
     // 创建最终渲染屏幕的直通管线
     var passthrough = try PassthroughPipeline.init(
         device,
@@ -227,17 +235,31 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         &vert_attrs,
         &color_target_desc,
     );
+    // 创建后处理管线列表
+    const pipelines = [_]*PostPipeline{&sharpen};
 
     // --- 渲染循环 (Render Pass 绘制) ---
     var running = true;
     var event: c.SDL_Event = undefined;
     var need_invert = false;
+    var horizontal_adjusting = false; // 是否在横向调节
+    var horizontal_value: f32 = 0; // 横向调节的值
+    const horizontal_sensitivity = 100; // 横向调节灵敏度
     while (running) {
         if (c.SDL_WaitEvent(&event)) {
             if (event.type == c.SDL_EVENT_QUIT) {
                 running = false;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R) { // R 键反转颜色
                 need_invert = !need_invert;
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) {
+                horizontal_adjusting = true;
+                std.log.debug("Mouse wheel event down: {}", .{event.button.button});
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_MIDDLE) {
+                horizontal_adjusting = false;
+                std.log.debug("Mouse wheel event up: {}", .{event.button.button});
+            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and horizontal_adjusting) {
+                horizontal_value += event.motion.xrel / horizontal_sensitivity;
+                std.log.debug("Horizontal value updated: {}", .{horizontal_value});
             }
         }
         // 获取当前帧的 Command Buffer
@@ -276,27 +298,19 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
         c.SDL_EndGPURenderPass(render_pass);
 
         // 后处理管线
-        for (pipelines, 0..) |this_pipeline, i| {
-            _ = i;
-            const this_color_target: c.SDL_GPUColorTargetInfo = .{
-                .texture = tex_dst,
-                .load_op = c.SDL_GPU_LOADOP_CLEAR,
-                .store_op = c.SDL_GPU_STOREOP_STORE,
-                .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
-            };
-            const this_render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &this_color_target, 1, null);
-            // 绑定顶点缓冲区
-            c.SDL_BindGPUVertexBuffers(this_render_pass, 0, &vertex_binding, 1);
-            // 绑定后处理管线
-            c.SDL_BindGPUGraphicsPipeline(this_render_pass, this_pipeline);
-            const this_binding: c.SDL_GPUTextureSamplerBinding = .{
-                .texture = tex_src,
-                .sampler = sampler,
-            };
-            c.SDL_BindGPUFragmentSamplers(this_render_pass, 0, &this_binding, 1);
-
-            c.SDL_DrawGPUPrimitives(this_render_pass, 6, 1, 0, 0);
-            c.SDL_EndGPURenderPass(this_render_pass);
+        for (pipelines) |pipeline| {
+            // 绑定管道
+            pipeline.bind(tex_dst, tex_src, sampler, render_cmd_buf, &vertex_binding);
+            if (pipeline.effect_type == .Sharpen) {
+                // 传递锐化参数
+                const sharpen_uniforms: SharpenUniforms = .{
+                    .strength = horizontal_value,
+                    .textureSize = .{ @floatFromInt(loaded.width), @floatFromInt(loaded.height) },
+                };
+                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &sharpen_uniforms, @sizeOf(SharpenUniforms));
+            }
+            // 绘制当前管道内容
+            pipeline.draw();
             // 乒乓交换：把这一轮的输出 dst，作为下一轮的输入 src
             const temp = tex_src;
             tex_src = tex_dst;
