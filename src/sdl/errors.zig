@@ -4,6 +4,7 @@ pub const Error = error{
     SdlCreateGPUDeviceFailed,
     SdlClaimWindowForGPUDeviceFailed,
     SdlCompileShaderFailed,
+    CreateGPUGraphicsPipelineFailed,
     SdlSetTextureBlendModeFailed,
     SdlUpdateTextureFailed,
     OutOfMemory,
