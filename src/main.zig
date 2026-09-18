@@ -3,9 +3,9 @@ const cli = @import("cli.zig");
 const imageviewer = @import("root.zig");
 
 pub fn main() !void {
-    // 内存分配器
+    // 创建内存分配器
     var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
+    defer _ = gpa.deinit(); // todo: 输出检查结果
     const allocator = gpa.allocator();
     // 解析命令行参数
     const res = try cli.init(allocator);
@@ -16,19 +16,11 @@ pub fn main() !void {
         file_path = pos;
     }
     // 载入图像
-    const image = try imageviewer.loader.load(file_path);
-    // 输出基本信息
+    const image = try imageviewer.load(file_path);
     std.log.info("Image size: {d}x{d}", .{ image.width, image.height });
     // 读取后端参数
     const backend: []const u8 = res.args.backend orelse "sdl_renderer";
     std.log.info("Using backend: {s}", .{backend});
     // 渲染图像
-    if (std.mem.eql(u8, backend, "sdl_renderer")) {
-        try imageviewer.renderer.render(allocator, image);
-    } else if (std.mem.eql(u8, backend, "sdl_gpu")) {
-        try imageviewer.renderer_gpu.render(allocator, image);
-    } else {
-        std.log.err("Unknown backend: {s}", .{backend});
-        return error.UnknownBackend;
-    }
+    try imageviewer.render(allocator, backend, image);
 }
