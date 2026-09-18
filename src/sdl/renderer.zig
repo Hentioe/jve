@@ -5,7 +5,7 @@ const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Checkerboard = @import("checkerboard.zig");
-const LoadedImage = @import("../loader.zig").Loaded;
+const LoadedImage = @import("../root.zig").loader.Image;
 
 // 注意：以下代码是 SDL3
 pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {

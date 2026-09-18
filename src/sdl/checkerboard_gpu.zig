@@ -23,7 +23,7 @@ pub fn init(device: *c.SDL_GPUDevice, window: *Window) Error!Self {
     };
 }
 
-pub fn render(self: *const Self, render_pass: ?*c.SDL_GPURenderPass) void {
+pub fn drawByPass(self: *const Self, render_pass: ?*c.SDL_GPURenderPass) void {
     // 切换到棋盘格管线
     c.SDL_BindGPUGraphicsPipeline(render_pass, self.pipeline);
     // 绘制 3 个顶点覆盖整个屏幕

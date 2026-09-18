@@ -4,9 +4,10 @@ const helper = @import("helper.zig");
 const initializer = @import("initializer.zig");
 const shader_util = @import("shader_util.zig");
 const post_util = @import("post_util.zig");
+const writer = @import("../root.zig").writer;
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
-const LoadedImage = @import("../loader.zig").Loaded;
+const LoadedImage = @import("../root.zig").loader.Image;
 const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
@@ -255,6 +256,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
     var event: c.SDL_Event = undefined;
     // 一些常量
     const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
+    // 一些功能控制
+    var save_screenshot = false; // 是否保存截图
     // 模糊着色器参数
     const texel_size_w = 1.0 / @as(f32, @floatFromInt(loaded.width));
     const texel_size_h = 1.0 / @as(f32, @floatFromInt(loaded.height));
@@ -285,6 +288,8 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                 is_inverted = !is_inverted;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
                 is_grayscale = !is_grayscale;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
+                save_screenshot = true;
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) {
                 hor_adjusting = true;
                 std.log.debug("Mouse wheel event down: {}", .{event.button.button});
@@ -386,11 +391,59 @@ pub fn render(allocator: std.mem.Allocator, loaded: LoadedImage) Error!void {
                     // c.SDL_BlitGPUTexture(render_cmd_buf, &blit_info);
                 }
                 // 开启渲染通道
-                passthrough.beginRender(swapchain_texture, render_cmd_buf);
+                passthrough.beginRenderPass(swapchain_texture, render_cmd_buf);
                 // 绘制棋盘格
-                checkerboard.render(passthrough.render_pass);
+                checkerboard.drawByPass(passthrough.render_pass);
                 // 渲染到屏幕
-                passthrough.endRender(tex_src, sampler);
+                passthrough.endRenderPass(tex_src, sampler);
+                // 处理截图
+                if (save_screenshot) {
+                    // 1. 创建用于接收像素的下载缓冲区
+                    const buffer_size: u32 = @intCast(loaded.width * loaded.height * 4); // 以 32 位 RGBA 为例
+                    const tb_create_info: c.SDL_GPUTransferBufferCreateInfo = .{
+                        .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD,
+                        .size = buffer_size,
+                    };
+                    const download_buffer = c.SDL_CreateGPUTransferBuffer(device, &tb_create_info);
+                    // 2. 提交回读命令
+                    const cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
+                    const download_pass = c.SDL_BeginGPUCopyPass(cmd_buf);
+                    const src_region: c.SDL_GPUTextureRegion = .{
+                        .texture = tex_src, // 管线渲染/处理后的输出纹理
+                        .w = @intCast(loaded.width),
+                        .h = @intCast(loaded.height),
+                        .d = 1,
+                    };
+                    const dst_transfer: c.SDL_GPUTextureTransferInfo = .{
+                        .transfer_buffer = download_buffer,
+                        .offset = 0,
+                        .pixels_per_row = @intCast(loaded.width),
+                        .rows_per_layer = @intCast(loaded.height),
+                    };
+                    // 执行下载拷贝
+                    c.SDL_DownloadFromGPUTexture(download_pass, &src_region, &dst_transfer);
+                    c.SDL_EndGPUCopyPass(download_pass);
+                    _ = c.SDL_SubmitGPUCommandBuffer(cmd_buf);
+                    // 3. 等待 GPU 完成计算和数据传输
+                    _ = c.SDL_WaitForGPUIdle(device);
+                    const pixels_ptr = c.SDL_MapGPUTransferBuffer(device, download_buffer, false) orelse unreachable;
+                    // 5. 解理映射与清理资源
+                    c.SDL_UnmapGPUTransferBuffer(device, download_buffer);
+                    c.SDL_ReleaseGPUTransferBuffer(device, download_buffer);
+                    save_screenshot = false; // 重置控制参数
+                    // 执行写入
+                    if (writer.saveRawPixels(
+                        pixels_ptr,
+                        loaded.width,
+                        loaded.height,
+                        4,
+                        "imageviewer-screenshot.png", // todo: 输出名基于原文件名
+                    )) {
+                        std.log.info("Screenshot saved, pixel data size: {d}", .{buffer_size});
+                    } else |err| {
+                        std.log.err("Failed to save screenshot: {}", .{err});
+                    }
+                }
             }
         }
         // 提交绘制命令，渲染到屏幕

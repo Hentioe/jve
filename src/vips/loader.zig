@@ -1,18 +1,12 @@
 const std = @import("std");
-const c = @cImport({
-    @cInclude("vips/vips.h");
-});
+const c = @import("c.zig").c;
+const helper = @import("helper.zig");
+const initializer = @import("initializer.zig");
+const consts = @import("consts.zig");
+const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
+const Error = @import("errors.zig").Error;
 
-// vips 变参函数终止符
-const VIPS_ARGUMENT_NULL = @as(?*anyopaque, null);
-
-pub const Error = error{
-    VipsInitFailed,
-    VipsImageLoadFailed,
-    OutOfMemory,
-};
-
-pub const Loaded = struct {
+pub const Image = struct {
     file_name: []const u8,
     width: usize,
     height: usize,
@@ -21,27 +15,26 @@ pub const Loaded = struct {
     size: usize,
     pixels_ptr: [*]c_ushort,
 
-    pub fn free_pixels(self: Loaded) void {
+    pub fn free_pixels(self: Image) void {
         defer c.g_free(self.pixels_ptr);
     }
 
     // 访问特定像素
-    pub fn pixel(self: Loaded, x: u32, y: u32) []c_ushort {
+    pub fn pixel(self: Image, x: u32, y: u32) []c_ushort {
         const start = (y * self.width + x) * self.bands;
         const end = start + self.bands;
         return self.pixels_ptr[start..end];
     }
 };
 
-pub fn load(path: []const u8) Error!Loaded {
-    if (c.vips_init("zig_image") != 0) {
-        printVipsError();
-        return Error.VipsInitFailed;
-    }
+pub fn load(path: []const u8) Error!Image {
+    // 初始化
+    try initializer.initialize();
+    // 从文件创建 VipsImage
     const in = c.vips_image_new_from_file(@ptrCast(path), VIPS_ARGUMENT_NULL);
     defer c.g_object_unref(in);
     if (in == null) {
-        printVipsError();
+        helper.printError();
         return Error.VipsImageLoadFailed;
     }
     // 从 path 中提取文件名
@@ -58,7 +51,7 @@ pub fn load(path: []const u8) Error!Loaded {
     var srgb: [*c]c.VipsImage = null;
     defer c.g_object_unref(srgb);
     if (c.vips_colourspace(in, &srgb, c.VIPS_INTERPRETATION_sRGB, VIPS_ARGUMENT_NULL) != 0) {
-        printVipsError();
+        helper.printError();
         return Error.VipsImageLoadFailed;
     }
     // 转换为 RGBA
@@ -68,7 +61,7 @@ pub fn load(path: []const u8) Error!Loaded {
         rgba = srgb;
     } else {
         if (c.vips_addalpha(srgb, &rgba, VIPS_ARGUMENT_NULL) != 0) {
-            printVipsError();
+            helper.printError();
             return Error.VipsImageLoadFailed;
         }
         bands += 1;
@@ -79,7 +72,7 @@ pub fn load(path: []const u8) Error!Loaded {
         c.vips_image_write_to_memory(rgba, &size),
     ));
 
-    return Loaded{
+    return Image{
         .file_name = file_name,
         .width = @intCast(width),
         .height = @intCast(height),
@@ -88,10 +81,4 @@ pub fn load(path: []const u8) Error!Loaded {
         .size = size,
         .pixels_ptr = pixels_ptr,
     };
-}
-
-fn printVipsError() void {
-    const err = c.vips_error_buffer();
-    std.log.err("VIPS Error: {s}", .{err});
-    c.vips_error_clear();
 }
