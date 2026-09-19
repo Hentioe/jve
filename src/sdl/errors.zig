@@ -8,5 +8,6 @@ pub const Error = error{
     CreateGPUGraphicsPipelineFailed,
     SdlSetTextureBlendModeFailed,
     SdlUpdateTextureFailed,
+    SdlMapGPUTransferBufferFailed,
     OutOfMemory,
 };

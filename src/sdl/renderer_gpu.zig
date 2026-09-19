@@ -11,6 +11,7 @@ const LoadedImage = @import("../root.zig").loader.Image;
 const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
+const Downloader = @import("Downloader.zig");
 const RenderExit = @import("enums.zig").RenderExit;
 
 // 定义顶点与 UV 坐标
@@ -400,51 +401,31 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
                 passthrough.endRenderPass(tex_src, sampler);
                 // 处理截图
                 if (save_screenshot) {
-                    // 1. 创建用于接收像素的下载缓冲区
-                    const buffer_size: u32 = @intCast(image.width * image.height * 4); // 以 32 位 RGBA 为例
-                    const tb_create_info: c.SDL_GPUTransferBufferCreateInfo = .{
-                        .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD,
-                        .size = buffer_size,
-                    };
-                    const download_buffer = c.SDL_CreateGPUTransferBuffer(device, &tb_create_info);
-                    // 2. 提交回读命令
-                    const cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
-                    const download_pass = c.SDL_BeginGPUCopyPass(cmd_buf);
-                    const src_region: c.SDL_GPUTextureRegion = .{
-                        .texture = tex_src, // 管线渲染/处理后的输出纹理
-                        .w = @intCast(image.width),
-                        .h = @intCast(image.height),
-                        .d = 1,
-                    };
-                    const dst_transfer: c.SDL_GPUTextureTransferInfo = .{
-                        .transfer_buffer = download_buffer,
-                        .offset = 0,
-                        .pixels_per_row = @intCast(image.width),
-                        .rows_per_layer = @intCast(image.height),
-                    };
-                    // 执行下载拷贝
-                    c.SDL_DownloadFromGPUTexture(download_pass, &src_region, &dst_transfer);
-                    c.SDL_EndGPUCopyPass(download_pass);
-                    _ = c.SDL_SubmitGPUCommandBuffer(cmd_buf);
-                    // 3. 等待 GPU 完成计算和数据传输
-                    _ = c.SDL_WaitForGPUIdle(device);
-                    const pixels_ptr = c.SDL_MapGPUTransferBuffer(device, download_buffer, false) orelse unreachable;
-                    // 5. 解理映射与清理资源
-                    c.SDL_UnmapGPUTransferBuffer(device, download_buffer);
-                    c.SDL_ReleaseGPUTransferBuffer(device, download_buffer);
-                    save_screenshot = false; // 重置控制参数
-                    // 执行写入
-                    if (writer.saveRawPixels(
-                        pixels_ptr,
+                    var downloader = Downloader.init(
+                        allocator,
+                        device,
                         image.width,
                         image.height,
-                        4,
-                        "imageviewer-screenshot.png", // todo: 输出名基于原文件名
-                    )) {
-                        std.log.info("Screenshot saved, pixel data size: {d}", .{buffer_size});
+                        image.bands,
+                    );
+                    defer downloader.deinit();
+                    if (downloader.download_from_texture(tex_src)) {
+                        // 执行写入
+                        if (writer.saveRawPixels(
+                            downloader.pixels_ptr(),
+                            image.width,
+                            image.height,
+                            image.bands,
+                            "imageviewer-screenshot.png", // todo: 输出名基于原文件名
+                        )) {
+                            std.log.info("Screenshot saved, size: {d}", .{downloader.buffer_size});
+                        } else |err| {
+                            std.log.err("Failed to save screenshot: {}", .{err});
+                        }
                     } else |err| {
-                        std.log.err("Failed to save screenshot: {}", .{err});
+                        std.log.err("Failed to download texture: {}", .{err});
                     }
+                    save_screenshot = false; // 重置控制参数
                 }
             }
         }
