@@ -6,9 +6,10 @@ const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Checkerboard = @import("checkerboard.zig");
 const LoadedImage = @import("../root.zig").loader.Image;
+const RenderExit = @import("enums.zig").RenderExit;
 
 // 注意：以下代码是 SDL3
-pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
+pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit {
     // 执行初始化
     try initializer.initialize(.SdlRenderer);
     // 创建窗口
@@ -39,7 +40,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
         defer image.free_pixels();
         // 开启纹理混合模式
         if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-            helper.printSdlError();
+            helper.printError();
             return Error.SdlSetTextureBlendModeFailed;
         }
         // 上传纹理
@@ -49,7 +50,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
             image.pixels_ptr,
             pitch,
         )) {
-            helper.printSdlError();
+            helper.printError();
             return Error.SdlUpdateTextureFailed;
         }
     }
@@ -59,8 +60,10 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     // 生成棋盘格（显示透明背景）
     const checkerboard = try Checkerboard.init(renderer);
     defer checkerboard.deinit();
+
     // 循环并处理 SDL 事件
     var running = true;
+    var toggle = false;
     var animating = false;
     var event: c.SDL_Event = undefined;
     // 累计缩放倍率
@@ -69,15 +72,11 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     while (running) {
         const has_event = if (animating) c.SDL_PollEvent(&event) else c.SDL_WaitEvent(&event);
         if (has_event) {
-            if (isQuitEvent(event, window.has_border)) {
+            if (isQuitEvent(event)) {
                 running = false;
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT) {
-                toggleWindowModel(window, &dst_rect, &animating); // 切换窗口模式
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT and !window.has_border) {
-                // 判断点击位置是否在 dst_rect 区域
-                if (!isInRect(event, &dst_rect)) {
-                    toggleWindowModel(window, &dst_rect, &animating); // 切换窗口模式
-                }
+            } else if (isToggleEvent(event, &dst_rect)) {
+                running = false;
+                toggle = true;
             } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and !window.has_border) {
                 // 计算新的缩放率、宽度，并更新窗口大小
                 if (event.wheel.y > 0) target_scale *= 1.4 else target_scale /= 1.4;
@@ -113,15 +112,27 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     }
     c.SDL_DestroyTexture(texture);
     c.SDL_DestroyRenderer(renderer);
+
+    return if (toggle) .Toggle else .Quit;
 }
 
 // 是否是退出事件
-fn isQuitEvent(event: c.SDL_Event, has_border: bool) bool {
-    if (event.type == c.SDL_EVENT_QUIT) {
+fn isQuitEvent(event: c.SDL_Event) bool {
+    if (event.type == c.SDL_EVENT_QUIT) { // 正常退出
         return true;
     }
-    if (!has_border and event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_ESCAPE) {
+    if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_ESCAPE) { // ESC 键
         return true;
+    }
+    return false;
+}
+
+// 是否是切换事件
+fn isToggleEvent(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
+    if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT) { // 右键
+        return true;
+    } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) { // 左键非图片区域
+        return !isInRect(event, dst_rect);
     }
     return false;
 }
@@ -134,23 +145,25 @@ fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
         mouse_y >= dst_rect.y and mouse_y <= dst_rect.y + dst_rect.h;
 }
 
-fn toggleWindowModel(window: *Window, dst_rect: *c.SDL_FRect, animating: *bool) void {
-    // 切换边框模式
-    window.toggleBorder();
-    // 重建 dst_rect
-    updateImageRect(dst_rect, window, window.image_width, window.image_height);
-    if (window.has_border) {
-        animating.* = false;
-    }
-}
+// 待删除：此后端不再需要窗口模式
+// fn toggleWindowModel(window: *Window, dst_rect: *c.SDL_FRect, animating: *bool) void {
+//     // 切换边框模式
+//     window.toggleBorder();
+//     // 重建 dst_rect
+//     updateImageRect(dst_rect, window, window.image_width, window.image_height);
+//     if (window.has_border) {
+//         animating.* = false;
+//     }
+// }
 
 fn updateImageRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32) void {
-    var window_width = window.display_width;
-    var window_height = window.display_height;
-    if (window.has_border) {
-        window_width = window.image_width;
-        window_height = window.image_height;
-    }
+    const window_width = window.display_width;
+    const window_height = window.display_height;
+    // 待删除：此后端不再需要窗口模式
+    // if (window.has_border) {
+    //     window_width = window.image_width;
+    //     window_height = window.image_height;
+    // }
     dst_rect.w = @floatFromInt(new_width);
     dst_rect.h = @floatFromInt(new_height);
     dst_rect.x = @floatFromInt(@divFloor(window_width - new_width, 2));

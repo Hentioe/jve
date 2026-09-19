@@ -11,7 +11,7 @@ pub fn load(file_path: []const u8) !loader.Image {
 
 pub fn render(allocator: std.mem.Allocator, backend: []const u8, image: loader.Image) !void {
     if (std.mem.eql(u8, backend, "sdl_renderer")) {
-        try renderer.render(allocator, image);
+        _ = try renderer.render(allocator, image);
     } else if (std.mem.eql(u8, backend, "sdl_gpu")) {
         try renderer_gpu.render(allocator, image);
     } else {

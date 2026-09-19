@@ -35,7 +35,7 @@ pub fn loadAndCompileHLSL(
     var spirv_size: usize = 0;
     const spirv_bytes = c.SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size);
     if (spirv_bytes == null) {
-        helper.printSdlError();
+        helper.printError();
         return Error.SdlCompileShaderFailed;
     }
 
@@ -57,7 +57,7 @@ pub fn loadAndCompileHLSL(
         0,
     );
     if (shader == null) {
-        helper.printSdlError();
+        helper.printError();
         return Error.SdlCompileShaderFailed;
     }
     c.SDL_free(spirv_bytes);

@@ -67,19 +67,19 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
         false,
         null,
     ) orelse {
-        helper.printSdlError();
+        helper.printError();
         return Error.SdlCreateGPUDeviceFailed;
     };
     // 绑定窗口到 GPU 设备
     if (!c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window)) {
-        helper.printSdlError();
+        helper.printError();
         return Error.SdlClaimWindowForGPUDeviceFailed;
     }
     // 关闭垂直同步（修改交换链的 Present Mode）
     // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
     if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
         if (!c.SDL_SetGPUSwapchainParameters(device, window.sdl_window, c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-            helper.printSdlError();
+            helper.printError();
         }
     } else {
         std.log.warn("IMMEDIATE Present Mode not supported", .{});
