@@ -63,6 +63,8 @@ pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
     var toggle = false;
     var animating = false;
     var event: c.SDL_Event = undefined;
+    // 其它控制参数
+    var angle: f32 = 0.0; // 旋转角度
     // 累计缩放倍率
     var target_scale: f32 = 1.0;
     var current_scale: f32 = 1.0;
@@ -74,7 +76,21 @@ pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
             } else if (isToggleEvent(event, &dst_rect)) {
                 running = false;
                 toggle = true;
-            } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and !window.has_border) {
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN) {
+                switch (event.key.key) {
+                    c.SDLK_W, c.SDLK_UP => angle = 0.0,
+                    c.SDLK_S, c.SDLK_DOWN => angle = 180.0,
+                    c.SDLK_A, c.SDLK_LEFT => angle = 270.0,
+                    c.SDLK_D, c.SDLK_RIGHT => angle = 90.0,
+                    c.SDLK_SLASH => { // 重置所有控制参数
+                        angle = 0.0;
+                        target_scale = 1.0;
+                        current_scale = 1.0;
+                        animating = true;
+                    },
+                    else => {},
+                }
+            } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL) {
                 // 计算新的缩放率、宽度，并更新窗口大小
                 if (event.wheel.y > 0) target_scale *= 1.4 else target_scale /= 1.4;
                 if (target_scale > 3) target_scale = 3.0 else if (target_scale < 1) target_scale = 1.0;
@@ -103,7 +119,7 @@ pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
         const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
         check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
         check(c.SDL_RenderClear(renderer));
-        check(c.SDL_RenderTexture(renderer, texture, null, &dst_rect));
+        check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, angle, null, c.SDL_FLIP_NONE));
         check(c.SDL_RenderPresent(renderer));
     }
 
