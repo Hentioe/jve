@@ -15,15 +15,8 @@ pub const Image = struct {
     size: usize,
     pixels_ptr: [*]c_ushort,
 
-    pub fn free_pixels(self: Image) void {
+    pub fn freePixels(self: Image) void {
         defer c.g_free(self.pixels_ptr);
-    }
-
-    // 访问特定像素
-    pub fn pixel(self: Image, x: u32, y: u32) []c_ushort {
-        const start = (y * self.width + x) * self.bands;
-        const end = start + self.bands;
-        return self.pixels_ptr[start..end];
     }
 };
 

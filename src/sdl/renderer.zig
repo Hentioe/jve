@@ -35,24 +35,20 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
         image.width,
         image.height,
     );
-    {
-        // 回收已载入图片的像素数据内存（代码块离开后执行）
-        defer image.free_pixels();
-        // 开启纹理混合模式
-        if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-            helper.printError();
-            return Error.SdlSetTextureBlendModeFailed;
-        }
-        // 上传纹理
-        if (!c.SDL_UpdateTexture(
-            texture,
-            null,
-            image.pixels_ptr,
-            pitch,
-        )) {
-            helper.printError();
-            return Error.SdlUpdateTextureFailed;
-        }
+    // 开启纹理混合模式
+    if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
+        helper.printError();
+        return Error.SdlSetTextureBlendModeFailed;
+    }
+    // 上传纹理
+    if (!c.SDL_UpdateTexture(
+        texture,
+        null,
+        image.pixels_ptr,
+        pitch,
+    )) {
+        helper.printError();
+        return Error.SdlUpdateTextureFailed;
     }
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};

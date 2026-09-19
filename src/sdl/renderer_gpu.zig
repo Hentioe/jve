@@ -11,6 +11,7 @@ const LoadedImage = @import("../root.zig").loader.Image;
 const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
+const RenderExit = @import("enums.zig").RenderExit;
 
 // 定义顶点与 UV 坐标
 const Vertex = struct {
@@ -48,7 +49,7 @@ const BlurParams = extern struct {
 };
 
 // 基于 SDL_GPU 渲染图片
-pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
+pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit {
     // 执行初始化
     try initializer.initialize(.SdlGpu);
     // 创建窗口
@@ -126,9 +127,6 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     _ = c.SDL_SubmitGPUCommandBuffer(txu_cmd_buf);
     // 释放 TransferBuffer（纹理内容已上传至显存）
     _ = c.SDL_ReleaseGPUTransferBuffer(device, txu_transfer_buf);
-    // 释放像素数据
-    image.free_pixels();
-    std.log.debug("Image pixel data has been released", .{});
 
     // --- 顶点 (Vertex) ---
     // 1. 创建顶点：铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
@@ -253,6 +251,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     // --- 渲染循环 (Render Pass 绘制) ---
     var running = true;
     var event: c.SDL_Event = undefined;
+    var toggle = false;
     // 一些常量
     const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
     // 一些功能控制
@@ -275,6 +274,10 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
     while (running) {
         if (c.SDL_WaitEvent(&event)) {
             if (event.type == c.SDL_EVENT_QUIT) {
+                running = false;
+            }
+            if (isToggleEvent(event)) {
+                toggle = true;
                 running = false;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
                 is_inverted = false;
@@ -448,4 +451,14 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
         // 提交绘制命令，渲染到屏幕
         _ = c.SDL_SubmitGPUCommandBuffer(render_cmd_buf);
     }
+
+    return if (toggle) .Toggle else .Quit;
+}
+
+// 是否是切换事件
+fn isToggleEvent(event: c.SDL_Event) bool {
+    if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT) { // 右键
+        return true;
+    }
+    return false;
 }
