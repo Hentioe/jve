@@ -12,9 +12,14 @@ image_height: i32,
 display_width: i32,
 display_height: i32,
 has_border: bool,
-sdl_window: ?*c.SDL_Window,
+sdl_window: *c.SDL_Window,
 
-pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32, has_border: bool, backend: Backend) Error!*Self {
+const Options = struct {
+    has_border: bool = true,
+    backend: Backend = .SdlRenderer,
+};
+
+pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32, options: Options) Error!*Self {
     // 获取主显示器尺寸
     const display_mode = c.SDL_GetCurrentDisplayMode(c.SDL_GetPrimaryDisplay());
     const display_width = display_mode.*.w;
@@ -23,30 +28,24 @@ pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32,
     var init_height = display_height;
     // 创建窗口
     var flags: u64 = c.SDL_EVENT_WINDOW_SHOWN | c.SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    if (backend == .SdlRenderer) {
+    if (options.backend == .SdlRenderer) {
         flags |= c.SDL_WINDOW_TRANSPARENT;
     }
-    if (has_border) {
+    if (options.has_border) {
         init_width = image_width;
         init_height = image_height;
     } else {
         flags |= c.SDL_WINDOW_BORDERLESS;
     }
-    const sdl_window = c.SDL_CreateWindow(
-        "Image Viewer",
-        init_width,
-        init_height,
-        flags,
-    );
-    if (sdl_window == null) {
+    const sdl_window = c.SDL_CreateWindow("Image Viewer", init_width, init_height, flags) orelse {
         helper.printSdlError();
-        return Error.SdlInitFailed;
-    }
+        return Error.SdlCreateWindowFailed;
+    };
     const self_ptr = try allocator.create(Self);
     // 构造结构体
     self_ptr.* = Self{
         .allocator = allocator,
-        .has_border = has_border,
+        .has_border = options.has_border,
         .image_width = image_width,
         .image_height = image_height,
         .display_width = display_width,

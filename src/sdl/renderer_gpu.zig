@@ -56,8 +56,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
         allocator,
         image.width,
         image.height,
-        true,
-        .SdlGpu,
+        .{ .backend = .SdlGpu },
     );
     defer window.destroy();
     // 更新窗口标题

@@ -16,8 +16,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!void {
         allocator,
         image.width,
         image.height,
-        false,
-        .SdlRenderer,
+        .{ .has_border = false, .backend = .SdlRenderer },
     );
     defer window.destroy();
     // 更新窗口标题
