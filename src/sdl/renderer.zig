@@ -1,15 +1,14 @@
 const std = @import("std");
 const c = @import("c.zig").c;
+const h = @import("helper.zig");
 const initializer = @import("initializer.zig");
-const helper = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
-const Checkerboard = @import("checkerboard.zig");
-const LoadedImage = @import("../root.zig").loader.Image;
+const Image = @import("../root.zig").loader.Image;
 const RenderExit = @import("enums.zig").RenderExit;
 
 // 注意：以下代码是 SDL3
-pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit {
+pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
     // 执行初始化
     try initializer.initialize(.SdlRenderer);
     // 创建窗口
@@ -23,7 +22,11 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
     // 更新窗口标题
     try window.setTitle(image.file_name);
     // 创建渲染器
-    const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse unreachable;
+    const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse {
+        h.printError();
+        return Error.SdlCreateRendererFailed;
+    };
+    defer c.SDL_DestroyRenderer(renderer);
     // 计算 pitch
     const pitch = image.width * image.bands;
     std.log.info("Pitch: {d}", .{pitch});
@@ -35,9 +38,10 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
         image.width,
         image.height,
     );
+    defer c.SDL_DestroyTexture(texture);
     // 开启纹理混合模式
     if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-        helper.printError();
+        h.printError();
         return Error.SdlSetTextureBlendModeFailed;
     }
     // 上传纹理
@@ -47,15 +51,12 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
         image.pixels_ptr,
         pitch,
     )) {
-        helper.printError();
+        h.printError();
         return Error.SdlUpdateTextureFailed;
     }
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
     updateImageRect(&dst_rect, window, image.width, image.height);
-    // 生成棋盘格（显示透明背景）
-    const checkerboard = try Checkerboard.init(renderer);
-    defer checkerboard.deinit();
 
     // 循环并处理 SDL 事件
     var running = true;
@@ -100,16 +101,19 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
             window.imageSizeUpdated(new_width, new_height);
         }
         const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
-        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha); // 设置白色背景
-        _ = c.SDL_RenderClear(renderer);
-        if (window.has_border) checkerboard.render(); // 边框模式渲染棋盘格
-        _ = c.SDL_RenderTexture(renderer, texture, null, @ptrCast(&dst_rect));
-        _ = c.SDL_RenderPresent(renderer);
+        check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
+        check(c.SDL_RenderClear(renderer));
+        check(c.SDL_RenderTexture(renderer, texture, null, &dst_rect));
+        check(c.SDL_RenderPresent(renderer));
     }
-    c.SDL_DestroyTexture(texture);
-    c.SDL_DestroyRenderer(renderer);
 
     return if (toggle) .Toggle else .Quit;
+}
+
+inline fn check(ok: bool) void {
+    if (!ok) {
+        h.printError();
+    }
 }
 
 // 是否是退出事件
