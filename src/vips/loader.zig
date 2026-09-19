@@ -8,10 +8,10 @@ const Error = @import("errors.zig").Error;
 
 pub const Image = struct {
     file_name: []const u8,
-    width: usize,
-    height: usize,
-    bands: u32,
-    format: u32,
+    width: i32,
+    height: i32,
+    bands: i32,
+    format: i32,
     size: usize,
     pixels_ptr: [*]c_ushort,
 
@@ -74,10 +74,10 @@ pub fn load(path: []const u8) Error!Image {
 
     return Image{
         .file_name = file_name,
-        .width = @intCast(width),
-        .height = @intCast(height),
-        .bands = @intCast(bands),
-        .format = @intCast(format),
+        .width = width,
+        .height = height,
+        .bands = bands,
+        .format = format,
         .size = size,
         .pixels_ptr = pixels_ptr,
     };

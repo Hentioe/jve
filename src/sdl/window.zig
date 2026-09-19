@@ -7,18 +7,18 @@ const Backend = @import("enums.zig").Backend;
 const Self = @This();
 
 allocator: std.mem.Allocator,
-image_width: usize,
-image_height: usize,
-display_width: usize,
-display_height: usize,
+image_width: i32,
+image_height: i32,
+display_width: i32,
+display_height: i32,
 has_border: bool,
 sdl_window: ?*c.SDL_Window,
 
-pub fn create(allocator: std.mem.Allocator, image_width: usize, image_height: usize, has_border: bool, backend: Backend) Error!*Self {
+pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32, has_border: bool, backend: Backend) Error!*Self {
     // 获取主显示器尺寸
     const display_mode = c.SDL_GetCurrentDisplayMode(c.SDL_GetPrimaryDisplay());
-    const display_width: usize = @intCast(display_mode.*.w);
-    const display_height: usize = @intCast(display_mode.*.h);
+    const display_width = display_mode.*.w;
+    const display_height = display_mode.*.h;
     var init_width = display_width;
     var init_height = display_height;
     // 创建窗口
@@ -34,8 +34,8 @@ pub fn create(allocator: std.mem.Allocator, image_width: usize, image_height: us
     }
     const sdl_window = c.SDL_CreateWindow(
         "Image Viewer",
-        @intCast(init_width),
-        @intCast(init_height),
+        init_width,
+        init_height,
         flags,
     );
     if (sdl_window == null) {
@@ -82,7 +82,7 @@ pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
     _ = c.SDL_SetWindowTitle(self.sdl_window, title_z);
 }
 
-pub fn imageSizeUpdated(self: *Self, new_width: usize, new_height: usize) void {
+pub fn imageSizeUpdated(self: *Self, new_width: i32, new_height: i32) void {
     if (new_width != self.image_width and new_height != self.image_height) {
         std.log.info("new_width: {d}, new_height: {d}", .{ new_width, new_height });
         self.image_width = new_width;

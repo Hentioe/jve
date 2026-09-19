@@ -7,22 +7,22 @@ const Error = @import("errors.zig").Error;
 
 pub fn saveRawPixels(
     pixels: *anyopaque,
-    width: usize,
-    height: usize,
-    bands: usize,
+    width: i32,
+    height: i32,
+    bands: i32,
     out_filename: []const u8,
 ) Error!void {
     // 初始化
     try initializer.initialize();
     // 假设像素数据为 8 位无符号整数 (0-255)
-    const size: usize = width * height * bands;
+    const size: usize = @intCast(width * height * bands);
     // 从内存指针创建 VipsImage
     const image = c.vips_image_new_from_memory(
         pixels,
         size,
-        @intCast(width),
-        @intCast(height),
-        @intCast(bands),
+        width,
+        height,
+        bands,
         c.VIPS_FORMAT_UCHAR,
     );
     // 释放引用
