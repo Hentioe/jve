@@ -4,7 +4,9 @@ const helper = @import("helper.zig");
 const initializer = @import("initializer.zig");
 const shader_util = @import("shader_util.zig");
 const post_util = @import("post_util.zig");
-const writer = @import("../root.zig").writer;
+const root = @import("../root.zig");
+const writer = root.writer;
+const clipboard = root.clipboard;
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const LoadedImage = @import("../root.zig").loader.Image;
@@ -257,6 +259,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
     const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
     // 一些功能控制
     var save_screenshot = false; // 是否保存截图
+    var copy_screenshot = false; // 是否复制截图到剪贴板
     // 模糊着色器参数
     const texel_size_w = 1.0 / @as(f32, @floatFromInt(image.width));
     const texel_size_h = 1.0 / @as(f32, @floatFromInt(image.height));
@@ -293,6 +296,9 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
                 is_grayscale = !is_grayscale;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
                 save_screenshot = true;
+            } // ctrl+c 事件
+            else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
+                copy_screenshot = true;
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) {
                 hor_adjusting = true;
                 std.log.debug("Mouse wheel event down: {}", .{event.button.button});
@@ -399,33 +405,48 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
                 checkerboard.drawByPass(passthrough.render_pass);
                 // 渲染到屏幕
                 passthrough.endRenderPass(tex_src, sampler);
-                // 处理截图
-                if (save_screenshot) {
-                    var downloader = Downloader.init(
-                        allocator,
-                        device,
-                        image.width,
-                        image.height,
-                        image.bands,
-                    );
+                // 处理截图保存和复制
+                if (save_screenshot or copy_screenshot) {
+                    // 创建下载器
+                    var downloader = Downloader.init(allocator, device, image.width, image.height, image.bands);
                     defer downloader.deinit();
+                    // 下载纹理
                     if (downloader.download_from_texture(tex_src)) {
-                        // 执行写入
-                        if (writer.saveRawPixels(
-                            downloader.pixels_ptr(),
-                            image.width,
-                            image.height,
-                            image.bands,
-                            "imageviewer-screenshot.png", // todo: 输出名基于原文件名
-                        )) {
-                            std.log.info("Screenshot saved, size: {d}", .{downloader.buffer_size});
-                        } else |err| {
-                            std.log.err("Failed to save screenshot: {}", .{err});
+                        if (save_screenshot) { // 保存到文件
+                            if (writer.savePixelsToFile(
+                                downloader.pixels_ptr(),
+                                image.width,
+                                image.height,
+                                image.bands,
+                                "imageviewer-screenshot.png", // todo: 输出名基于原文件名
+                            )) {
+                                std.log.info("Screenshot saved, size: {d}", .{downloader.buffer_size});
+                            } else |err| {
+                                std.log.err("Failed to save screenshot: {}", .{err});
+                            }
+                        }
+                        if (copy_screenshot) { // 写入到剪切板
+                            // 创建编码器
+                            var encoder = writer.Encoder.init(downloader.pixels_ptr(), image.width, image.height, image.bands);
+                            defer encoder.deinit();
+                            // 编码图片
+                            if (encoder.encodeImage()) {
+                                // 复制到剪切板
+                                if (clipboard.copyImage(allocator, encoder.data orelse unreachable, "image/png")) {
+                                    std.log.info("Screenshot copied to clipboard, format: {s}", .{"png"});
+                                } else |err| {
+                                    std.log.err("Failed to copy screenshot to clipboard: {}", .{err});
+                                }
+                            } else |err| {
+                                std.log.err("Failed to encode screenshot: {}", .{err});
+                            }
                         }
                     } else |err| {
                         std.log.err("Failed to download texture: {}", .{err});
                     }
-                    save_screenshot = false; // 重置控制参数
+                    // 重置控制参数
+                    save_screenshot = false;
+                    copy_screenshot = false;
                 }
             }
         }
