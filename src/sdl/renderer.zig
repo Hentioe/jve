@@ -1,6 +1,8 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const root = @import("../root.zig");
+const album = root.album;
 const initializer = @import("initializer.zig");
 const texture_share = @import("textture_share.zig");
 const Error = @import("errors.zig").Error;
@@ -8,8 +10,11 @@ const Window = @import("window.zig");
 const Image = @import("../root.zig").loader.Image;
 const RenderExit = @import("enums.zig").RenderExit;
 
-// 注意：以下代码是 SDL3
-pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
+// 基于 sdl_renderer 渲染图片
+pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
+    var image = album.current() catch {
+        return Error.AlbumError;
+    };
     // 执行初始化
     try initializer.initialize(.SdlRenderer);
     // 创建窗口
@@ -28,42 +33,18 @@ pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
         return Error.SdlCreateRendererFailed;
     };
     defer c.SDL_DestroyRenderer(renderer);
+    // 创建纹理
     var texture = try texture_share.reader().readAndUpdateTexture(renderer);
     if (texture == null) {
-        // 计算 pitch
-        const pitch = image.width * image.bands;
-        std.log.info("Pitch: {d}", .{pitch});
-        // 创建图片纹理
-        texture = c.SDL_CreateTexture(
-            renderer,
-            c.SDL_PIXELFORMAT_RGBA32,
-            c.SDL_TEXTUREACCESS_STATIC,
-            image.width,
-            image.height,
-        );
-        // 开启纹理混合模式
-        if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-            h.printError();
-            return Error.SdlSetTextureBlendModeFailed;
-        }
-        // 上传纹理
-        if (!c.SDL_UpdateTexture(
-            texture,
-            null,
-            image.pixels_ptr,
-            pitch,
-        )) {
-            h.printError();
-            return Error.SdlUpdateTextureFailed;
-        }
+        texture = try createTexture(renderer, image);
     } else {
         // 复用纹理缓存
         std.log.info("Reusing texture from cache", .{});
     }
-    defer c.SDL_DestroyTexture(texture);
+    errdefer c.SDL_DestroyTexture(texture);
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
-    updateImageRect(&dst_rect, window, image.width, image.height);
+    calculateDstRect(&dst_rect, window, image.width, image.height);
 
     // 循环并处理 SDL 事件
     var running = true;
@@ -98,10 +79,35 @@ pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
                     else => {},
                 }
             } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL) {
-                // 计算新的缩放率、宽度，并更新窗口大小
-                if (event.wheel.y > 0) target_scale *= 1.4 else target_scale /= 1.4;
-                if (target_scale > 3) target_scale = 3.0 else if (target_scale < 1) target_scale = 1.0;
-                animating = true;
+                const mod_state = c.SDL_GetModState();
+                if (mod_state > 0) {
+                    // 计算新的缩放率、宽度，并更新窗口大小
+                    if (event.wheel.y > 0) target_scale *= 1.4 else target_scale /= 1.4;
+                    if (target_scale > 3) target_scale = 3.0 else if (target_scale < 1) target_scale = 1.0;
+                    animating = true;
+                } else {
+                    std.log.debug("Mouse wheel event without modifier: {d}", .{event.wheel.y});
+                    // 切换图片
+                    if (event.wheel.y < 0) {
+                        _ = album.next() catch |err| {
+                            std.log.err("Failed to switch to next image: {}", .{err});
+                        };
+                    } else {
+                        _ = album.prev() catch |err| {
+                            std.log.err("Failed to switch to previous image: {}", .{err});
+                        };
+                    }
+                    const crrent = album.current() catch |err| blk: {
+                        std.log.err("Failed to get current image: {}", .{err});
+                        break :blk null;
+                    };
+                    if (crrent) |refreshed_image| {
+                        image = refreshed_image;
+                        c.SDL_DestroyTexture(texture);
+                        texture = try createTexture(renderer, refreshed_image);
+                    }
+                    animating = true; // 动画触发 dst_rect 更新
+                }
             }
         }
         if (animating) {
@@ -115,7 +121,7 @@ pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
             std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ current_scale, target_scale, target_scale - current_scale });
             const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * current_scale);
             const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * current_scale);
-            updateImageRect(
+            calculateDstRect(
                 &dst_rect,
                 window,
                 new_width,
@@ -179,7 +185,8 @@ fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
 //     }
 // }
 
-fn updateImageRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32) void {
+// 重新计算 rect
+fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32) void {
     const window_width = window.display_width;
     const window_height = window.display_height;
     // 待删除：此后端不再需要窗口模式
@@ -191,4 +198,35 @@ fn updateImageRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_
     dst_rect.h = @floatFromInt(new_height);
     dst_rect.x = @floatFromInt(@divFloor(window_width - new_width, 2));
     dst_rect.y = @floatFromInt(@divFloor(window_height - new_height, 2));
+}
+
+fn createTexture(renderer: *c.SDL_Renderer, image: Image) Error!*c.SDL_Texture {
+    // 计算 pitch
+    const pitch = image.width * image.bands;
+    std.log.info("Pitch: {d}", .{pitch});
+    // 创建图片纹理
+    const texture = c.SDL_CreateTexture(
+        renderer,
+        c.SDL_PIXELFORMAT_RGBA32,
+        c.SDL_TEXTUREACCESS_STATIC,
+        image.width,
+        image.height,
+    );
+    // 开启纹理混合模式
+    if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
+        h.printError();
+        return Error.SdlSetTextureBlendModeFailed;
+    }
+    // 上传纹理
+    if (!c.SDL_UpdateTexture(
+        texture,
+        null,
+        image.pixels_ptr,
+        pitch,
+    )) {
+        h.printError();
+        return Error.SdlUpdateTextureFailed;
+    }
+
+    return texture;
 }

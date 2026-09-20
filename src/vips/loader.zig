@@ -52,14 +52,13 @@ pub fn load(path: []const u8) Error!Image {
     const _format = c.vips_image_get_format(in);
     // 转换为 SRGB
     var srgb: [*c]c.VipsImage = null;
-    defer c.g_object_unref(srgb);
     if (c.vips_colourspace(in, &srgb, c.VIPS_INTERPRETATION_sRGB, VIPS_ARGUMENT_NULL) != 0) {
         h.printError();
         return Error.VipsImageLoadFailed;
     }
+    defer c.g_object_unref(srgb);
     // 转换为 RGBA
     var rgba: [*c]c.VipsImage = null;
-    defer c.g_object_unref(rgba);
     if (c.vips_image_hasalpha(srgb) != 0) {
         rgba = srgb;
     } else {
@@ -68,6 +67,9 @@ pub fn load(path: []const u8) Error!Image {
             return Error.VipsImageLoadFailed;
         }
         bands += 1;
+    }
+    defer {
+        if (rgba != srgb) c.g_object_unref(rgba); // 只有在 rgba 与 srgb 不同的情况下才释放 rgba
     }
     // 提取像素数据
     var size: usize = 0;

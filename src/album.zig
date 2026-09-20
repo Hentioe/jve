@@ -18,18 +18,25 @@ const Cache = struct {
     scanner: Scanner,
     image: Image,
     dirty: bool,
+    full_path: ?[]const u8 = null,
 
     pub fn deinit(self: *Cache) void {
         self.image.deinit();
         self.scanner.deinit();
+        if (self.full_path) |full_path| self.gpa.free(full_path);
         self.* = undefined;
+    }
+
+    pub fn updateFullPath(self: *Cache, path: []const u8) void {
+        if (self.full_path) |full_path| self.gpa.free(full_path);
+        self.full_path = path;
     }
 };
 var global: ?Cache = null;
 
-inline fn cached() Error!Cache {
-    if (global) |c| {
-        return c;
+inline fn cached() Error!*Cache {
+    if (global) |*cache| {
+        return cache;
     } else {
         return Error.CacheNotInitialized;
     }
@@ -37,7 +44,6 @@ inline fn cached() Error!Cache {
 
 /// 全局的初始化函数
 /// 扫描文件所在目录，并定位到该文件；文件不在结果中时停在第一个
-// todo: 返回错误集
 pub fn initialize(gpa: Allocator, file_path: []const u8) !void {
     const dir = std.fs.path.dirname(file_path) orelse ".";
     const base = std.fs.path.basename(file_path);
@@ -54,6 +60,7 @@ pub fn initialize(gpa: Allocator, file_path: []const u8) !void {
         .scanner = scanner,
         .image = image,
         .dirty = false,
+        // 初始化的路径不要保存，cli 会负责回收
     };
 }
 
@@ -91,7 +98,8 @@ fn reloadCurrent() Error!void {
             std.log.err("Failed to join path: {}", .{err});
             return Error.InvalidPath;
         };
-        defer cache.gpa.free(full_path);
+        // 更新缓存中的路径（后续释放需要）
+        cache.updateFullPath(full_path);
         // 加载图片
         const image = loader.load(full_path) catch |err| {
             std.log.err("Failed to load image: {}", .{err});
@@ -99,6 +107,7 @@ fn reloadCurrent() Error!void {
         };
         // 缓存图片
         cache.image = image;
+        std.log.info("Current image: {s}", .{image.file_name});
         // 标记缓存为干净
         cache.dirty = false;
     } else {
@@ -109,7 +118,7 @@ fn reloadCurrent() Error!void {
 
 pub fn current() Error!Image {
     const c = try cached();
-    if (c.dirty) {
+    if (c.dirty) { // 如果缓存脏了，重新加载当前图片
         std.log.info("Cache is dirty, reloading current image", .{});
         try reloadCurrent();
     }

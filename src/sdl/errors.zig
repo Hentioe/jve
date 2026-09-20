@@ -10,6 +10,7 @@ pub const Error = error{
     SdlSetTextureBlendModeFailed,
     SdlUpdateTextureFailed,
     SdlMapGPUTransferBufferFailed,
+    AlbumError, // 相册模块出错
     NoPixelData,
     OutOfMemory,
 };

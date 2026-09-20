@@ -44,17 +44,16 @@ pub fn render(allocator: std.mem.Allocator, backend: []const u8) !void {
         return error.UnknownBackend;
     }
 
-    // 在不同后端循环渲染（支持模式切换）
+    // 在不同后端循环渲染（模式切换）
     while (current_renderer != null) {
-        const image = try album.current();
         if (current_renderer == .SdlRenderer) {
-            if (try renderer.render(allocator, image) == .Toggle) {
+            if (try renderer.render(allocator) == .Toggle) {
                 current_renderer = .SdlGpu;
             } else {
                 current_renderer = null;
             }
         } else if (current_renderer == .SdlGpu) {
-            if (try renderer_gpu.render(allocator, image) == .Toggle) {
+            if (try renderer_gpu.render(allocator) == .Toggle) {
                 current_renderer = .SdlRenderer;
             } else {
                 current_renderer = null;
