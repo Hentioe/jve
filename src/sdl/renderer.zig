@@ -83,7 +83,7 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
                 if (mod_state > 0) {
                     // 计算新的缩放率、宽度，并更新窗口大小
                     if (event.wheel.y > 0) target_scale *= 1.4 else target_scale /= 1.4;
-                    if (target_scale > 3) target_scale = 3.0 else if (target_scale < 1) target_scale = 1.0;
+                    if (target_scale > 3) target_scale = 3.0 else if (target_scale < 0.5) target_scale = 0.5;
                     animating = true;
                 } else {
                     std.log.debug("Mouse wheel event without modifier: {d}", .{event.wheel.y});
