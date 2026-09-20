@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const initializer = @import("initializer.zig");
+const texture_share = @import("textture_share.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Image = @import("../root.zig").loader.Image;
@@ -27,33 +28,39 @@ pub fn render(allocator: std.mem.Allocator, image: Image) Error!RenderExit {
         return Error.SdlCreateRendererFailed;
     };
     defer c.SDL_DestroyRenderer(renderer);
-    // 计算 pitch
-    const pitch = image.width * image.bands;
-    std.log.info("Pitch: {d}", .{pitch});
-    // 创建图片纹理
-    const texture = c.SDL_CreateTexture(
-        renderer,
-        c.SDL_PIXELFORMAT_RGBA32,
-        c.SDL_TEXTUREACCESS_STATIC,
-        image.width,
-        image.height,
-    );
+    var texture = try texture_share.reader().readAndUpdateTexture(renderer);
+    if (texture == null) {
+        // 计算 pitch
+        const pitch = image.width * image.bands;
+        std.log.info("Pitch: {d}", .{pitch});
+        // 创建图片纹理
+        texture = c.SDL_CreateTexture(
+            renderer,
+            c.SDL_PIXELFORMAT_RGBA32,
+            c.SDL_TEXTUREACCESS_STATIC,
+            image.width,
+            image.height,
+        );
+        // 开启纹理混合模式
+        if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
+            h.printError();
+            return Error.SdlSetTextureBlendModeFailed;
+        }
+        // 上传纹理
+        if (!c.SDL_UpdateTexture(
+            texture,
+            null,
+            image.pixels_ptr,
+            pitch,
+        )) {
+            h.printError();
+            return Error.SdlUpdateTextureFailed;
+        }
+    } else {
+        // 复用纹理缓存
+        std.log.info("Reusing texture from cache", .{});
+    }
     defer c.SDL_DestroyTexture(texture);
-    // 开启纹理混合模式
-    if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-        h.printError();
-        return Error.SdlSetTextureBlendModeFailed;
-    }
-    // 上传纹理
-    if (!c.SDL_UpdateTexture(
-        texture,
-        null,
-        image.pixels_ptr,
-        pitch,
-    )) {
-        h.printError();
-        return Error.SdlUpdateTextureFailed;
-    }
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
     updateImageRect(&dst_rect, window, image.width, image.height);

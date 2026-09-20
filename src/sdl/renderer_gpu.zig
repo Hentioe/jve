@@ -7,6 +7,7 @@ const post_util = @import("post_util.zig");
 const root = @import("../root.zig");
 const writer = root.writer;
 const clipboard = root.clipboard;
+const texture_share = @import("textture_share.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const LoadedImage = @import("../root.zig").loader.Image;
@@ -410,7 +411,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
                     // 创建下载器
                     var downloader = Downloader.init(allocator, device, image.width, image.height, image.bands);
                     defer downloader.deinit();
-                    if (download_texture_as_pixels(&downloader, tex_src)) |pixels_ptr| {
+                    if (downloadTextureAsPixels(&downloader, tex_src)) |pixels_ptr| {
                         if (save_screenshot) { // 保存到文件
                             if (writer.savePixelsToFile(
                                 pixels_ptr,
@@ -454,14 +455,29 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
         _ = c.SDL_SubmitGPUCommandBuffer(render_cmd_buf);
     }
 
-    return if (toggle) .Toggle else .Quit;
+    return if (toggle) {
+        // 写入纹理到共享缓存
+        texture_share.writer().writeTexture(
+            allocator,
+            device,
+            tex_src,
+            image.width,
+            image.height,
+            image.bands,
+        ) catch |err| {
+            std.log.err("Failed to write texture to shared cache: {}", .{err});
+        };
+        return .Toggle;
+    } else {
+        return .Quit;
+    };
 }
 
-fn download_texture_as_pixels(downloader: *Downloader, texture: ?*c.SDL_GPUTexture) Error!*anyopaque {
+fn downloadTextureAsPixels(downloader: *Downloader, texture: ?*c.SDL_GPUTexture) Error!*anyopaque {
     // 下载纹理
-    try downloader.download_gpu_texture(texture);
+    try downloader.downloadGpuTexture(texture);
     // 返回像素数据指针
-    return try downloader.pixels_ptr();
+    return try downloader.pixelsPtr();
 }
 
 // 是否是切换事件
