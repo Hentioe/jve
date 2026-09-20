@@ -16,8 +16,8 @@ pub fn main() !void {
         file_path = pos;
     }
     // 初始化
+    defer imageviewer.shutdown(); // 避免因 initialize 崩溃而未能释放资源
     try imageviewer.initialize(allocator, file_path);
-    defer imageviewer.shutdown();
     // 读取后端参数
     const backend: []const u8 = res.args.backend orelse "sdl_renderer";
     std.log.info("Using backend: {s}", .{backend});
