@@ -15,6 +15,7 @@ const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
 const Downloader = @import("Downloader.zig");
+const Screenshot = @import("Screenshot.zig");
 const RenderExit = @import("enums.zig").RenderExit;
 
 // 定义顶点与 UV 坐标
@@ -412,42 +413,21 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
                 // 处理截图保存和复制
                 if (save_screenshot or copy_screenshot) {
                     // 创建下载器
-                    var downloader = Downloader.init(allocator, device, image.width, image.height, image.bands);
-                    defer downloader.deinit();
-                    if (downloadTextureAsPixels(&downloader, tex_src)) |pixels_ptr| {
-                        if (save_screenshot) { // 保存到文件
-                            if (writer.savePixelsToFile(
-                                pixels_ptr,
-                                image.width,
-                                image.height,
-                                image.bands,
-                                "imageviewer-screenshot.png", // todo: 输出名基于原文件名
-                            )) {
-                                std.log.info("Screenshot saved, size: {d}", .{downloader.buffer_size});
-                            } else |err| {
-                                std.log.err("Failed to save screenshot: {}", .{err});
-                            }
-                        }
-                        // 下载纹理
-                        if (copy_screenshot) { // 写入到剪切板
-                            // 创建编码器
-                            var encoder = writer.Encoder.init(pixels_ptr, image.width, image.height, image.bands);
-                            defer encoder.deinit();
-                            // 编码图片
-                            if (encoder.encodeImage()) {
-                                // 复制到剪切板
-                                if (clipboard.copyImage(allocator, encoder.data orelse unreachable, "image/png")) {
-                                    std.log.info("Screenshot copied to clipboard, format: {s}", .{"png"});
-                                } else |err| {
-                                    std.log.err("Failed to copy screenshot to clipboard: {}", .{err});
-                                }
-                            } else |err| {
-                                std.log.err("Failed to encode screenshot: {}", .{err});
-                            }
-                        }
-                    } else |err| {
-                        std.log.err("Failed to download texture as pixels: {}", .{err});
+                    var screenshot = Screenshot.init(
+                        allocator,
+                        device,
+                        tex_src,
+                        &image,
+                    ) catch |err| blk: {
+                        std.log.err("Failed to create screenshot: {}", .{err});
+                        break :blk null;
+                    };
+                    if (screenshot) |*s| {
+                        defer s.deinit();
+                        if (save_screenshot) s.saveToFile();
+                        if (copy_screenshot) s.copyToClipboard();
                     }
+
                     // 重置控制参数
                     save_screenshot = false;
                     copy_screenshot = false;
@@ -474,13 +454,6 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
     } else {
         return .Quit;
     };
-}
-
-fn downloadTextureAsPixels(downloader: *Downloader, texture: ?*c.SDL_GPUTexture) Error!*anyopaque {
-    // 下载纹理
-    try downloader.downloadGpuTexture(texture);
-    // 返回像素数据指针
-    return try downloader.pixelsPtr();
 }
 
 // 是否是切换事件

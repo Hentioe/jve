@@ -39,7 +39,7 @@ pub const Encoder = struct {
     width: i32,
     height: i32,
     bands: i32,
-    data: ?[]u8 = undefined,
+    encoded: ?[]u8 = null,
 
     pub fn init(pixels_ptr: *anyopaque, width: i32, height: i32, bands: i32) Self {
         return Self{
@@ -50,7 +50,7 @@ pub const Encoder = struct {
         };
     }
 
-    pub fn encodeImage(self: *Self) Error!void {
+    pub fn encode(self: *Self) Error!void {
         // 假设像素数据为 8 位无符号整数 (0-255)
         const size: usize = @intCast(self.width * self.height * self.bands);
         // 从像素数据指针创建 VipsImage
@@ -70,14 +70,15 @@ pub const Encoder = struct {
             h.printError();
             return Error.VipsEncodingFailed;
         }
-        const u8_buf: [*]u8 = @ptrCast(buf);
-        self.data = u8_buf[0..len];
+        const u8_ptr: [*]u8 = @ptrCast(buf);
+        self.encoded = u8_ptr[0..len];
     }
 
     pub fn deinit(self: *Self) void {
-        if (self.data) |data| {
-            c.g_free(@ptrCast(data.ptr));
-            self.data = null;
+        if (self.encoded) |data| {
+            c.g_free(data.ptr);
+            self.encoded = null;
         }
+        self.* = undefined;
     }
 };
