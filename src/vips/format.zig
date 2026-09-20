@@ -19,6 +19,11 @@ const Cache = struct {
 };
 var cache: ?Cache = null;
 
+pub fn extensions() Error![]const []const u8 {
+    if (cache == null) return Error.VipsNotInitialized;
+    return cache.?.suffixes;
+}
+
 pub fn init(allocator: Allocator) Error!void {
     if (cache == null) {
         // 获取 Vips 支持的文件后缀列表

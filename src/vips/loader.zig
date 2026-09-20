@@ -16,8 +16,14 @@ pub const Image = struct {
     size: usize,
     pixels_ptr: [*]c_ushort,
 
-    pub fn freePixels(self: Image) void {
-        defer c.g_free(self.pixels_ptr);
+    pub fn freePixels(self: *Image) void {
+        c.g_free(self.pixels_ptr);
+        self.pixels_ptr = undefined;
+    }
+
+    pub fn deinit(self: *Image) void {
+        self.freePixels();
+        self.* = undefined;
     }
 };
 

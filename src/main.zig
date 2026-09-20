@@ -16,14 +16,11 @@ pub fn main() !void {
         file_path = pos;
     }
     // 初始化
-    try imageviewer.initialize(allocator);
+    try imageviewer.initialize(allocator, file_path);
     defer imageviewer.shutdown();
-    // 载入图像
-    const image = try imageviewer.load(file_path);
-    std.log.info("Image size: {d}x{d}", .{ image.width, image.height });
     // 读取后端参数
     const backend: []const u8 = res.args.backend orelse "sdl_renderer";
     std.log.info("Using backend: {s}", .{backend});
     // 渲染图像
-    try imageviewer.render(allocator, backend, image);
+    try imageviewer.render(allocator, backend);
 }
