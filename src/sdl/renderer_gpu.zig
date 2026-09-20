@@ -1,6 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const helper = @import("helper.zig");
+const h = @import("helper.zig");
 const initializer = @import("initializer.zig");
 const shader_util = @import("shader_util.zig");
 const post_util = @import("post_util.zig");
@@ -71,19 +71,19 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
         false,
         null,
     ) orelse {
-        helper.printError();
+        h.printError();
         return Error.SdlCreateGPUDeviceFailed;
     };
     // 绑定窗口到 GPU 设备
     if (!c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window)) {
-        helper.printError();
+        h.printError();
         return Error.SdlClaimWindowForGPUDeviceFailed;
     }
     // 关闭垂直同步（修改交换链的 Present Mode）
     // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
     if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
         if (!c.SDL_SetGPUSwapchainParameters(device, window.sdl_window, c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-            helper.printError();
+            h.printError();
         }
     } else {
         std.log.warn("IMMEDIATE Present Mode not supported", .{});
@@ -410,11 +410,10 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
                     // 创建下载器
                     var downloader = Downloader.init(allocator, device, image.width, image.height, image.bands);
                     defer downloader.deinit();
-                    // 下载纹理
-                    if (downloader.download_from_texture(tex_src)) {
+                    if (download_texture_as_pixels(&downloader, tex_src)) |pixels_ptr| {
                         if (save_screenshot) { // 保存到文件
                             if (writer.savePixelsToFile(
-                                downloader.pixels_ptr(),
+                                pixels_ptr,
                                 image.width,
                                 image.height,
                                 image.bands,
@@ -425,9 +424,10 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
                                 std.log.err("Failed to save screenshot: {}", .{err});
                             }
                         }
+                        // 下载纹理
                         if (copy_screenshot) { // 写入到剪切板
                             // 创建编码器
-                            var encoder = writer.Encoder.init(downloader.pixels_ptr(), image.width, image.height, image.bands);
+                            var encoder = writer.Encoder.init(pixels_ptr, image.width, image.height, image.bands);
                             defer encoder.deinit();
                             // 编码图片
                             if (encoder.encodeImage()) {
@@ -442,7 +442,7 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
                             }
                         }
                     } else |err| {
-                        std.log.err("Failed to download texture: {}", .{err});
+                        std.log.err("Failed to download texture as pixels: {}", .{err});
                     }
                     // 重置控制参数
                     save_screenshot = false;
@@ -455,6 +455,13 @@ pub fn render(allocator: std.mem.Allocator, image: LoadedImage) Error!RenderExit
     }
 
     return if (toggle) .Toggle else .Quit;
+}
+
+fn download_texture_as_pixels(downloader: *Downloader, texture: ?*c.SDL_GPUTexture) Error!*anyopaque {
+    // 下载纹理
+    try downloader.download_gpu_texture(texture);
+    // 返回像素数据指针
+    return try downloader.pixels_ptr();
 }
 
 // 是否是切换事件

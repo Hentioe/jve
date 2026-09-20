@@ -28,7 +28,7 @@ pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, width: i32, 
     };
 }
 
-pub fn download_from_texture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
+pub fn download_gpu_texture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
     // 1. 创建用于接收像素的下载缓冲区
     const buffer_create_info: c.SDL_GPUTransferBufferCreateInfo = .{
         .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD,
@@ -63,8 +63,8 @@ pub fn download_from_texture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!voi
         return Error.SdlMapGPUTransferBufferFailed;
     };
     defer c.SDL_UnmapGPUTransferBuffer(self.device, download_buffer); // 解除映射
-    const u8_raw: [*]u8 = @ptrCast(mapped_ptr);
-    const u8_slice: []u8 = u8_raw[0..self.buffer_size];
+    const u8_ptr: [*]u8 = @ptrCast(mapped_ptr);
+    const u8_slice: []u8 = u8_ptr[0..self.buffer_size];
     // 5. 将像素数据复制到堆内存（传输缓存区会被释放）
     const piexls_slice = try self.allocator.alloc(u8, self.buffer_size);
     @memcpy(piexls_slice, u8_slice);
@@ -73,13 +73,18 @@ pub fn download_from_texture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!voi
     self.downloaded = true;
 }
 
-pub fn pixels_ptr(self: *const Self) *anyopaque {
-    return @ptrCast(self.pixels_slice);
+pub fn pixels_ptr(self: *const Self) Error!*anyopaque {
+    if (self.pixels_slice) |slice| {
+        return slice.ptr;
+    } else {
+        return Error.NoPixelData;
+    }
 }
 
 pub fn deinit(self: *Self) void {
     if (self.pixels_slice) |slice| {
         self.allocator.free(slice);
         self.pixels_slice = null;
+        self.downloaded = false;
     }
 }

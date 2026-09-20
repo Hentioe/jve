@@ -10,5 +10,6 @@ pub const Error = error{
     SdlSetTextureBlendModeFailed,
     SdlUpdateTextureFailed,
     SdlMapGPUTransferBufferFailed,
+    NoPixelData,
     OutOfMemory,
 };
