@@ -15,6 +15,9 @@ pub fn main() !void {
     if (res.positionals[0]) |pos| {
         file_path = pos;
     }
+    // 初始化
+    try imageviewer.initialize(allocator);
+    defer imageviewer.shutdown();
     // 载入图像
     const image = try imageviewer.load(file_path);
     std.log.info("Image size: {d}x{d}", .{ image.width, image.height });

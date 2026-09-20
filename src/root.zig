@@ -1,11 +1,20 @@
 const std = @import("std");
 const Backend = @import("sdl/enums.zig").Backend;
+const vips_initializer = @import("vips/initializer.zig");
 
 pub const loader = @import("vips/loader.zig");
 pub const writer = @import("vips/writer.zig");
 pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
 pub const clipboard = @import("clipboard.zig");
+
+pub fn initialize(allocator: std.mem.Allocator) !void {
+    return try vips_initializer.initialize(allocator);
+}
+
+pub fn shutdown() void {
+    vips_initializer.shutdown();
+}
 
 pub fn load(file_path: []const u8) !loader.Image {
     return try loader.load(file_path);

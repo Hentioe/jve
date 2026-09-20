@@ -13,8 +13,6 @@ pub fn savePixelsToFile(
     bands: i32,
     out_filename: []const u8,
 ) Error!void {
-    // 初始化
-    try initializer.initialize();
     // 假设像素数据为 8 位无符号整数 (0-255)
     const size: usize = @intCast(width * height * bands);
     // 从像素数据指针创建 VipsImage
@@ -53,8 +51,6 @@ pub const Encoder = struct {
     }
 
     pub fn encodeImage(self: *Self) Error!void {
-        // 初始化
-        try initializer.initialize();
         // 假设像素数据为 8 位无符号整数 (0-255)
         const size: usize = @intCast(self.width * self.height * self.bands);
         // 从像素数据指针创建 VipsImage

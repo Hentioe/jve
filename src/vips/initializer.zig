@@ -1,10 +1,20 @@
+const std = @import("std");
 const c = @import("c.zig").c;
-const helper = @import("helper.zig");
+const h = @import("helper.zig");
+const format = @import("format.zig");
 const Error = @import("errors.zig").Error;
 
-pub fn initialize() Error!void {
+pub fn initialize(allocator: std.mem.Allocator) Error!void {
+    // 初始化 vips
     if (c.vips_init("imageviewer") != 0) {
-        helper.printError();
+        h.printError();
         return Error.VipsInitFailed;
     }
+    // 初始化格式模块（包含缓存）
+    try format.init(allocator);
+}
+
+pub fn shutdown() void {
+    // c.vips_shutdown(); // todo: 解决调用产生的 glib 错误日志
+    format.deinit();
 }
