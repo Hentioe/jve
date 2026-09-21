@@ -51,7 +51,7 @@ pub fn initialize(gpa: Allocator, file_path: []const u8) !void {
     // 选择当前文件
     _ = scanner.select(base);
     // 加载图片
-    const image = try loader.load(file_path);
+    const image = try loader.load(gpa, file_path);
     // 输出图像信息
     std.log.info("Current image: {s}", .{base});
     std.log.info("Image size: {d}x{d}", .{ image.width, image.height });
@@ -101,7 +101,7 @@ fn reloadCurrent() Error!void {
         // 更新缓存中的路径（后续释放需要）
         cache.updateFullPath(full_path);
         // 加载图片
-        const image = loader.load(full_path) catch |err| {
+        const image = loader.load(cache.gpa, full_path) catch |err| {
             std.log.err("Failed to load image: {}", .{err});
             return Error.ImageLoadFailed;
         };

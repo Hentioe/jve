@@ -27,19 +27,32 @@ pub const Image = struct {
     }
 };
 
-pub fn load(path: []const u8) Error!Image {
+pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!Image {
     // 获取扩展名
-    const extension = std.fs.path.extension(path);
-    if (!try format.isSupported(extension)) { // 主动检查格式是否支持
+    const ext = std.fs.path.extension(path);
+    if (!try format.isSupported(ext)) { // 主动检查格式是否支持
         return Error.UnsupportedFormat;
     }
-    // 从文件创建 VipsImage
-    const in = c.vips_image_new_from_file(@ptrCast(path), VIPS_ARGUMENT_NULL);
-    defer c.g_object_unref(in);
+
+    const filename = try allocator.dupeZ(u8, path);
+    defer allocator.free(filename);
+
+    var in: [*c]c.VipsImage = null;
+    // 从文件创建 VipsImage 指针
+    if (std.mem.eql(u8, ext, ".avif")) { // 对 avif 特殊处理
+        if (c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL) != 0) { // 仅获取第一帧
+            h.printError();
+            return Error.VipsImageLoadFailed;
+        }
+    } else {
+        in = c.vips_image_new_from_file(filename, VIPS_ARGUMENT_NULL);
+    }
     if (in == null) {
         h.printError();
         return Error.VipsImageLoadFailed;
     }
+    defer c.g_object_unref(in);
+
     // 从 path 中提取文件名
     const file_name = std.fs.path.basename(path);
     // 获取宽度
