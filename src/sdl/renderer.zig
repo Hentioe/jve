@@ -44,7 +44,7 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
     errdefer c.SDL_DestroyTexture(texture);
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
-    calculateDstRect(&dst_rect, window, image.width, image.height);
+    calculateDstRect(&dst_rect, window, image.width, image.height, .{});
 
     // 循环并处理 SDL 事件
     var running = true;
@@ -53,6 +53,8 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
     var event: c.SDL_Event = undefined;
     // 其它控制参数
     var angle: f32 = 0.0; // 旋转角度
+    var is_dragging: bool = false; // 是否正在拖动
+    var move_offset: RectOffset = .{}; // 移动偏移量
     // 累计缩放倍率
     var target_scale: f32 = 1.0;
     var current_scale: f32 = 1.0;
@@ -64,6 +66,21 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
             } else if (isToggleEvent(event, &dst_rect)) {
                 running = false;
                 toggle = true;
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) {
+                const mouse_pt = c.SDL_FPoint{ .x = event.button.x, .y = event.button.y };
+                if (c.SDL_PointInRectFloat(&mouse_pt, &dst_rect)) { // 检查点击位置是否在纹理矩形范围内
+                    is_dragging = true;
+                    std.log.info("Started dragging at mouse position: ({}, {})", .{ mouse_pt.x, mouse_pt.y });
+                }
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_LEFT) {
+                // 停止拖动
+                is_dragging = false;
+                animating = false;
+            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and is_dragging) {
+                // 更新移动偏移量
+                move_offset.x += event.motion.xrel;
+                move_offset.y += event.motion.yrel;
+                animating = true;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN) {
                 switch (event.key.key) {
                     c.SDLK_W, c.SDLK_UP => angle = 0.0,
@@ -74,6 +91,8 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
                         angle = 0.0;
                         target_scale = 1.0;
                         current_scale = 1.0;
+                        is_dragging = false;
+                        move_offset = .{};
                         animating = true;
                     },
                     else => {},
@@ -121,12 +140,7 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
             std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ current_scale, target_scale, target_scale - current_scale });
             const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * current_scale);
             const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * current_scale);
-            calculateDstRect(
-                &dst_rect,
-                window,
-                new_width,
-                new_height,
-            );
+            calculateDstRect(&dst_rect, window, new_width, new_height, move_offset);
             window.imageSizeUpdated(new_width, new_height);
         }
         const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
@@ -185,8 +199,13 @@ fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
 //     }
 // }
 
+pub const RectOffset = struct {
+    x: f32 = 0.0,
+    y: f32 = 0.0,
+};
+
 // 重新计算 rect
-fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32) void {
+fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32, offset: RectOffset) void {
     const window_width = window.display_width;
     const window_height = window.display_height;
     // 待删除：此后端不再需要窗口模式
@@ -196,8 +215,11 @@ fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new
     // }
     dst_rect.w = @floatFromInt(new_width);
     dst_rect.h = @floatFromInt(new_height);
-    dst_rect.x = @floatFromInt(@divFloor(window_width - new_width, 2));
-    dst_rect.y = @floatFromInt(@divFloor(window_height - new_height, 2));
+    const center_x: f32 = @floatFromInt(@divFloor(window_width - new_width, 2));
+    const center_y: f32 = @floatFromInt(@divFloor(window_height - new_height, 2));
+
+    dst_rect.x = center_x + offset.x;
+    dst_rect.y = center_y + offset.y;
 }
 
 fn createTexture(renderer: *c.SDL_Renderer, image: Image) Error!*c.SDL_Texture {
