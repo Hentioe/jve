@@ -83,10 +83,10 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
                 animating = true;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN) {
                 switch (event.key.key) {
-                    c.SDLK_W, c.SDLK_UP => angle = 0.0,
-                    c.SDLK_S, c.SDLK_DOWN => angle = 180.0,
-                    c.SDLK_A, c.SDLK_LEFT => angle = 270.0,
-                    c.SDLK_D, c.SDLK_RIGHT => angle = 90.0,
+                    c.SDLK_UP => angle = 0.0,
+                    c.SDLK_DOWN => angle = 180.0,
+                    c.SDLK_LEFT => angle = 270.0,
+                    c.SDLK_RIGHT => angle = 90.0,
                     c.SDLK_SLASH => { // 重置所有控制参数
                         angle = 0.0;
                         target_scale = 1.0;
