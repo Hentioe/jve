@@ -1,7 +1,7 @@
 with import <nixpkgs> { };
 let
   # 覆盖 Zig 命令，使用 zvm 运行 Zig
-  custom-zig = pkgs.writeShellScriptBin "zig" "exec zvm run 0.15.2 \"$@\"";
+  custom-zig = writeShellScriptBin "zig" "exec zvm run 0.15.2 $@";
 in
 mkShell {
   packages = [
@@ -19,7 +19,5 @@ mkShell {
     libGL # SDL 依赖
   ];
 
-  shellHook = ''
-    export ZVM_SET_CU=1 # 禁止 zvm 升级检查
-  '';
+  ZVM_SET_CU = 1; # 禁止 zvm 升级检查
 }
