@@ -5,6 +5,7 @@ const initializer = @import("initializer.zig");
 const shader_util = @import("shader_util.zig");
 const post_util = @import("post_util.zig");
 const root = @import("../root.zig");
+const structs = @import("structs.zig");
 const album = root.album;
 const writer = root.writer;
 const clipboard = root.clipboard;
@@ -17,6 +18,7 @@ const PassthroughPipeline = @import("passthrough_pipeline.zig");
 const Downloader = @import("Downloader.zig");
 const Screenshot = @import("Screenshot.zig");
 const RenderNext = @import("enums.zig").RenderNext;
+const FogUniforms = structs.FogUniforms;
 
 // 定义顶点与 UV 坐标
 const Vertex = struct {
@@ -225,13 +227,14 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
 
     // 构造棋盘格
     const checkerboard = try Checkerboard.init(device, window);
-    defer checkerboard.deinit();
     // 创建后处理管线
     const sharpen_frag_shader = try shader_util.loadAndCompileHLSL(device, "sharpen_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     var sharpen = try PostPipeline.init(.Sharpen, device, .{ .vert = vert_shader, .frag = sharpen_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     const blur_frag_shader = try shader_util.loadAndCompileHLSL(device, "blur_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     var blur_x = try PostPipeline.init(.BlurX, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     var blur_y = try PostPipeline.init(.BlurY, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    const busy_fog_frag_shader = try shader_util.loadAndCompileHLSL(device, "busy_fog.frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    var busy_fog = try PostPipeline.init(.BusyFog, device, .{ .vert = vert_shader, .frag = busy_fog_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     // 创建离屏渲染纹理 A 和 B
     const offscreen_texture_info: c.SDL_GPUTextureCreateInfo = .{
         .type = c.SDL_GPU_TEXTURETYPE_2D,
@@ -262,11 +265,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var running = true;
     var event: c.SDL_Event = undefined;
     var toggle = false;
+    var animating = false;
     // 一些常量
     const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
     // 一些功能控制
     var save_screenshot = false; // 是否保存截图
     var copy_screenshot = false; // 是否复制截图到剪贴板
+    var is_busy = false; // 是否正在繁忙处理
     // 模糊着色器参数
     const texel_size_w = 1.0 / @as(f32, @floatFromInt(image.width));
     const texel_size_h = 1.0 / @as(f32, @floatFromInt(image.height));
@@ -283,11 +288,12 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var hor_value: f32 = 0; // 横向调节的值
     const hor_sensitivity = 100; // 横向调节灵敏度
     while (running) {
-        if (c.SDL_WaitEvent(&event)) {
+        if (is_busy) animating = true;
+        const has_event = if (animating) c.SDL_PollEvent(&event) else c.SDL_WaitEvent(&event);
+        if (has_event) {
             if (event.type == c.SDL_EVENT_QUIT) {
                 running = false;
-            }
-            if (isToggleEvent(event)) {
+            } else if (isToggleEvent(event)) {
                 toggle = true;
                 running = false;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
@@ -303,16 +309,17 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 is_grayscale = !is_grayscale;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
                 save_screenshot = true;
-            } // ctrl+c 事件
-            else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C) { // C 附加繁重效果
+                is_busy = !is_busy;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
                 copy_screenshot = true;
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) {
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节开始
                 hor_adjusting = true;
                 std.log.debug("Mouse wheel event down: {}", .{event.button.button});
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_MIDDLE) {
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节结束
                 hor_adjusting = false;
                 std.log.debug("Mouse wheel event up: {}", .{event.button.button});
-            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and hor_adjusting) {
+            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and hor_adjusting) { // 横向调节中
                 hor_value += event.motion.xrel / hor_sensitivity;
                 std.log.debug("Horizontal value updated: {}", .{hor_value});
             }
@@ -334,7 +341,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         // 绑定图像的像素纹理以及采样器
         c.SDL_BindGPUFragmentSamplers(render_pass, 0, &tex_binding, 1);
         // 准备要传递的参数
-        const uniforms: BaseUniforms = .{
+        const base_uniforms: BaseUniforms = .{
             .invert = if (is_inverted) 1.0 else 0.0,
             .brightness = brightness,
             .contrast = contrast,
@@ -344,7 +351,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         // 将参数推送到片段着色器 (Fragment Shader) 的 slot 0 槽位
         c.SDL_PushGPUFragmentUniformData(render_cmd_buf, // 当前命令缓冲区
             0, // 着色器中的 slot 索引（对应 register b0）
-            &uniforms, // 数据指针
+            &base_uniforms, // 数据指针
             @sizeOf(BaseUniforms) // 数据字节大小
         );
         // 绘制矩形 (绘制 6 个顶点 = 2 个三角形)
@@ -353,31 +360,31 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         c.SDL_EndGPURenderPass(render_pass);
 
         // 后处理管线
-        for (pipelines) |pipeline| {
+        for (pipelines) |pl| {
             // 是否进入管线
-            if (pipeline.effect_type == .Sharpen and hor_value <= 0) continue;
-            if ((pipeline.effect_type == .BlurX or pipeline.effect_type == .BlurY) and hor_value >= 0) continue;
+            if (pl.effect_type == .Sharpen and hor_value <= 0) continue; // 没有有效值，跳过
+            if ((pl.effect_type == .BlurX or pl.effect_type == .BlurY) and hor_value >= 0) continue; // 没有有效值，跳过
             // 绑定管线
-            pipeline.bind(tex_dst, tex_src, sampler, render_cmd_buf, &verts_binding);
-            if (pipeline.effect_type == .Sharpen) {
+            pl.bind(tex_dst, tex_src, sampler, render_cmd_buf, &verts_binding);
+            if (pl.effect_type == .Sharpen) {
                 // 传递锐化参数
-                const sharpen_uniforms: SharpenUniforms = .{
+                const uniforms: SharpenUniforms = .{
                     .strength = hor_value,
                     .textureSize = .{ @floatFromInt(image.width), @floatFromInt(image.height) },
                 };
-                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &sharpen_uniforms, @sizeOf(SharpenUniforms));
-            } else if (pipeline.effect_type == .BlurX or pipeline.effect_type == .BlurY) {
+                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(SharpenUniforms));
+            } else if (pl.effect_type == .BlurX or pl.effect_type == .BlurY) {
                 // 传递模糊参数
-                const blur_uniforms: BlurParams = .{
+                const uniforms: BlurParams = .{
                     .blurIntensity = -hor_value, // 从负数转换而来
                     .texelSize = .{ texel_size_w, texel_size_h },
-                    .direction = if (pipeline.effect_type == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
+                    .direction = if (pl.effect_type == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
                 };
-                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &blur_uniforms, @sizeOf(BlurParams));
+                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(BlurParams));
             }
 
             // 绘制管线内容
-            pipeline.draw();
+            pl.draw();
             // 乒乓交换：把这一轮的输出 dst，作为下一轮的输入 src
             const temp = tex_src;
             tex_src = tex_dst;
@@ -407,37 +414,47 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                     // c.SDL_BlitGPUTexture(render_cmd_buf, &blit_info);
                 }
                 // 开启渲染通道
-                passthrough.beginRenderPass(swapchain_texture, render_cmd_buf);
+                passthrough.begin(swapchain_texture, render_cmd_buf);
                 // 绘制棋盘格
-                checkerboard.drawByPass(passthrough.render_pass);
-                // 渲染到屏幕
-                passthrough.endRenderPass(tex_src, sampler);
-                // 处理截图保存和复制
-                if (save_screenshot or copy_screenshot) {
-                    // 创建下载器
-                    var screenshot = Screenshot.init(
-                        allocator,
-                        device,
-                        tex_src,
-                        &image,
-                    ) catch |err| blk: {
-                        std.log.err("Failed to create screenshot: {}", .{err});
-                        break :blk null;
-                    };
-                    if (screenshot) |*s| {
-                        defer s.deinit();
-                        if (save_screenshot) s.saveToFile();
-                        if (copy_screenshot) s.copyToClipboard();
-                    }
-
-                    // 重置控制参数
-                    save_screenshot = false;
-                    copy_screenshot = false;
+                checkerboard.draw(passthrough.render_pass);
+                // 渲染到屏幕（内容 + 后处理 + 棋盘格）
+                passthrough.draw(tex_src, sampler);
+                // 后续：在屏幕之上继续添加新内容
+                if (is_busy) {
+                    // 添加忙雾
+                    busy_fog.bindWithPass(passthrough.render_pass, swapchain_texture, sampler, &verts_binding);
+                    const fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(c.SDL_GetTicks())) / 1000.0 };
+                    c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &fog_uniforms, @sizeOf(FogUniforms));
+                    busy_fog.drawWithPass(passthrough.render_pass);
                 }
+                passthrough.end();
             }
         }
         // 提交绘制命令，渲染到屏幕
         _ = c.SDL_SubmitGPUCommandBuffer(render_cmd_buf);
+
+        // 处理截图保存和复制
+        if (save_screenshot or copy_screenshot) {
+            // 创建下载器
+            var screenshot = Screenshot.init(
+                allocator,
+                device,
+                tex_src,
+                &image,
+            ) catch |err| blk: {
+                std.log.err("Failed to create screenshot: {}", .{err});
+                break :blk null;
+            };
+            if (screenshot) |*s| {
+                defer s.deinit();
+                if (save_screenshot) s.saveToFile();
+                if (copy_screenshot) s.copyToClipboard();
+            }
+
+            // 重置控制参数
+            save_screenshot = false;
+            copy_screenshot = false;
+        }
     }
 
     return if (toggle) {

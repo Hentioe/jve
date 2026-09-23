@@ -10,6 +10,7 @@ const PostEffectType = enum {
     Sharpen, // 锐化
     BlurX, // 横向模糊
     BlurY, // 纵向模糊
+    BusyFog, // 忙碌雾气
 };
 
 effect_type: PostEffectType,
@@ -69,4 +70,30 @@ pub fn draw(self: *const Self) void {
     // 这里可以添加任何在渲染结束时需要执行的操作
     c.SDL_DrawGPUPrimitives(self.render_pass, 6, 1, 0, 0);
     c.SDL_EndGPURenderPass(self.render_pass);
+}
+
+pub fn bindWithPass(
+    self: *Self,
+    render_pass: ?*c.SDL_GPURenderPass,
+    tex_src: ?*c.SDL_GPUTexture,
+    sampler: ?*c.SDL_GPUSampler,
+    vertex_binding: *const c.SDL_GPUBufferBinding,
+) void {
+    // 绑定顶点缓冲区
+    c.SDL_BindGPUVertexBuffers(render_pass, 0, vertex_binding, 1);
+    // 绑定管线
+    c.SDL_BindGPUGraphicsPipeline(render_pass, self.pipeline);
+    const sampler_bind: c.SDL_GPUTextureSamplerBinding = .{
+        .texture = tex_src,
+        .sampler = sampler,
+    };
+    // 绑定采样器
+    c.SDL_BindGPUFragmentSamplers(render_pass, 0, &sampler_bind, 1);
+}
+
+pub fn drawWithPass(
+    _: *const Self,
+    render_pass: ?*c.SDL_GPURenderPass,
+) void {
+    c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
 }

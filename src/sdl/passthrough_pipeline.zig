@@ -36,7 +36,7 @@ pub fn init(
     };
 }
 
-pub fn beginRenderPass(self: *Self, swapchain_texture: ?*c.SDL_GPUTexture, render_cmd_buf: ?*c.SDL_GPUCommandBuffer) void {
+pub fn begin(self: *Self, swapchain_texture: ?*c.SDL_GPUTexture, render_cmd_buf: ?*c.SDL_GPUCommandBuffer) void {
     const color_target: c.SDL_GPUColorTargetInfo = .{
         .texture = swapchain_texture,
         .load_op = c.SDL_GPU_LOADOP_CLEAR,
@@ -46,7 +46,7 @@ pub fn beginRenderPass(self: *Self, swapchain_texture: ?*c.SDL_GPUTexture, rende
     self.render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
 }
 
-pub fn endRenderPass(self: *Self, tex_src: ?*c.SDL_GPUTexture, sampler: ?*c.SDL_GPUSampler) void {
+pub fn draw(self: *Self, tex_src: ?*c.SDL_GPUTexture, sampler: ?*c.SDL_GPUSampler) void {
     c.SDL_BindGPUGraphicsPipeline(self.render_pass, self.pipeline);
     const sampler_binding: c.SDL_GPUTextureSamplerBinding = .{
         .texture = tex_src,
@@ -54,5 +54,8 @@ pub fn endRenderPass(self: *Self, tex_src: ?*c.SDL_GPUTexture, sampler: ?*c.SDL_
     };
     c.SDL_BindGPUFragmentSamplers(self.render_pass, 0, &sampler_binding, 1);
     c.SDL_DrawGPUPrimitives(self.render_pass, 6, 1, 0, 0);
+}
+
+pub fn end(self: *Self) void {
     c.SDL_EndGPURenderPass(self.render_pass);
 }

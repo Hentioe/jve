@@ -23,13 +23,9 @@ pub fn init(device: *c.SDL_GPUDevice, window: *Window) Error!Self {
     };
 }
 
-pub fn drawByPass(self: *const Self, render_pass: ?*c.SDL_GPURenderPass) void {
+pub fn draw(self: *const Self, render_pass: ?*c.SDL_GPURenderPass) void {
     // 切换到棋盘格管线
     c.SDL_BindGPUGraphicsPipeline(render_pass, self.pipeline);
     // 绘制 3 个顶点覆盖整个屏幕
     c.SDL_DrawGPUPrimitives(render_pass, 3, 1, 0, 0);
-}
-
-pub fn deinit(_: *const Self) void {
-    // 暂时为空
 }
