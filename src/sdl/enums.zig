@@ -4,8 +4,7 @@ pub const Backend = enum {
     SdlGpu,
 };
 
-// 渲染退出
-pub const RenderExit = enum {
-    Quit,
-    Toggle,
+pub const RenderNext = enum {
+    quite,
+    toggle,
 };

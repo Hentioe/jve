@@ -8,7 +8,7 @@ const root = @import("../root.zig");
 const album = root.album;
 const writer = root.writer;
 const clipboard = root.clipboard;
-const texture_share = @import("textture_share.zig");
+const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Checkerboard = @import("checkerboard_gpu.zig");
@@ -16,7 +16,7 @@ const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
 const Downloader = @import("Downloader.zig");
 const Screenshot = @import("Screenshot.zig");
-const RenderExit = @import("enums.zig").RenderExit;
+const RenderNext = @import("enums.zig").RenderNext;
 
 // 定义顶点与 UV 坐标
 const Vertex = struct {
@@ -54,10 +54,12 @@ const BlurParams = extern struct {
 };
 
 // 基于 SDL_GPU 渲染图片
-pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
+pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     const image = album.current() catch {
         return Error.AlbumError;
     };
+    // 更新状态
+    state.updateFromImage(&image);
     // 执行初始化
     try initializer.initialize(.SdlGpu);
     // 创建窗口
@@ -440,19 +442,15 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
 
     return if (toggle) {
         // 写入纹理到共享缓存
-        texture_share.writer().writeTexture(
-            allocator,
+        state.writeTexture(
             device,
             tex_src,
-            image.width,
-            image.height,
-            image.bands,
         ) catch |err| {
-            std.log.err("Failed to write texture to shared cache: {}", .{err});
+            std.log.err("Failed to write texture to state: {}", .{err});
         };
-        return .Toggle;
+        return .toggle;
     } else {
-        return .Quit;
+        return .quite;
     };
 }
 

@@ -9,6 +9,7 @@ pub const loader = @import("vips/loader.zig");
 pub const writer = @import("vips/writer.zig");
 pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
+pub const State = @import("sdl/State.zig");
 pub const clipboard = @import("clipboard.zig");
 
 pub fn initialize(allocator: std.mem.Allocator, file_path: []const u8) !void {
@@ -44,16 +45,20 @@ pub fn render(allocator: std.mem.Allocator, backend: []const u8) !void {
         return error.UnknownBackend;
     }
 
+    // 初始化状态
+    var state = State.init(allocator);
+    defer state.deinit();
+
     // 在不同后端循环渲染（模式切换）
     while (current_renderer != null) {
         if (current_renderer == .SdlRenderer) {
-            if (try renderer.render(allocator) == .Toggle) {
+            if (try renderer.render(allocator, &state) == .toggle) {
                 current_renderer = .SdlGpu;
             } else {
                 current_renderer = null;
             }
         } else if (current_renderer == .SdlGpu) {
-            if (try renderer_gpu.render(allocator) == .Toggle) {
+            if (try renderer_gpu.render(allocator, &state) == .toggle) {
                 current_renderer = .SdlRenderer;
             } else {
                 current_renderer = null;

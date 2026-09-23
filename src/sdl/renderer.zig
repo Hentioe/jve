@@ -4,17 +4,19 @@ const h = @import("helper.zig");
 const root = @import("../root.zig");
 const album = root.album;
 const initializer = @import("initializer.zig");
-const texture_share = @import("textture_share.zig");
+const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Image = @import("../root.zig").loader.Image;
-const RenderExit = @import("enums.zig").RenderExit;
+const RenderNext = @import("enums.zig").RenderNext;
 
 // 基于 sdl_renderer 渲染图片
-pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
+pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var image = album.current() catch {
         return Error.AlbumError;
     };
+    // 更新状态
+    state.updateFromImage(&image);
     // 执行初始化
     try initializer.initialize(.SdlRenderer);
     // 创建窗口
@@ -33,13 +35,13 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
         return Error.SdlCreateRendererFailed;
     };
     defer c.SDL_DestroyRenderer(renderer);
-    // 创建纹理
-    var texture = try texture_share.reader().readAndUpdateTexture(renderer);
-    if (texture == null) {
+    // 创建纹理（先尝试从缓存中读取）
+    var texture = try state.readTexture(renderer);
+    if (texture == null) { // 没有就创建新的纹理
         texture = try createTexture(renderer, image);
     } else {
-        // 复用纹理缓存
-        std.log.info("Reusing texture from cache", .{});
+        // 复用纹理
+        std.log.info("Reusing texture from state", .{});
     }
     errdefer c.SDL_DestroyTexture(texture);
     // 创建目标矩形
@@ -150,7 +152,7 @@ pub fn render(allocator: std.mem.Allocator) Error!RenderExit {
         check(c.SDL_RenderPresent(renderer));
     }
 
-    return if (toggle) .Toggle else .Quit;
+    return if (toggle) .toggle else .quite;
 }
 
 inline fn check(ok: bool) void {
