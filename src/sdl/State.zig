@@ -12,6 +12,7 @@ allocator: Allocator,
 size: Size,
 bands: i32,
 downloaded: ?Downloader = null,
+target_scale: f32 = 1.0,
 
 pub fn init(allocator: Allocator) Self {
     return Self{ .allocator = allocator, .size = .{ .w = 0, .h = 0 }, .bands = 0 };

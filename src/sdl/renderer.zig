@@ -51,14 +51,14 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 循环并处理 SDL 事件
     var running = true;
     var toggle = false;
-    var animating = false;
+    var animating = true;
     var event: c.SDL_Event = undefined;
     // 其它控制参数
     var angle: f32 = 0.0; // 旋转角度
     var is_dragging: bool = false; // 是否正在拖动
     var move_offset: RectOffset = .{}; // 移动偏移量
     // 累计缩放倍率
-    var target_scale: f32 = 1.0;
+    var target_scale: f32 = state.target_scale;
     var current_scale: f32 = 1.0;
     while (running) {
         const has_event = if (animating) c.SDL_PollEvent(&event) else c.SDL_WaitEvent(&event);
@@ -151,6 +151,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, angle, null, c.SDL_FLIP_NONE));
         check(c.SDL_RenderPresent(renderer));
     }
+    // 更新状态中的缩放比例
+    state.target_scale = target_scale;
 
     return if (toggle) .toggle else .quite;
 }
