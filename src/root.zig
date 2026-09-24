@@ -46,7 +46,7 @@ pub fn render(allocator: std.mem.Allocator, backend: []const u8) !void {
     }
 
     // 初始化状态
-    var state = State.init(allocator);
+    var state = try State.init(allocator);
     defer state.deinit();
 
     // 在不同后端循环渲染（模式切换）

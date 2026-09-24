@@ -2,6 +2,8 @@ with import <nixpkgs> { };
 let
   # 覆盖 Zig 命令，使用 zvm 运行 Zig
   custom-zig = writeShellScriptBin "zig" "exec zvm run 0.15.2 $@";
+  # 启用 ROCm 支持的 ONNX Runtime
+  onnxruntime-rocm = (onnxruntime.override { rocmSupport = true; });
 in
 mkShell {
   packages = [
@@ -17,6 +19,7 @@ mkShell {
     sdl3-shadercross # SDL_shadercross
     vulkan-loader # Vulkan
     libGL # SDL 依赖
+    onnxruntime-rocm # ONNX 推理引擎
   ];
 
   ZVM_SET_CU = 1; # 禁止 zvm 升级检查

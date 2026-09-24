@@ -1,28 +1,33 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const ort = @import("ort");
 const Allocator = std.mem.Allocator;
+const Error = @import("errors.zig").Error;
 const Image = @import("../root.zig").loader.Image;
 const Size = @import("structs.zig").Size(i32);
 const Downloader = @import("Downloader.zig");
-const Error = @import("errors.zig").Error;
 const Self = @This();
 
 allocator: Allocator,
 size: Size,
 bands: i32,
-downloaded: ?Downloader = null,
 target_scale: f32 = 1.0,
+downloaded: ?Downloader = null,
+ort_api: ?ort.Api = null,
 
-pub fn init(allocator: Allocator) Self {
-    return Self{ .allocator = allocator, .size = .{ .w = 0, .h = 0 }, .bands = 0 };
+pub fn init(allocator: Allocator) Error!Self {
+    return Self{
+        .allocator = allocator,
+        .size = .{ .w = 0, .h = 0 },
+        .bands = 0,
+    };
 }
 
 pub fn deinit(self: *Self) void {
-    if (self.downloaded) |*downloaded| {
-        downloaded.deinit();
-        self.* = undefined;
-    }
+    if (self.downloaded) |*downloaded| downloaded.deinit();
+    if (self.ort_api) |*ort_api| ort_api.deinit();
+    self.* = undefined;
 }
 
 pub fn updateFromImage(self: *Self, image: *const Image) void {

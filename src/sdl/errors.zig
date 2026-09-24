@@ -1,4 +1,6 @@
-pub const Error = error{
+const OrtError = @import("ort").Error;
+
+pub const SdlError = error{
     SdlInitFailed,
     SdlShaderCrossInitFailed,
     SdlCreateGPUDeviceFailed,
@@ -14,3 +16,5 @@ pub const Error = error{
     NoPixelData,
     OutOfMemory,
 };
+
+pub const Error = SdlError || OrtError;
