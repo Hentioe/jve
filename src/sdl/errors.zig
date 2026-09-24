@@ -1,3 +1,5 @@
+const std = @import("std");
+const AllocatorError = std.mem.Allocator.Error;
 const OrtError = @import("ort").Error;
 
 pub const SdlError = error{
@@ -12,9 +14,12 @@ pub const SdlError = error{
     SdlSetTextureBlendModeFailed,
     SdlUpdateTextureFailed,
     SdlMapGPUTransferBufferFailed,
-    AlbumError, // 相册模块出错
-    NoPixelData,
-    OutOfMemory,
+    AlbumError, // todo: 包含 Album 错误集
 };
 
-pub const Error = SdlError || OrtError;
+pub const ExtractorError = error{
+    NotDownloaded,
+    NoPixelData,
+};
+
+pub const Error = SdlError || ExtractorError || AllocatorError || OrtError;

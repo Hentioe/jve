@@ -28,7 +28,15 @@ pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, width: i32, 
     };
 }
 
-pub fn downloadGpuTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
+pub fn deinit(self: *Self) void {
+    if (self.pixels_slice) |slice| {
+        self.allocator.free(slice);
+        self.pixels_slice = null;
+        self.downloaded = false;
+    }
+}
+
+pub fn downloadTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
     // 1. 创建用于接收像素的下载缓冲区
     const buffer_create_info: c.SDL_GPUTransferBufferCreateInfo = .{
         .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD,
@@ -73,18 +81,13 @@ pub fn downloadGpuTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
     self.downloaded = true;
 }
 
-pub fn pixelsPtr(self: *const Self) Error!*anyopaque {
+pub fn getAndCheckDataPtr(self: *const Self) Error!*anyopaque {
+    if (self.downloaded == false) {
+        return Error.NotDownloaded;
+    }
     if (self.pixels_slice) |slice| {
         return slice.ptr;
     } else {
         return Error.NoPixelData;
-    }
-}
-
-pub fn deinit(self: *Self) void {
-    if (self.pixels_slice) |slice| {
-        self.allocator.free(slice);
-        self.pixels_slice = null;
-        self.downloaded = false;
     }
 }

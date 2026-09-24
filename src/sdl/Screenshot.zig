@@ -5,18 +5,17 @@ const Image = root.loader.Image;
 const writer = root.writer;
 const clipboard = root.clipboard;
 const Allocator = std.mem.Allocator;
-const Downloader = @import("Downloader.zig");
+const Extractor = @import("Extractor.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
 allocator: Allocator,
-downloader: Downloader,
-texture: ?*c.SDL_GPUTexture,
+extractor: Extractor,
 image: *const Image,
 
 pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c.SDL_GPUTexture, image: *const Image) Error!Self {
     // 创建下载器
-    var downloader = Downloader.init( // todo: 重构下载器，init 函数不再传递图片信息
+    var extractor = Extractor.init( // todo: 重构下载器，init 函数不再传递图片信息
         allocator,
         device,
         image.width,
@@ -24,24 +23,23 @@ pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c
         image.bands,
     );
     // 下载纹理
-    try downloader.downloadGpuTexture(texture);
+    try extractor.downloadTexture(texture);
 
     return Self{
         .allocator = allocator,
-        .downloader = downloader,
-        .texture = texture,
+        .extractor = extractor,
         .image = image,
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.downloader.deinit();
+    self.extractor.deinit();
     self.* = undefined;
 }
 
 pub fn saveToFile(self: *const Self) void {
     // 返回像素数据指针
-    const pixels_ptr = self.downloader.pixelsPtr() catch |err| {
+    const pixels_ptr = self.extractor.getAndCheckDataPtr() catch |err| {
         std.log.err("Failed to get pixels pointer: {}", .{err});
         return;
     };
@@ -58,7 +56,7 @@ pub fn saveToFile(self: *const Self) void {
         self.image.bands,
         out_filename,
     )) {
-        std.log.info("Screenshot saved, size: {d}", .{self.downloader.buffer_size});
+        std.log.info("Screenshot saved, size: {d}", .{self.extractor.buffer_size});
     } else |err| {
         std.log.err("Failed to save screenshot: {}", .{err});
     }
@@ -67,7 +65,7 @@ pub fn saveToFile(self: *const Self) void {
 // 复制到剪切板
 pub fn copyToClipboard(self: *const Self) void {
     // 返回像素数据指针
-    const pixels_ptr = self.downloader.pixelsPtr() catch |err| {
+    const pixels_ptr = self.extractor.getAndCheckDataPtr() catch |err| {
         std.log.err("Failed to get pixels pointer: {}", .{err});
         return;
     };
