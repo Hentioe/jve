@@ -15,7 +15,6 @@ const Window = @import("window.zig");
 const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
-const Downloader = @import("Downloader.zig");
 const Screenshot = @import("Screenshot.zig");
 const RenderNext = @import("enums.zig").RenderNext;
 const FogUniforms = structs.FogUniforms;
@@ -83,6 +82,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         h.printError();
         return Error.SdlCreateGPUDeviceFailed;
     };
+    defer c.SDL_DestroyGPUDevice(device);
     // 绑定窗口到 GPU 设备
     if (!c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window)) {
         h.printError();
@@ -109,6 +109,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .num_levels = 1,
     };
     const texture = c.SDL_CreateGPUTexture(device, &texture_info);
+    defer c.SDL_ReleaseGPUTexture(device, texture);
     // 2. 将 CPU 像素数据上传至 GPU
     const image_size: u32 = @intCast(image.width * image.height * 4); // RGBA8888 字节大小
     const transfer_info = c.SDL_GPUTransferBufferCreateInfo{
@@ -116,6 +117,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .size = image_size,
     };
     const txu_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &transfer_info);
+    // txu_transfer_buf 的释放放在后面
     // 映射内存并拷贝像素数据至传输缓冲区
     const map_ptr = c.SDL_MapGPUTransferBuffer(device, txu_transfer_buf, false);
     _ = c.SDL_memcpy(map_ptr, image.pixels_ptr, image_size); // 执行复制（像素数据指针作为拷贝源）
@@ -157,10 +159,12 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 创建 GPU Buffer
     const verts_buffer_info = c.SDL_GPUBufferCreateInfo{ .usage = c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
     const verts_buffer = c.SDL_CreateGPUBuffer(device, &verts_buffer_info);
+    defer c.SDL_ReleaseGPUBuffer(device, verts_buffer);
     const verts_binding: c.SDL_GPUBufferBinding = .{ .buffer = verts_buffer, .offset = 0 }; // 顶点绑定
     // 通过 TransferBuffer 将顶点复制到 GPU Buffer
     const verts_transfer_info = c.SDL_GPUTransferBufferCreateInfo{ .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = verts_size };
     const verts_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &verts_transfer_info);
+    // verts_transfer_buf 的释放放在后面
     const verts_map_ptr = c.SDL_MapGPUTransferBuffer(device, verts_transfer_buf, false);
     _ = c.SDL_memcpy(verts_map_ptr, @ptrCast(&verts), verts_size);
     c.SDL_UnmapGPUTransferBuffer(device, verts_transfer_buf);
@@ -172,7 +176,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     c.SDL_UploadToGPUBuffer(verts_copy_pass, &src, &dst, false);
     c.SDL_EndGPUCopyPass(verts_copy_pass);
     _ = c.SDL_SubmitGPUCommandBuffer(verts_cmd_buf);
-    _ = c.SDL_ReleaseGPUTransferBuffer(device, verts_transfer_buf); // 释放传输缓存
+    c.SDL_ReleaseGPUTransferBuffer(device, verts_transfer_buf); // 释放传输缓存
 
     // --- 纹理采样器 (Sampler) ---
     // 创建采样器
@@ -184,6 +188,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .address_mode_v = c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
     };
     const sampler = c.SDL_CreateGPUSampler(device, &sampler_desc);
+    defer c.SDL_ReleaseGPUSampler(device, sampler); // 释放采样器
     // 创建纹理采样器绑定
     const tex_binding: c.SDL_GPUTextureSamplerBinding = .{ .texture = texture, .sampler = sampler };
 
@@ -223,7 +228,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
     };
-    const base_pipeline: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse unreachable;
+    const base_pl: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse {
+        return Error.CreateGPUGraphicsPipelineFailed;
+    };
+    defer c.SDL_ReleaseGPUGraphicsPipeline(device, base_pl);
 
     // 构造棋盘格
     const checkerboard = try Checkerboard.init(device, window);
@@ -231,10 +239,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     const sharpen_frag_shader = try shader_util.loadAndCompileHLSL(device, "sharpen_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     var sharpen = try PostPipeline.init(.Sharpen, device, .{ .vert = vert_shader, .frag = sharpen_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     const blur_frag_shader = try shader_util.loadAndCompileHLSL(device, "blur_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
-    var blur_x = try PostPipeline.init(.BlurX, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    var blur_y = try PostPipeline.init(.BlurY, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    var blur_x_pl = try PostPipeline.init(.BlurX, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    defer blur_x_pl.deinit(device);
+    var blur_y_pl = try PostPipeline.init(.BlurY, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    defer blur_y_pl.deinit(device);
     const busy_fog_frag_shader = try shader_util.loadAndCompileHLSL(device, "busy_fog.frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
-    var busy_fog = try PostPipeline.init(.BusyFog, device, .{ .vert = vert_shader, .frag = busy_fog_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    var busy_fog_pl = try PostPipeline.init(.BusyFog, device, .{ .vert = vert_shader, .frag = busy_fog_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    defer busy_fog_pl.deinit(device);
     // 创建离屏渲染纹理 A 和 B
     const offscreen_texture_info: c.SDL_GPUTextureCreateInfo = .{
         .type = c.SDL_GPU_TEXTURETYPE_2D,
@@ -246,7 +257,9 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .num_levels = 1,
     };
     const tex_a = c.SDL_CreateGPUTexture(device, &offscreen_texture_info);
+    defer c.SDL_ReleaseGPUTexture(device, tex_a);
     const tex_b = c.SDL_CreateGPUTexture(device, &offscreen_texture_info);
+    defer c.SDL_ReleaseGPUTexture(device, tex_b);
     // 创建 src/dst 纹理引用
     var tex_src = tex_a;
     var tex_dst = tex_b;
@@ -259,7 +272,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         &color_target_desc,
     );
     // 创建后处理管线列表
-    const pipelines = [_]*PostPipeline{ &sharpen, &blur_x, &blur_y };
+    const pipelines = [_]*PostPipeline{ &sharpen, &blur_x_pl, &blur_y_pl };
 
     // --- 渲染循环 (Render Pass 绘制) ---
     var running = true;
@@ -335,7 +348,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         };
         const render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &base_color_target, 1, null);
         // 绑定图形管线
-        c.SDL_BindGPUGraphicsPipeline(render_pass, base_pipeline);
+        c.SDL_BindGPUGraphicsPipeline(render_pass, base_pl);
         // 绑定顶点缓冲区
         c.SDL_BindGPUVertexBuffers(render_pass, 0, &verts_binding, 1);
         // 绑定图像的像素纹理以及采样器
@@ -422,10 +435,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 // 后续：在屏幕之上继续添加新内容
                 if (is_busy) {
                     // 添加忙雾
-                    busy_fog.bindWithPass(passthrough.render_pass, swapchain_texture, sampler, &verts_binding);
+                    busy_fog_pl.bindWithPass(passthrough.render_pass, swapchain_texture, sampler, &verts_binding);
                     const fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(c.SDL_GetTicks())) / 1000.0 };
                     c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &fog_uniforms, @sizeOf(FogUniforms));
-                    busy_fog.drawWithPass(passthrough.render_pass);
+                    busy_fog_pl.drawWithPass(passthrough.render_pass);
                 }
                 passthrough.end();
             }
@@ -458,11 +471,9 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     }
 
     return if (toggle) {
-        // 写入纹理到共享缓存
-        state.writeTexture(
-            device,
-            tex_src,
-        ) catch |err| {
+        // todo: 如果图像没有变化，无需写入纹理
+        // 写入纹理到状态缓存
+        state.writeTexture(device, tex_src) catch |err| {
             std.log.err("Failed to write texture to state: {}", .{err});
         };
         return .toggle;

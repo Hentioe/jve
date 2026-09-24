@@ -38,6 +38,10 @@ pub fn init(
     };
 }
 
+pub fn deinit(self: *Self, device: *c.SDL_GPUDevice) void {
+    c.SDL_ReleaseGPUGraphicsPipeline(device, self.pipeline);
+}
+
 pub fn bind(
     self: *Self,
     tex_dst: ?*c.SDL_GPUTexture,

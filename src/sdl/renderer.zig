@@ -12,9 +12,7 @@ const RenderNext = @import("enums.zig").RenderNext;
 
 // 基于 sdl_renderer 渲染图片
 pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
-    var image = album.current() catch {
-        return Error.AlbumError;
-    };
+    var image = album.current() catch return Error.AlbumError;
     // 更新状态
     state.updateFromImage(&image);
     // 执行初始化
@@ -38,7 +36,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 创建纹理（先尝试从缓存中读取）
     var texture = try state.readTexture(renderer);
     if (texture == null) { // 没有就创建新的纹理
-        texture = try createTexture(renderer, image);
+        texture = try createTexture(renderer, &image);
     } else {
         // 复用纹理
         std.log.info("Reusing texture from state", .{});
@@ -125,7 +123,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                     if (crrent) |refreshed_image| {
                         image = refreshed_image;
                         c.SDL_DestroyTexture(texture);
-                        texture = try createTexture(renderer, refreshed_image);
+                        texture = try createTexture(renderer, &refreshed_image);
                     }
                     animating = true; // 动画触发 dst_rect 更新
                 }
@@ -226,7 +224,7 @@ fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new
     dst_rect.y = center_y + offset.y;
 }
 
-fn createTexture(renderer: *c.SDL_Renderer, image: Image) Error!*c.SDL_Texture {
+fn createTexture(renderer: *c.SDL_Renderer, image: *const Image) Error!*c.SDL_Texture {
     // 计算 pitch
     const pitch = image.width * image.bands;
     std.log.info("Pitch: {d}", .{pitch});
@@ -239,8 +237,7 @@ fn createTexture(renderer: *c.SDL_Renderer, image: Image) Error!*c.SDL_Texture {
         image.height,
     );
     // 开启纹理混合模式
-    if (!c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) {
-        h.printError();
+    if (!h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND))) {
         return Error.SdlSetTextureBlendModeFailed;
     }
     // 上传纹理

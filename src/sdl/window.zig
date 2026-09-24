@@ -1,6 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const helper = @import("helper.zig");
+const h = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Backend = @import("enums.zig").Backend;
 
@@ -37,7 +37,7 @@ pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32,
         flags |= c.SDL_WINDOW_FULLSCREEN;
     }
     const sdl_window = c.SDL_CreateWindow("Image Viewer", image_width, image_height, flags) orelse {
-        helper.printError();
+        h.printError();
         return Error.SdlCreateWindowFailed;
     };
     const self_ptr = try allocator.create(Self);
@@ -91,13 +91,12 @@ pub fn imageSizeUpdated(self: *Self, new_width: i32, new_height: i32) void {
 
 pub fn destroy(self: *Self) void {
     // 隐藏窗口
-    if (!c.SDL_HideWindow(self.sdl_window)) {
-        helper.printError();
+    if (!h.check(c.SDL_HideWindow(self.sdl_window))) {
         std.log.warn("Failed to hide window", .{});
     }
     c.SDL_DestroyWindow(self.sdl_window);
     c.SDL_Quit();
-    self.allocator.destroy(self);
+    self.allocator.destroy(self); // init 在堆上分配了自身
 }
 
 fn hitTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, self_ptr: ?*anyopaque) callconv(.c) c_uint {
