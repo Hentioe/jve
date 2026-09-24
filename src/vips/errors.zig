@@ -5,6 +5,10 @@ pub const Error = error{
     VipsImageLoadFailed,
     VipsWriteFailed,
     VipsEncodingFailed,
+    VipsResizeFailed,
+    VipsLinear1Failed,
+    VipsFlattenFailed,
+    VipsBandJoinConst2Failed,
     UnsupportedFormat,
     OutOfMemory,
 };

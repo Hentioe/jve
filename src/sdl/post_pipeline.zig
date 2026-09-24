@@ -11,14 +11,15 @@ const PostEffectType = enum {
     BlurX, // 横向模糊
     BlurY, // 纵向模糊
     BusyFog, // 忙碌雾气
+    mask,
 };
 
-effect_type: PostEffectType,
+effect: PostEffectType,
 pipeline: *c.SDL_GPUGraphicsPipeline,
 render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(
-    effect_type: PostEffectType,
+    effect: PostEffectType,
     device: *c.SDL_GPUDevice,
     shader_pair: ShaderPair,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
@@ -33,7 +34,7 @@ pub fn init(
         color_target_desc,
     );
     return Self{
-        .effect_type = effect_type,
+        .effect = effect,
         .pipeline = pipeline,
     };
 }
@@ -68,6 +69,35 @@ pub fn bind(
     };
     // 绑定采样器
     c.SDL_BindGPUFragmentSamplers(self.render_pass, 0, &sampler_bind, 1);
+}
+
+pub fn bindMask(
+    self: *Self,
+    tex_dst: ?*c.SDL_GPUTexture,
+    tex_src: ?*c.SDL_GPUTexture,
+    tex_mask: ?*c.SDL_GPUTexture,
+    sampler: ?*c.SDL_GPUSampler,
+    render_cmd_buf: ?*c.SDL_GPUCommandBuffer,
+    vertex_binding: *const c.SDL_GPUBufferBinding,
+) void {
+    const color_target: c.SDL_GPUColorTargetInfo = .{
+        .texture = tex_dst,
+        .load_op = c.SDL_GPU_LOADOP_CLEAR,
+        .store_op = c.SDL_GPU_STOREOP_STORE,
+        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
+    };
+    // 开始渲染通道
+    self.render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
+    // 绑定顶点缓冲区
+    c.SDL_BindGPUVertexBuffers(self.render_pass, 0, vertex_binding, 1);
+    // 绑定管线
+    c.SDL_BindGPUGraphicsPipeline(self.render_pass, self.pipeline);
+    const sampler_binds: [2]c.SDL_GPUTextureSamplerBinding = .{
+        .{ .texture = tex_src, .sampler = sampler },
+        .{ .texture = tex_mask, .sampler = sampler },
+    };
+    // 绑定采样器
+    c.SDL_BindGPUFragmentSamplers(self.render_pass, 0, &sampler_binds, 2);
 }
 
 pub fn draw(self: *const Self) void {

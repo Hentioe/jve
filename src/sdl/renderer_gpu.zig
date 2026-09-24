@@ -5,6 +5,7 @@ const initializer = @import("initializer.zig");
 const shader_util = @import("shader_util.zig");
 const post_util = @import("post_util.zig");
 const root = @import("../root.zig");
+const gpu = @import("gpu.zig");
 const structs = @import("structs.zig");
 const album = root.album;
 const writer = root.writer;
@@ -12,6 +13,7 @@ const clipboard = root.clipboard;
 const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
+const Task = @import("Task.zig");
 const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("post_pipeline.zig");
 const PassthroughPipeline = @import("passthrough_pipeline.zig");
@@ -84,16 +86,18 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     };
     defer c.SDL_DestroyGPUDevice(device);
     // 绑定窗口到 GPU 设备
-    if (!c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window)) {
-        h.printError();
+    if (!h.check(c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window))) {
         return Error.SdlClaimWindowForGPUDeviceFailed;
     }
     // 关闭垂直同步（修改交换链的 Present Mode）
     // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
     if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-        if (!c.SDL_SetGPUSwapchainParameters(device, window.sdl_window, c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-            h.printError();
-        }
+        _ = h.check(c.SDL_SetGPUSwapchainParameters( // 此处忽略返回状态（仅输出错误消息）
+            device,
+            window.sdl_window,
+            c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+            c.SDL_GPU_PRESENTMODE_IMMEDIATE,
+        ));
     } else {
         std.log.warn("IMMEDIATE Present Mode not supported", .{});
     }
@@ -108,39 +112,12 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
-    const texture = c.SDL_CreateGPUTexture(device, &texture_info);
-    defer c.SDL_ReleaseGPUTexture(device, texture);
-    // 2. 将 CPU 像素数据上传至 GPU
-    const image_size: u32 = @intCast(image.width * image.height * 4); // RGBA8888 字节大小
-    const transfer_info = c.SDL_GPUTransferBufferCreateInfo{
-        .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, // 指定为 UPLOAD 模式，即 CPU -> GPU
-        .size = image_size,
-    };
-    const txu_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &transfer_info);
-    // txu_transfer_buf 的释放放在后面
-    // 映射内存并拷贝像素数据至传输缓冲区
-    const map_ptr = c.SDL_MapGPUTransferBuffer(device, txu_transfer_buf, false);
-    _ = c.SDL_memcpy(map_ptr, image.pixels_ptr, image_size); // 执行复制（像素数据指针作为拷贝源）
-    c.SDL_UnmapGPUTransferBuffer(device, txu_transfer_buf); // 解除映射
-    // 创建 Command Buffer 并开启复制 Pass，将传输缓冲区的数据写入纹理
-    const txu_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
-    const copy_pass = c.SDL_BeginGPUCopyPass(txu_cmd_buf);
-    const source = c.SDL_GPUTextureTransferInfo{
-        .transfer_buffer = txu_transfer_buf,
-        .offset = 0,
-    };
-    const destination = c.SDL_GPUTextureRegion{
-        .texture = texture,
-        .w = @intCast(image.width),
-        .h = @intCast(image.height),
-        .d = 1,
-    };
-    // 提交上传命令
-    c.SDL_UploadToGPUTexture(copy_pass, &source, &destination, false);
-    c.SDL_EndGPUCopyPass(copy_pass);
-    _ = c.SDL_SubmitGPUCommandBuffer(txu_cmd_buf);
-    // 释放 TransferBuffer（纹理内容已上传至显存）
-    _ = c.SDL_ReleaseGPUTransferBuffer(device, txu_transfer_buf);
+    const texture = gpu.createTexture(
+        device,
+        &texture_info,
+        image.pixels_ptr,
+        .{ .w = @intCast(image.width), .h = @intCast(image.height) },
+    );
 
     // --- 顶点 (Vertex) ---
     // 1. 创建顶点：铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
@@ -235,6 +212,32 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
 
     // 构造棋盘格
     const checkerboard = try Checkerboard.init(device, window);
+
+    // 创建离屏渲染纹理 A 和 B
+    const offscreen_info: c.SDL_GPUTextureCreateInfo = .{
+        .type = c.SDL_GPU_TEXTURETYPE_2D,
+        .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 与 Swapchain 格式一致
+        .usage = c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | c.SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        .width = @intCast(image.width),
+        .height = @intCast(image.height),
+        .layer_count_or_depth = 1,
+        .num_levels = 1,
+    };
+    const tex_a = c.SDL_CreateGPUTexture(device, &offscreen_info);
+    defer c.SDL_ReleaseGPUTexture(device, tex_a);
+    const tex_b = c.SDL_CreateGPUTexture(device, &offscreen_info);
+    defer c.SDL_ReleaseGPUTexture(device, tex_b);
+    // 创建 src/dst 纹理引用
+    var tex_src = tex_a;
+    var tex_dst = tex_b;
+    // 创建屏幕渲染的直通管线
+    var passthrough = try PassthroughPipeline.init(
+        device,
+        vert_shader,
+        &vert_buffer_desc,
+        &vert_attrs,
+        &color_target_desc,
+    );
     // 创建后处理管线
     const sharpen_frag_shader = try shader_util.loadAndCompileHLSL(device, "sharpen_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     var sharpen = try PostPipeline.init(.Sharpen, device, .{ .vert = vert_shader, .frag = sharpen_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
@@ -246,33 +249,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     const busy_fog_frag_shader = try shader_util.loadAndCompileHLSL(device, "busy_fog.frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     var busy_fog_pl = try PostPipeline.init(.BusyFog, device, .{ .vert = vert_shader, .frag = busy_fog_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     defer busy_fog_pl.deinit(device);
-    // 创建离屏渲染纹理 A 和 B
-    const offscreen_texture_info: c.SDL_GPUTextureCreateInfo = .{
-        .type = c.SDL_GPU_TEXTURETYPE_2D,
-        .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 与 Swapchain 格式一致
-        .usage = c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | c.SDL_GPU_TEXTUREUSAGE_SAMPLER,
-        .width = @intCast(image.width),
-        .height = @intCast(image.height),
-        .layer_count_or_depth = 1,
-        .num_levels = 1,
-    };
-    const tex_a = c.SDL_CreateGPUTexture(device, &offscreen_texture_info);
-    defer c.SDL_ReleaseGPUTexture(device, tex_a);
-    const tex_b = c.SDL_CreateGPUTexture(device, &offscreen_texture_info);
-    defer c.SDL_ReleaseGPUTexture(device, tex_b);
-    // 创建 src/dst 纹理引用
-    var tex_src = tex_a;
-    var tex_dst = tex_b;
-    // 创建最终渲染屏幕的直通管线
-    var passthrough = try PassthroughPipeline.init(
-        device,
-        vert_shader,
-        &vert_buffer_desc,
-        &vert_attrs,
-        &color_target_desc,
-    );
+    // 抠图的 Mask 管线
+    const mask_frag_shader = try shader_util.loadAndCompileHLSL(device, "mask.frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 2, 0);
+    var mask_pl = try PostPipeline.init(.mask, device, .{ .vert = vert_shader, .frag = mask_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    defer mask_pl.deinit(device);
+
     // 创建后处理管线列表
-    const pipelines = [_]*PostPipeline{ &sharpen, &blur_x_pl, &blur_y_pl };
+    const pipelines = [_]*PostPipeline{ &sharpen, &blur_x_pl, &blur_y_pl, &mask_pl };
 
     // --- 渲染循环 (Render Pass 绘制) ---
     var running = true;
@@ -300,6 +283,11 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var hor_adjusting = false; // 是否正在横向调节
     var hor_value: f32 = 0; // 横向调节的值
     const hor_sensitivity = 100; // 横向调节灵敏度
+    var task: ?*Task = null;
+    defer if (task) |t| t.finish();
+    var tex_mask: ?*c.SDL_GPUTexture = null;
+    defer if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex);
+
     while (running) {
         if (is_busy) animating = true;
         const has_event = if (animating) c.SDL_PollEvent(&event) else c.SDL_WaitEvent(&event);
@@ -322,8 +310,17 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 is_grayscale = !is_grayscale;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
                 save_screenshot = true;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C) { // C 附加繁重效果
-                is_busy = !is_busy;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and !is_busy) { // C 附加繁重效果
+                if (task == null) {
+                    is_busy = true;
+                    if (Task.start(allocator, device, tex_src, image.width, image.height, image.bands, state)) |t| {
+                        std.log.info("Task started successfully", .{});
+                        task = t;
+                    } else |err| {
+                        std.log.err("Failed to start task: {}", .{err});
+                        is_busy = false;
+                    }
+                }
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
                 copy_screenshot = true;
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节开始
@@ -371,27 +368,45 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
         // 结束 Pass
         c.SDL_EndGPURenderPass(render_pass);
+        // 检查任务
+        if (task) |t| {
+            if (t.poll() == .done) {
+                std.log.info("Task result is reading...", .{});
+                if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex);
+                tex_mask = gpu.createTexture(device, &offscreen_info, t.result.data_ptr, .{ .w = t.result.width, .h = t.result.height });
+                t.finish();
+                task = null;
+                is_busy = false;
+                animating = false;
+                std.log.info("Task result read complete", .{});
+            }
+        }
 
         // 后处理管线
         for (pipelines) |pl| {
             // 是否进入管线
-            if (pl.effect_type == .Sharpen and hor_value <= 0) continue; // 没有有效值，跳过
-            if ((pl.effect_type == .BlurX or pl.effect_type == .BlurY) and hor_value >= 0) continue; // 没有有效值，跳过
+            if (pl.effect == .Sharpen and hor_value <= 0) continue; // 没有有效值，跳过
+            if ((pl.effect == .BlurX or pl.effect == .BlurY) and hor_value >= 0) continue; // 没有有效值，跳过
+            if (pl.effect == .mask and tex_mask == null) continue; // 没有有效的 mask，跳过
             // 绑定管线
-            pl.bind(tex_dst, tex_src, sampler, render_cmd_buf, &verts_binding);
-            if (pl.effect_type == .Sharpen) {
+            if (pl.effect == .mask) {
+                pl.bindMask(tex_dst, tex_src, tex_mask, sampler, render_cmd_buf, &verts_binding);
+            } else {
+                pl.bind(tex_dst, tex_src, sampler, render_cmd_buf, &verts_binding);
+            }
+            if (pl.effect == .Sharpen) {
                 // 传递锐化参数
                 const uniforms: SharpenUniforms = .{
                     .strength = hor_value,
                     .textureSize = .{ @floatFromInt(image.width), @floatFromInt(image.height) },
                 };
                 c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(SharpenUniforms));
-            } else if (pl.effect_type == .BlurX or pl.effect_type == .BlurY) {
+            } else if (pl.effect == .BlurX or pl.effect == .BlurY) {
                 // 传递模糊参数
                 const uniforms: BlurParams = .{
                     .blurIntensity = -hor_value, // 从负数转换而来
                     .texelSize = .{ texel_size_w, texel_size_h },
-                    .direction = if (pl.effect_type == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
+                    .direction = if (pl.effect == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
                 };
                 c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(BlurParams));
             }

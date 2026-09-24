@@ -11,35 +11,8 @@ pub fn build(b: *std.Build) void {
     });
     const ort_import: Import = .{ .name = "ort", .module = ort_mod };
 
-    const root_mod = b.addModule("imageviewer", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .imports = &.{ort_import},
-    });
-    const root_import: Import = .{ .name = "imageviewer", .module = root_mod };
-
     const clap_dep = b.dependency("clap", .{});
     const clap_import: Import = .{ .name = "clap", .module = clap_dep.module("clap") };
-
-    const exe = b.addExecutable(.{
-        .name = "imageviewer",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{ root_import, clap_import, ort_import },
-            .link_libc = true,
-        }),
-    });
-
-    // 链接 vips
-    exe.root_module.linkSystemLibrary("vips", .{});
-    // 链接 glib（vips 依赖）
-    exe.root_module.linkSystemLibrary("glib-2.0", .{});
-    // 链接 SDL3_shadercross
-    exe.root_module.linkSystemLibrary("SDL3_shadercross", .{});
-    // 链接 onnxruntime
-    exe.root_module.linkSystemLibrary("onnxruntime", .{});
 
     const sdl_dep = b.dependency("sdl", .{
         .target = target,
@@ -55,9 +28,36 @@ pub fn build(b: *std.Build) void {
     });
     const sdl_lib = sdl_dep.artifact("SDL3");
     const sdl_test_lib = sdl_dep.artifact("SDL3_test");
+    const sdl_import: Import = .{ .name = "sdl", .module = sdl_lib.root_module };
 
-    exe.linkLibrary(sdl_lib);
-    exe.linkLibrary(sdl_test_lib);
+    const root_mod = b.addModule("imageviewer", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .imports = &.{ ort_import, sdl_import },
+    });
+    const root_import: Import = .{ .name = "imageviewer", .module = root_mod };
+    // 链接 sdl
+    root_mod.linkLibrary(sdl_lib);
+    root_mod.linkLibrary(sdl_test_lib);
+    // 链接 vips
+    root_mod.linkSystemLibrary("vips", .{});
+    // 链接 glib（vips 依赖）
+    root_mod.linkSystemLibrary("glib-2.0", .{});
+    // 链接 SDL3_shadercross
+    root_mod.linkSystemLibrary("SDL3_shadercross", .{});
+    // 链接 onnxruntime
+    root_mod.linkSystemLibrary("onnxruntime", .{});
+
+    const exe = b.addExecutable(.{
+        .name = "imageviewer",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{ root_import, clap_import, ort_import },
+            .link_libc = true,
+        }),
+    });
 
     b.installArtifact(exe);
 

@@ -1,6 +1,6 @@
 const std = @import("std");
 const cli = @import("cli.zig");
-const imageviewer = @import("root.zig");
+const imageviewer = @import("imageviewer");
 
 pub fn main() !void {
     // 创建内存分配器

@@ -1,5 +1,6 @@
 const std = @import("std");
 const AllocatorError = std.mem.Allocator.Error;
+const SpawnError = std.Thread.SpawnError;
 const OrtError = @import("ort").Error;
 
 pub const SdlError = error{
@@ -22,4 +23,4 @@ pub const ExtractorError = error{
     NoPixelData,
 };
 
-pub const Error = SdlError || ExtractorError || AllocatorError || OrtError;
+pub const Error = SdlError || ExtractorError || AllocatorError || OrtError || SpawnError;

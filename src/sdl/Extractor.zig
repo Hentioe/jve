@@ -11,7 +11,7 @@ width: u32,
 height: u32,
 bands: u32,
 buffer_size: u32,
-pixels_slice: ?[]u8 = null,
+pixels_slice: []u8 = undefined,
 downloaded: bool = false,
 
 pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, width: i32, height: i32, bands: i32) Self {
@@ -29,11 +29,8 @@ pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, width: i32, 
 }
 
 pub fn deinit(self: *Self) void {
-    if (self.pixels_slice) |slice| {
-        self.allocator.free(slice);
-        self.pixels_slice = null;
-        self.downloaded = false;
-    }
+    if (self.downloaded) self.allocator.free(self.pixels_slice);
+    self.* = undefined;
 }
 
 pub fn downloadTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
@@ -77,17 +74,28 @@ pub fn downloadTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
     const piexls_slice = try self.allocator.alloc(u8, self.buffer_size);
     @memcpy(piexls_slice, u8_slice);
     self.pixels_slice = piexls_slice;
-
     self.downloaded = true;
 }
 
+pub fn extract(
+    allocator: std.mem.Allocator,
+    device: *c.SDL_GPUDevice,
+    texture: ?*c.SDL_GPUTexture,
+    width: i32,
+    height: i32,
+    bands: i32,
+) Error!Self {
+    var extractor = Self.init(allocator, device, width, height, bands);
+    // 立即下载
+    try extractor.downloadTexture(texture);
+    // 返回提取器
+    return extractor;
+}
+
+// todo 有待删除
 pub fn getAndCheckDataPtr(self: *const Self) Error!*anyopaque {
     if (self.downloaded == false) {
         return Error.NotDownloaded;
     }
-    if (self.pixels_slice) |slice| {
-        return slice.ptr;
-    } else {
-        return Error.NoPixelData;
-    }
+    return self.pixels_slice.ptr;
 }

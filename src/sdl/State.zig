@@ -2,11 +2,14 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const ort = @import("ort");
+const Api = ort.Api;
 const Allocator = std.mem.Allocator;
+const RwLock = std.Thread.RwLock;
 const Error = @import("errors.zig").Error;
 const Image = @import("../root.zig").loader.Image;
 const Size = @import("structs.zig").Size(i32);
 const Extractor = @import("Extractor.zig");
+const BiRefNet = @import("../models/BiRefNet.zig");
 const Self = @This();
 
 allocator: Allocator,
@@ -14,7 +17,9 @@ size: Size,
 bands: i32,
 target_scale: f32 = 1.0,
 extractor: ?Extractor = null,
+ort_lock: RwLock = .{},
 ort_api: ?ort.Api = null,
+birefnet: ?BiRefNet = null,
 
 pub fn init(allocator: Allocator) Error!Self {
     return Self{
@@ -24,8 +29,20 @@ pub fn init(allocator: Allocator) Error!Self {
     };
 }
 
+pub fn initBirefnet(self: *Self) Error!void {
+    self.ort_lock.lock();
+    if (self.ort_api == null) {
+        self.ort_api = try Api.init(self.allocator, "imageviewer");
+    }
+    if (self.birefnet == null) {
+        self.birefnet = try BiRefNet.init(&self.ort_api.?, .lite);
+    }
+    self.ort_lock.unlock();
+}
+
 pub fn deinit(self: *Self) void {
     if (self.extractor) |*extractor| extractor.deinit();
+    if (self.birefnet) |*birefnet| birefnet.deinit();
     if (self.ort_api) |*ort_api| ort_api.deinit();
     self.* = undefined;
 }

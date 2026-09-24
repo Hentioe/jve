@@ -57,6 +57,7 @@ pub fn init(allocator: Allocator, logid: [*]const u8) Error!Self {
         if (std.mem.eql(u8, item, "MIGraphXExecutionProvider")) { // 添加 MiGraphX 配置
             const migraphx_options: c.OrtMIGraphXProviderOptions = .{
                 .device_id = 0, // todo: 获取设备 id
+                .migraphx_fp16_enable = 1,
             };
             try provider_options_list.append(allocator, ProviderOptions{ .migraphx = migraphx_options });
         }
