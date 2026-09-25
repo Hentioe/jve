@@ -11,6 +11,7 @@ pub const SdlError = error{
     SdlClaimWindowForGPUDeviceFailed,
     SdlCreateRendererFailed,
     SdlCreateTextureFailed,
+    SdlLoadFileFailed,
     SdlCompileShaderFailed,
     CreateGPUGraphicsPipelineFailed,
     SdlSetTextureBlendModeFailed,
@@ -24,4 +25,4 @@ pub const ExtractorError = error{
     NoPixelData,
 };
 
-pub const Error = SdlError || ExtractorError || AllocatorError || OrtError || SpawnError;
+pub const Error = SdlError || ExtractorError || AllocatorError || OrtError || SpawnError || std.posix.AccessError;

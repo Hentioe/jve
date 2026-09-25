@@ -1,6 +1,7 @@
+const std = @import("std");
 const c = @import("c.zig").c;
 const post_util = @import("post_util.zig");
-const shader_util = @import("shader_util.zig");
+const shader_loader = @import("shader_loader.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Self = @This();
@@ -9,13 +10,15 @@ pipeline: *c.SDL_GPUGraphicsPipeline,
 render_pass: ?*c.SDL_GPURenderPass = undefined,
 
 pub fn init(
+    allocator: std.mem.Allocator,
     device: *c.SDL_GPUDevice,
     vert_sharder: ?*c.SDL_GPUShader,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 ) Error!Self {
-    const frag_sharder = try shader_util.loadAndCompileHLSL(
+    const frag_sharder = try shader_loader.loadHlslFile(
+        allocator,
         device,
         "passthrough_frag.hlsl",
         "main",

@@ -1,30 +1,41 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const helper = @import("helper.zig");
+const h = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 
-pub fn loadAndCompileHLSL(
+// todo: 两个 num 参数合并成一个结构体
+pub fn loadHlslFile(
+    allocator: std.mem.Allocator,
     device: *c.SDL_GPUDevice,
     file_name: [*:0]const u8,
     entrypoint: [*:0]const u8,
     stage: c.SDL_GPUShaderStage,
     num_samplers: u32,
     num_uniform_buffers: u32,
-) Error!?*c.SDL_GPUShader {
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+) Error!*c.SDL_GPUShader {
+    // todo: 改为路径 join
     const file_path = try std.fmt.allocPrint(allocator, "src/shaders/{s}", .{file_name});
     defer allocator.free(file_path);
+    // 检查文件是否可访问
+    std.fs.cwd().access(file_path, .{}) catch |err| {
+        if (err == error.FileNotFound) {
+            std.log.err("Shader file not found: {s}", .{file_path});
+        }
+
+        return err;
+    };
     // 正在加载着色器
     std.log.info("Loading shader: {s}", .{file_name});
     var file_size: usize = 0;
-    // todo: 处理加载错误
     const hlsl_source = c.SDL_LoadFile(@ptrCast(file_path), &file_size);
-    const hlsl_source_ptr: [*c]const u8 = @ptrCast(hlsl_source);
+    if (hlsl_source == null) {
+        h.printError();
+        return Error.SdlLoadFileFailed;
+    }
+    defer c.SDL_free(hlsl_source);
 
     var hlsl_info = c.SDL_ShaderCross_HLSL_Info{
-        .source = hlsl_source_ptr,
+        .source = @ptrCast(hlsl_source),
         .entrypoint = entrypoint,
         .include_dir = null,
         .defines = null,
@@ -35,15 +46,13 @@ pub fn loadAndCompileHLSL(
     var spirv_size: usize = 0;
     const spirv_bytes = c.SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size);
     if (spirv_bytes == null) {
-        helper.printError();
+        h.printError();
         return Error.SdlCompileShaderFailed;
     }
-
-    const spirv_bytes_ptr: [*c]const u8 = @ptrCast(spirv_bytes);
-    c.SDL_free(hlsl_source);
+    defer c.SDL_free(spirv_bytes);
 
     var spirv_info = c.SDL_ShaderCross_SPIRV_Info{
-        .bytecode = spirv_bytes_ptr,
+        .bytecode = @ptrCast(spirv_bytes),
         .bytecode_size = spirv_size,
         .entrypoint = entrypoint,
         .shader_stage = stage,
@@ -57,9 +66,8 @@ pub fn loadAndCompileHLSL(
         0,
     );
     if (shader == null) {
-        helper.printError();
+        h.printError();
         return Error.SdlCompileShaderFailed;
     }
-    c.SDL_free(spirv_bytes);
-    return shader;
+    return shader.?;
 }

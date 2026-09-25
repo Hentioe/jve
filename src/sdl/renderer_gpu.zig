@@ -1,7 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
-const shader_util = @import("shader_util.zig");
+const shader_loader = @import("shader_loader.zig");
 const post_util = @import("post_util.zig");
 const root = @import("../root.zig");
 const gpu = @import("gpu.zig");
@@ -143,8 +143,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .{ .location = 1, .format = c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u") }, // UV
     };
     // 2. 加载着色器
-    const vert_shader = try shader_util.loadAndCompileHLSL(device, "base_vert.hlsl", "main", c.SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
-    const frag_shader = try shader_util.loadAndCompileHLSL(device, "base_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    const vert_shader = try shader_loader.loadHlslFile(allocator, device, "base_vert.hlsl", "main", c.SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
+    const frag_shader = try shader_loader.loadHlslFile(allocator, device, "base_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     // 3. 构造管线
     const vert_buffer_desc: c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
@@ -178,7 +178,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     defer c.SDL_ReleaseGPUGraphicsPipeline(device, base_pl);
 
     // 构造棋盘格
-    const checkerboard = try Checkerboard.init(device, window);
+    const checkerboard = try Checkerboard.init(allocator, device, window);
 
     // 创建离屏渲染纹理 A 和 B
     const offscreen_info: c.SDL_GPUTextureCreateInfo = .{
@@ -199,6 +199,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var tex_dst = tex_b;
     // 创建屏幕渲染的直通管线
     var passthrough = try PassthroughPipeline.init(
+        allocator,
         device,
         vert_shader,
         &vert_buffer_desc,
@@ -206,18 +207,18 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         &color_target_desc,
     );
     // 创建后处理管线
-    const sharpen_frag_shader = try shader_util.loadAndCompileHLSL(device, "sharpen_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    const sharpen_frag_shader = try shader_loader.loadHlslFile(allocator, device, "sharpen_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     var sharpen = try PostPipeline.init(.Sharpen, device, .{ .vert = vert_shader, .frag = sharpen_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    const blur_frag_shader = try shader_util.loadAndCompileHLSL(device, "blur_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    const blur_frag_shader = try shader_loader.loadHlslFile(allocator, device, "blur_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     var blur_x_pl = try PostPipeline.init(.BlurX, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     defer blur_x_pl.deinit(device);
     var blur_y_pl = try PostPipeline.init(.BlurY, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     defer blur_y_pl.deinit(device);
-    const busy_fog_frag_shader = try shader_util.loadAndCompileHLSL(device, "busy_fog.frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
+    const busy_fog_frag_shader = try shader_loader.loadHlslFile(allocator, device, "busy_fog.frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 1, 1);
     var busy_fog_pl = try PostPipeline.init(.BusyFog, device, .{ .vert = vert_shader, .frag = busy_fog_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     defer busy_fog_pl.deinit(device);
     // 抠图的 Mask 管线
-    const mask_frag_shader = try shader_util.loadAndCompileHLSL(device, "mask.frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 2, 0);
+    const mask_frag_shader = try shader_loader.loadHlslFile(allocator, device, "mask.frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 2, 0);
     var mask_pl = try PostPipeline.init(.mask, device, .{ .vert = vert_shader, .frag = mask_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     defer mask_pl.deinit(device);
 
