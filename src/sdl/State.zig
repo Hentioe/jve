@@ -3,6 +3,7 @@ const ort = @import("ort");
 const enums = @import("enums.zig");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const structs = @import("structs.zig");
 const Api = ort.Api;
 const Allocator = std.mem.Allocator;
 const RwLock = std.Thread.RwLock;
@@ -11,6 +12,7 @@ const Image = @import("../root.zig").loader.Image;
 const Size = @import("structs.zig").Size(i32);
 const Window = @import("window.zig");
 const Backend = @import("enums.zig").Backend;
+const Point = structs.Point;
 const Extractor = @import("Extractor.zig");
 const BiRefNet = @import("../models/BiRefNet.zig");
 const Self = @This();
@@ -18,7 +20,9 @@ const Self = @This();
 allocator: Allocator,
 size: Size,
 bands: i32,
+target_angle: f32 = 0.0,
 target_scale: f32 = 1.0,
+movement_offset: Point = .{},
 current_backend: Backend = undefined,
 window: ?*Window = null,
 renderer: ?*c.SDL_Renderer = null,

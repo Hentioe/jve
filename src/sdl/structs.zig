@@ -7,6 +7,11 @@ pub fn Size(comptime T: type) type {
     };
 }
 
+pub const Point = struct {
+    x: f32 = 0.0,
+    y: f32 = 0.0,
+};
+
 pub const ShaderPair = struct {
     vert: ?*c.SDL_GPUShader,
     frag: ?*c.SDL_GPUShader,

@@ -1,12 +1,14 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const structs = @import("structs.zig");
 const root = @import("../root.zig");
 const album = root.album;
 const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Image = @import("../root.zig").loader.Image;
+const Point = structs.Point;
 const RenderNext = @import("enums.zig").RenderNext;
 
 // 基于 sdl_renderer 渲染图片
@@ -39,9 +41,9 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var animating = true;
     var event: c.SDL_Event = undefined;
     // 其它控制参数
-    var angle: f32 = 0.0; // 旋转角度
+    var target_angle = state.target_angle; // 目标旋转角度
     var is_dragging: bool = false; // 是否正在拖动
-    var move_offset: RectOffset = .{}; // 移动偏移量
+    var movement_offset = state.movement_offset; // 移动偏移量
     // 累计缩放倍率
     var target_scale: f32 = state.target_scale;
     var current_scale: f32 = 1.0;
@@ -65,21 +67,21 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 animating = false;
             } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and is_dragging) {
                 // 更新移动偏移量
-                move_offset.x += event.motion.xrel;
-                move_offset.y += event.motion.yrel;
+                movement_offset.x += event.motion.xrel;
+                movement_offset.y += event.motion.yrel;
                 animating = true;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN) {
                 switch (event.key.key) {
-                    c.SDLK_UP => angle = 0.0,
-                    c.SDLK_DOWN => angle = 180.0,
-                    c.SDLK_LEFT => angle = 270.0,
-                    c.SDLK_RIGHT => angle = 90.0,
+                    c.SDLK_UP => target_angle = 0.0,
+                    c.SDLK_DOWN => target_angle = 180.0,
+                    c.SDLK_LEFT => target_angle = 270.0,
+                    c.SDLK_RIGHT => target_angle = 90.0,
                     c.SDLK_SLASH => { // 重置所有控制参数
-                        angle = 0.0;
+                        target_angle = 0.0;
                         target_scale = 1.0;
                         current_scale = 1.0;
                         is_dragging = false;
-                        move_offset = .{};
+                        movement_offset = .{};
                         animating = true;
                     },
                     else => {},
@@ -127,17 +129,20 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ current_scale, target_scale, target_scale - current_scale });
             const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * current_scale);
             const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * current_scale);
-            calculateDstRect(&dst_rect, window, new_width, new_height, move_offset);
+            calculateDstRect(&dst_rect, window, new_width, new_height, movement_offset);
             window.imageSizeUpdated(new_width, new_height);
         }
         const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
         check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
         check(c.SDL_RenderClear(renderer));
-        check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, angle, null, c.SDL_FLIP_NONE));
+        check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, target_angle, null, c.SDL_FLIP_NONE));
         check(c.SDL_RenderPresent(renderer));
     }
-    // 更新状态中的缩放比例
+    // 更新状态中控制参数
+    state.target_angle = target_angle;
     state.target_scale = target_scale;
+    state.movement_offset = movement_offset;
+    // 通知状态停止渲染
     state.stopRendering();
 
     return if (toggle) .toggle else .quit;
@@ -189,13 +194,8 @@ fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
 //     }
 // }
 
-pub const RectOffset = struct {
-    x: f32 = 0.0,
-    y: f32 = 0.0,
-};
-
 // 重新计算 rect
-fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32, offset: RectOffset) void {
+fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32, offset: Point) void {
     const window_width = window.display_width;
     const window_height = window.display_height;
     // 待删除：此后端不再需要窗口模式
