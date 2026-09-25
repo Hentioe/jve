@@ -4,6 +4,7 @@ const vips_format = @import("vips/format.zig");
 const VipsError = @import("vips/errors.zig").Error;
 const Backend = @import("sdl/enums.zig").Backend;
 
+pub const sdl = @import("sdl.zig");
 pub const album = @import("album.zig");
 pub const loader = @import("vips/loader.zig");
 pub const writer = @import("vips/writer.zig");
@@ -13,14 +14,18 @@ pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
 pub const State = @import("sdl/State.zig");
 pub const clipboard = @import("clipboard.zig");
 
-pub fn initialize(allocator: std.mem.Allocator, file_path: []const u8) !void {
+pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
+    // todo: 把 initialize 改为 init
     try vips_initializer.initialize(allocator);
     try album.initialize(allocator, file_path);
+    try sdl.init();
 }
 
-pub fn shutdown() void {
+pub fn deinit() void {
+    // todo: 把 shutdown 改为 deinit
     vips_initializer.shutdown();
     album.shutdown();
+    sdl.deinit();
 }
 
 pub fn isSupported(suffix: []const u8) VipsError!bool {

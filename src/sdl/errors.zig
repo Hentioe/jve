@@ -10,6 +10,7 @@ pub const SdlError = error{
     SdlCreateWindowFailed,
     SdlClaimWindowForGPUDeviceFailed,
     SdlCreateRendererFailed,
+    SdlCreateTextureFailed,
     SdlCompileShaderFailed,
     CreateGPUGraphicsPipelineFailed,
     SdlSetTextureBlendModeFailed,

@@ -53,9 +53,16 @@ pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32,
     };
     // 支持拖动窗口
     const callback_data = @constCast(self_ptr); // 把 self 指针作为 callback_data 传递给 hitTestCallback
-    _ = c.SDL_SetWindowHitTest(sdl_window, hitTestCallback, callback_data);
+    _ = h.check(c.SDL_SetWindowHitTest(sdl_window, hitTestCallback, callback_data));
     // 返回指针
     return self_ptr;
+}
+
+pub fn destroy(self: *Self) void {
+    // 隐藏窗口
+    _ = h.check(c.SDL_HideWindow(self.sdl_window));
+    c.SDL_DestroyWindow(self.sdl_window);
+    self.allocator.destroy(self); // init 在堆上分配了自身
 }
 
 // 待删除：此后端不再需要窗口模式
@@ -75,10 +82,18 @@ pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32,
 //     _ = c.SDL_SetWindowBordered(self.sdl_window, self.has_border);
 // }
 
+pub fn hide(self: *Self) void {
+    _ = h.check(c.SDL_HideWindow(self.sdl_window));
+}
+
+pub fn show(self: *Self) void {
+    _ = h.check(c.SDL_ShowWindow(self.sdl_window));
+}
+
 pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
-    const title_z = try std.fmt.allocPrintSentinel(self.allocator, "{s} ({d}x{d})", .{ file_name, self.image_width, self.image_height }, 0);
-    defer self.allocator.free(title_z);
-    _ = c.SDL_SetWindowTitle(self.sdl_window, title_z);
+    const titile = try std.fmt.allocPrintSentinel(self.allocator, "{s} ({d}x{d})", .{ file_name, self.image_width, self.image_height }, 0);
+    defer self.allocator.free(titile);
+    _ = c.SDL_SetWindowTitle(self.sdl_window, titile);
 }
 
 pub fn imageSizeUpdated(self: *Self, new_width: i32, new_height: i32) void {
@@ -87,16 +102,6 @@ pub fn imageSizeUpdated(self: *Self, new_width: i32, new_height: i32) void {
         self.image_width = new_width;
         self.image_height = new_height;
     }
-}
-
-pub fn destroy(self: *Self) void {
-    // 隐藏窗口
-    if (!h.check(c.SDL_HideWindow(self.sdl_window))) {
-        std.log.warn("Failed to hide window", .{});
-    }
-    c.SDL_DestroyWindow(self.sdl_window);
-    c.SDL_Quit();
-    self.allocator.destroy(self); // init 在堆上分配了自身
 }
 
 fn hitTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, self_ptr: ?*anyopaque) callconv(.c) c_uint {

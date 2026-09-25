@@ -1,7 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
-const initializer = @import("initializer.zig");
 const shader_util = @import("shader_util.zig");
 const post_util = @import("post_util.zig");
 const root = @import("../root.zig");
@@ -58,49 +57,17 @@ const BlurParams = extern struct {
 
 // 基于 SDL_GPU 渲染图片
 pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
-    const image = album.current() catch {
-        return Error.AlbumError;
-    };
+    // 从相册取出当前图片
+    const image = album.current() catch return Error.AlbumError;
     // 更新状态
-    state.updateFromImage(&image);
-    // 执行初始化
-    try initializer.initialize(.sdl_gpu);
+    try state.startRendering(&image, .sdl_gpu);
     // 创建窗口
-    var window = try Window.create(
-        allocator,
-        image.width,
-        image.height,
-        .{ .backend = .sdl_gpu },
-    );
-    defer window.destroy();
+    const window = state.gpu_window.?; // 确保在 startRendering 中完成初始化
     // 更新窗口标题
     try window.setTitle(image.file_name);
     // 创建 GPU 设备
-    const device = c.SDL_CreateGPUDevice(
-        c.SDL_GPU_SHADERFORMAT_SPIRV | c.SDL_GPU_SHADERFORMAT_DXIL | c.SDL_GPU_SHADERFORMAT_MSL,
-        false,
-        null,
-    ) orelse {
-        h.printError();
-        return Error.SdlCreateGPUDeviceFailed;
-    };
-    defer c.SDL_DestroyGPUDevice(device);
-    // 绑定窗口到 GPU 设备
-    if (!h.check(c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window))) {
-        return Error.SdlClaimWindowForGPUDeviceFailed;
-    }
-    // 关闭垂直同步（修改交换链的 Present Mode）
-    // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
-    if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-        _ = h.check(c.SDL_SetGPUSwapchainParameters( // 此处忽略返回状态（仅输出错误消息）
-            device,
-            window.sdl_window,
-            c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-            c.SDL_GPU_PRESENTMODE_IMMEDIATE,
-        ));
-    } else {
-        std.log.warn("IMMEDIATE Present Mode not supported", .{});
-    }
+    const device = state.gpu_device.?;
+
     // --- 纹理 (Texture)---
     // 1. 创建 GPU 纹理
     const texture_info = c.SDL_GPUTextureCreateInfo{
@@ -484,6 +451,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             copy_screenshot = false;
         }
     }
+
+    state.stopRendering();
 
     return if (toggle) {
         // todo: 如果图像没有变化，无需写入纹理

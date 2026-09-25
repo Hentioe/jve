@@ -3,7 +3,6 @@ const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const root = @import("../root.zig");
 const album = root.album;
-const initializer = @import("initializer.zig");
 const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
@@ -11,28 +10,16 @@ const Image = @import("../root.zig").loader.Image;
 const RenderNext = @import("enums.zig").RenderNext;
 
 // 基于 sdl_renderer 渲染图片
-pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
+pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var image = album.current() catch return Error.AlbumError;
     // 更新状态
-    state.updateFromImage(&image);
-    // 执行初始化
-    try initializer.initialize(.sdl_renderer);
+    try state.startRendering(&image, .sdl_renderer);
     // 创建窗口
-    var window = try Window.create(
-        allocator,
-        image.width,
-        image.height,
-        .{ .has_border = false, .backend = .sdl_renderer },
-    );
-    defer window.destroy();
+    var window = state.window.?; // 确保在 startRendering 中完成初始化
     // 更新窗口标题
     try window.setTitle(image.file_name);
     // 创建渲染器
-    const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse {
-        h.printError();
-        return Error.SdlCreateRendererFailed;
-    };
-    defer c.SDL_DestroyRenderer(renderer);
+    const renderer = state.renderer.?;
     // 创建纹理（先尝试从缓存中读取）
     var texture = try state.readTexture(renderer);
     if (texture == null) { // 没有就创建新的纹理
@@ -151,6 +138,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     }
     // 更新状态中的缩放比例
     state.target_scale = target_scale;
+    state.stopRendering();
 
     return if (toggle) .toggle else .quit;
 }
