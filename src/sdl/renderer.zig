@@ -16,13 +16,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 更新状态
     state.updateFromImage(&image);
     // 执行初始化
-    try initializer.initialize(.SdlRenderer);
+    try initializer.initialize(.sdl_renderer);
     // 创建窗口
     var window = try Window.create(
         allocator,
         image.width,
         image.height,
-        .{ .has_border = false, .backend = .SdlRenderer },
+        .{ .has_border = false, .backend = .sdl_renderer },
     );
     defer window.destroy();
     // 更新窗口标题
@@ -152,7 +152,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 更新状态中的缩放比例
     state.target_scale = target_scale;
 
-    return if (toggle) .toggle else .quite;
+    return if (toggle) .toggle else .quit;
 }
 
 inline fn check(ok: bool) void {

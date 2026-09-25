@@ -38,9 +38,9 @@ pub fn load(file_path: []const u8) !loader.Image {
 pub fn render(allocator: std.mem.Allocator, backend: []const u8) !void {
     var current_renderer: ?Backend = null;
     if (std.mem.eql(u8, backend, "sdl_renderer")) {
-        current_renderer = .SdlRenderer;
+        current_renderer = .sdl_renderer;
     } else if (std.mem.eql(u8, backend, "sdl_gpu")) {
-        current_renderer = .SdlGpu;
+        current_renderer = .sdl_gpu;
     } else {
         std.log.err("Unknown backend: {s}", .{backend});
         return error.UnknownBackend;
@@ -52,15 +52,15 @@ pub fn render(allocator: std.mem.Allocator, backend: []const u8) !void {
 
     // 在不同后端循环渲染（模式切换）
     while (current_renderer != null) {
-        if (current_renderer == .SdlRenderer) {
+        if (current_renderer == .sdl_renderer) {
             if (try renderer.render(allocator, &state) == .toggle) {
-                current_renderer = .SdlGpu;
+                current_renderer = .sdl_gpu;
             } else {
                 current_renderer = null;
             }
-        } else if (current_renderer == .SdlGpu) {
+        } else if (current_renderer == .sdl_gpu) {
             if (try renderer_gpu.render(allocator, &state) == .toggle) {
-                current_renderer = .SdlRenderer;
+                current_renderer = .sdl_renderer;
             } else {
                 current_renderer = null;
             }

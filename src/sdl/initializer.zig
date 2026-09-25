@@ -20,7 +20,7 @@ pub fn initialize(backend: Backend) Error!void {
         return Error.SdlInitFailed;
     }
     // 初始化 ShaderCross
-    if (backend == .SdlGpu and !c.SDL_ShaderCross_Init()) {
+    if (backend == .sdl_gpu and !c.SDL_ShaderCross_Init()) {
         helper.printError();
         return Error.SdlShaderCrossInitFailed;
     }

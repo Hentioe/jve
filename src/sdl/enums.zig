@@ -1,10 +1,10 @@
 // 渲染后端
 pub const Backend = enum {
-    SdlRenderer,
-    SdlGpu,
+    sdl_renderer,
+    sdl_gpu,
 };
 
 pub const RenderNext = enum {
-    quite,
+    quit,
     toggle,
 };

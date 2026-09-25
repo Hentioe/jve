@@ -16,7 +16,7 @@ sdl_window: *c.SDL_Window,
 
 const Options = struct {
     has_border: bool = true,
-    backend: Backend = .SdlRenderer,
+    backend: Backend = .sdl_renderer,
 };
 
 pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32, options: Options) Error!*Self {
@@ -26,7 +26,7 @@ pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32,
     const display_height = display_mode.*.h;
     // 创建窗口
     var flags: u64 = c.SDL_EVENT_WINDOW_SHOWN | c.SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    if (options.backend == .SdlRenderer) {
+    if (options.backend == .sdl_renderer) {
         flags |= c.SDL_WINDOW_TRANSPARENT;
     }
     if (!options.has_border) {

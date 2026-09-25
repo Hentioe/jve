@@ -64,13 +64,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 更新状态
     state.updateFromImage(&image);
     // 执行初始化
-    try initializer.initialize(.SdlGpu);
+    try initializer.initialize(.sdl_gpu);
     // 创建窗口
     var window = try Window.create(
         allocator,
         image.width,
         image.height,
-        .{ .backend = .SdlGpu },
+        .{ .backend = .sdl_gpu },
     );
     defer window.destroy();
     // 更新窗口标题
@@ -493,7 +493,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         };
         return .toggle;
     } else {
-        return .quite;
+        return .quit;
     };
 }
 
