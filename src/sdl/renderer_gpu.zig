@@ -233,6 +233,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 一些常量
     const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
     // 一些功能控制
+    var leader_pressed = false; // 是否按下 leader 键
     var save_screenshot = false; // 是否保存截图
     var copy_screenshot = false; // 是否复制截图到剪贴板
     var is_busy = false; // 是否正在繁忙处理
@@ -265,6 +266,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             } else if (isToggleEvent(event)) {
                 toggle = true;
                 running = false;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_LALT) { // Leader 键按下
+                leader_pressed = true;
+            } else if (event.type == c.SDL_EVENT_KEY_UP and event.key.key == c.SDLK_LALT) { // Leader 键抬起
+                leader_pressed = false;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
                 is_inverted = false;
                 is_grayscale = false;
@@ -272,13 +277,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 contrast = 1;
                 gamma = 1;
                 hor_value = 0;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R) { // R 键反转颜色
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !leader_pressed) { // R 键反转颜色
                 is_inverted = !is_inverted;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
                 is_grayscale = !is_grayscale;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
                 save_screenshot = true;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and !is_busy) { // C 附加繁重效果
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and leader_pressed and !is_busy) { // Leader+R 去除背景
                 if (task == null) {
                     is_busy = true;
                     if (Task.start(allocator, device, tex_src, image.width, image.height, image.bands, state)) |t| {
