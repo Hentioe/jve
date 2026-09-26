@@ -16,15 +16,13 @@ pub const clipboard = @import("clipboard.zig");
 
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
     try vips.init(allocator);
-    // todo: 把 initialize 改为 init
-    try album.initialize(allocator, file_path);
+    try album.init(allocator, file_path);
     try sdl.init();
 }
 
 pub fn deinit() void {
     vips.deinit();
-    // todo: 把 shutdown 改为 deinit
-    album.shutdown();
+    album.deinit();
     sdl.deinit();
 }
 

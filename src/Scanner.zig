@@ -2,6 +2,9 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Self = @This();
 
+pub const ScanError = error{};
+pub const Error = ScanError || std.fs.Dir.OpenError || std.mem.Allocator.Error;
+
 gpa: Allocator,
 arena: std.heap.ArenaAllocator,
 dir_path: []const u8,
@@ -16,7 +19,7 @@ pub const Options = struct {
     // todo: 配置化更多，如：排序方式
 };
 
-pub fn init(gap: Allocator, dir_path: []const u8, extensions: []const []const u8) !Self {
+pub fn init(gap: Allocator, dir_path: []const u8, extensions: []const []const u8) Error!Self {
     var self = Self{
         .gpa = gap,
         .arena = .init(gap),
@@ -38,7 +41,7 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn scan(self: *Self) !void {
+pub fn scan(self: *Self) Error!void {
     self.names.clearRetainingCapacity();
     _ = self.arena.reset(.retain_capacity);
     self.index = 0;

@@ -8,6 +8,7 @@ const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Image = @import("../root.zig").loader.Image;
+const LeaderKey = @import("LeaderKey.zig");
 const Point = structs.Point;
 const RenderNext = @import("enums.zig").RenderNext;
 
@@ -41,6 +42,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var animating = true;
     var event: c.SDL_Event = undefined;
     // 其它控制参数
+    var leader = LeaderKey.init(c.SDLK_LALT);
     var target_angle = state.target_angle; // 目标旋转角度
     var is_dragging: bool = false; // 是否正在拖动
     var movement_offset = state.movement_offset; // 移动偏移量
@@ -55,6 +57,24 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             } else if (isToggleEvent(event, &dst_rect)) {
                 running = false;
                 toggle = true;
+            } else if (event.key.key == leader.key) {
+                leader.inputType(event.type); // 根据类型，自动管理按下状态
+            } else if (leader.pressedAndKeyDown(event, c.SDLK_D)) {
+                // 删除当前相册图片
+                std.log.info("Deleting current image: {s}", .{image.file_name});
+                if (album.deleteCurrentGetNext()) |new_image| {
+                    image = new_image;
+                    c.SDL_DestroyTexture(texture);
+                    texture = try createTexture(renderer, &new_image);
+                    animating = true; // 动画触发 dst_rect 更新
+                } else |err| {
+                    if (err == error.NoImageLeft) {
+                        running = false; // 没有图片了，退出循环
+                        std.log.info("No images left in the album", .{});
+                    } else {
+                        std.log.err("Failed to delete current image: {}", .{err});
+                    }
+                }
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) {
                 const mouse_pt = c.SDL_FPoint{ .x = event.button.x, .y = event.button.y };
                 if (c.SDL_PointInRectFloat(&mouse_pt, &dst_rect)) { // 检查点击位置是否在纹理矩形范围内
@@ -109,10 +129,10 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                         std.log.err("Failed to get current image: {}", .{err});
                         break :blk null;
                     };
-                    if (crrent) |refreshed_image| {
-                        image = refreshed_image;
+                    if (crrent) |new_image| {
+                        image = new_image;
                         c.SDL_DestroyTexture(texture);
-                        texture = try createTexture(renderer, &refreshed_image);
+                        texture = try createTexture(renderer, &new_image);
                     }
                     animating = true; // 动画触发 dst_rect 更新
                 }
