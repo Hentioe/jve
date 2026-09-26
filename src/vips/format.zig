@@ -4,59 +4,59 @@ const h = @import("helper.zig");
 const consts = @import("consts.zig");
 const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
 const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const Error = @import("errors.zig").Error;
 
 const Cache = struct {
-    const Self = @This();
-
-    allocator: Allocator,
+    arena: ArenaAllocator,
     suffixes: [][]const u8,
 
-    pub fn deinit(self: *Self) void {
-        for (self.suffixes[0..self.suffixes.len]) |s| self.allocator.free(s);
-        self.allocator.free(self.suffixes);
+    pub fn init(gpa: Allocator, ptr: [*c][*c]u8, len: usize) Error!Cache {
+        // 创建 ArenaAllocator
+        var arena: std.heap.ArenaAllocator = .init(gpa);
+        errdefer arena.deinit(); // 避免后续错误导致内存不释放
+        // 申请内存
+        const suffixes = try arena.allocator().alloc([]const u8, len);
+        // 逐个复制
+        var i: usize = 0;
+        while (i < len) : (i += 1) {
+            suffixes[i] = try arena.allocator().dupe(u8, std.mem.span(ptr[i]));
+        }
+
+        return Cache{ .arena = arena, .suffixes = suffixes };
+    }
+
+    pub fn deinit(self: *Cache) void {
+        self.arena.deinit();
+        self.* = undefined;
     }
 };
-var cache: ?Cache = null;
+var cache: Cache = undefined;
 
 pub fn extensions() Error![]const []const u8 {
-    if (cache == null) return Error.VipsNotInitialized;
-    return cache.?.suffixes;
+    return cache.suffixes;
 }
 
 pub fn init(allocator: Allocator) Error!void {
-    if (cache == null) {
-        // 获取 Vips 支持的文件后缀列表
-        const suffixes_raw: [*c][*c]u8 = c.vips_foreign_get_suffixes();
-        if (suffixes_raw == null) return Error.VipsSuffixesGetFailed;
-        defer c.g_strfreev(suffixes_raw);
-        // 数元素个数（遇到 null 为止）
-        var n: usize = 0;
-        while (suffixes_raw[n] != null) : (n += 1) {}
-        // 申请内存
-        const suffixes = try allocator.alloc([]const u8, n);
-        // 逐个复制
-        var i: usize = 0;
-        while (i < n) : (i += 1) {
-            suffixes[i] = try allocator.dupe(u8, std.mem.span(suffixes_raw[i]));
-        }
-        // 输出支持的格式数量
-        std.log.info("Vips supports {d} format(s)", .{n});
-        // 构造缓存
-        cache = Cache{ .allocator = allocator, .suffixes = suffixes };
-    }
+    // 获取 Vips 支持的文件后缀列表
+    const suffixes_ptr = c.vips_foreign_get_suffixes() orelse return Error.VipsForeignGetSuffixesFailed;
+    defer c.g_strfreev(suffixes_ptr);
+    // 数元素个数（遇到 null 为止）
+    var n: usize = 0;
+    while (suffixes_ptr[n] != null) : (n += 1) {}
+    // 输出支持的格式数量
+    std.log.info("Vips supports {d} format(s)", .{n});
+    // 初始化缓存
+    cache = try Cache.init(allocator, suffixes_ptr, n);
 }
 
 pub fn deinit() void {
-    if (cache) |*ref| {
-        ref.deinit();
-        cache = null;
-    }
+    cache.deinit();
+    cache = undefined;
 }
 
 pub fn isSupported(suffix: []const u8) Error!bool {
-    if (cache == null) return Error.VipsNotInitialized;
-    for (cache.?.suffixes) |s| {
+    for (cache.suffixes) |s| {
         if (std.mem.eql(u8, s, suffix)) return true;
     }
     return false;

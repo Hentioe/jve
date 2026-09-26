@@ -1,7 +1,6 @@
 pub const Error = error{
-    VipsNotInitialized,
     VipsInitFailed,
-    VipsSuffixesGetFailed,
+    VipsForeignGetSuffixesFailed,
     VipsImageLoadFailed,
     VipsWriteFailed,
     VipsEncodingFailed,

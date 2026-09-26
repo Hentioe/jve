@@ -1,7 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
-const initializer = @import("initializer.zig");
 const consts = @import("consts.zig");
 const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
 const Error = @import("errors.zig").Error;

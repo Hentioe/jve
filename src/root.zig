@@ -1,9 +1,9 @@
 const std = @import("std");
-const vips_initializer = @import("vips/initializer.zig");
 const vips_format = @import("vips/format.zig");
 const VipsError = @import("vips/errors.zig").Error;
 const Backend = @import("sdl/enums.zig").Backend;
 
+pub const vips = @import("vips.zig");
 pub const sdl = @import("sdl.zig");
 pub const album = @import("album.zig");
 pub const loader = @import("vips/loader.zig");
@@ -15,15 +15,15 @@ pub const State = @import("sdl/State.zig");
 pub const clipboard = @import("clipboard.zig");
 
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
+    try vips.init(allocator);
     // todo: 把 initialize 改为 init
-    try vips_initializer.initialize(allocator);
     try album.initialize(allocator, file_path);
     try sdl.init();
 }
 
 pub fn deinit() void {
+    vips.deinit();
     // todo: 把 shutdown 改为 deinit
-    vips_initializer.shutdown();
     album.shutdown();
     sdl.deinit();
 }
