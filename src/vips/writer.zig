@@ -74,10 +74,7 @@ pub const Encoder = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        if (self.encoded) |data| {
-            c.g_free(data.ptr);
-            self.encoded = null;
-        }
+        if (self.encoded) |data| c.g_free(data.ptr);
         self.* = undefined;
     }
 };

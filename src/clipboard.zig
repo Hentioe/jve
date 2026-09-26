@@ -1,4 +1,7 @@
+// 此实现并未实际使用：已被 src/sdl/clipboard.zig 实现取代
 const std = @import("std");
+const enums = @import("enums.zig");
+const ScreenshotFormat = enums.ScreenshotFormat;
 const Allocator = std.mem.Allocator;
 
 pub const Error = error{
@@ -7,10 +10,13 @@ pub const Error = error{
 };
 
 // 写入剪贴板，MIME 由调用方指定（如 "image/png"、"image/jpeg"）
-pub fn copyImage(allocator: Allocator, data: []const u8, mime: []const u8) !void {
+pub fn copyImage(allocator: Allocator, data: []const u8, format: ScreenshotFormat) !void {
     const wayland = envNonEmpty("WAYLAND_DISPLAY");
     const x11 = envNonEmpty("DISPLAY");
     if (!wayland and !x11) return Error.NoClipboardBackend;
+    const mime = switch (format) {
+        .png => "image/png",
+    };
 
     var tool_failed = false;
 

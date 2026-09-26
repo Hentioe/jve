@@ -17,6 +17,7 @@ pub const SdlError = error{
     SdlSetTextureBlendModeFailed,
     SdlUpdateTextureFailed,
     SdlMapGPUTransferBufferFailed,
+    SdlSetClipboardDataFailed,
     AlbumError, // todo: 包含 Album 错误集
 };
 
