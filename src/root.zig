@@ -1,7 +1,9 @@
 const std = @import("std");
+const errors = @import("errors.zig");
 const vips_format = @import("vips/format.zig");
 const VipsError = @import("vips/errors.zig").Error;
 const Backend = @import("sdl/enums.zig").Backend;
+const Allocator = std.mem.Allocator;
 
 pub const vips = @import("vips.zig");
 pub const sdl = @import("sdl.zig");
@@ -13,6 +15,7 @@ pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
 pub const State = @import("sdl/State.zig");
 pub const clipboard = @import("clipboard.zig");
+pub const LoadError = errors.LoadError;
 
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
     try vips.init(allocator);
@@ -34,11 +37,15 @@ pub fn extensions() ![]const []const u8 {
     return try vips_format.extensions();
 }
 
-pub fn load(file_path: []const u8) !loader.Image {
-    return try loader.load(file_path);
+pub fn load(allocator: Allocator, file_path: []const u8) LoadError!loader.Image {
+    // 检查文件的可访问性
+    const stat = std.fs.cwd().statFile(file_path) catch |err| return err;
+    // 检查输入是否为文件
+    if (stat.kind != .file) return LoadError.NotAFile;
+    return try loader.load(allocator, file_path);
 }
 
-pub fn render(allocator: std.mem.Allocator, backend: []const u8) !void {
+pub fn render(allocator: Allocator, backend: []const u8) !void {
     var current_renderer: ?Backend = null;
     if (std.mem.eql(u8, backend, "sdl_renderer")) {
         current_renderer = .sdl_renderer;

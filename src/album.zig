@@ -1,7 +1,6 @@
 const std = @import("std");
 const root = @import("root.zig");
-const loader = root.loader;
-const Image = loader.Image;
+const Image = root.loader.Image;
 const Allocator = std.mem.Allocator;
 const Scanner = @import("Scanner.zig");
 
@@ -11,7 +10,7 @@ const AlbumError = error{
     PathJoinFailed,
 };
 
-pub const Error = AlbumError || root.vips.Error || Scanner.Error || std.posix.UnlinkError;
+pub const Error = AlbumError || root.LoadError || Scanner.Error || std.posix.UnlinkError;
 
 // 全局缓存
 const Cache = struct {
@@ -46,7 +45,7 @@ pub fn init(allocator: Allocator, file_path: []const u8) !void {
     _ = scanner.select(base);
     // 加载图片
     std.log.info("Loading image: {s}", .{file_path});
-    const image = try loader.load(allocator, file_path);
+    const image = try root.load(allocator, file_path);
     // 输出图像信息
     std.log.info("Current image: {s}", .{base});
     std.log.info("Image size: {d}x{d}", .{ image.width, image.height });
@@ -121,7 +120,7 @@ fn reloadCurrent() Error!void {
         // 更新缓存中的路径
         cache.freeOldAndupdateFullPath(full_path);
         // 加载图片
-        const image = try loader.load(cache.allocator, full_path);
+        const image = try root.load(cache.allocator, full_path);
         // 缓存图片
         cache.image = image;
         std.log.info("Current image: {s}", .{image.file_name});
