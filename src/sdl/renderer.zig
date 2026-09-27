@@ -44,11 +44,10 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var event: c.SDL_Event = undefined;
     // 其它控制参数
     var leader = LeaderKey.init(c.SDLK_LALT);
-    var target_angle = state.target_angle; // 目标旋转角度
     var is_dragging: bool = false; // 是否正在拖动
     var movement_offset = state.movement_offset; // 移动偏移量
-    // 累计缩放倍率
-    var scale = Animated.init(1.0, state.target_scale, 0.002);
+    var scale = Animated.init(1.0, state.target_scale, 0.002); // 缩放
+    var angle = Animated.init(0.0, state.target_angle, 0.002); // 旋转
     while (running) {
         const has_event = if (animating) c.SDL_PollEvent(&event) else c.SDL_WaitEvent(&event);
         if (has_event) {
@@ -83,6 +82,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 }
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_LEFT) {
                 // 停止拖动
+                std.log.info("Stopped dragging at mouse position: ({}, {})", .{ event.button.x, event.button.y });
                 is_dragging = false;
                 animating = false;
             } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and is_dragging) {
@@ -91,30 +91,24 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 movement_offset.y += event.motion.yrel;
                 animating = true;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN) {
-                switch (event.key.key) {
-                    c.SDLK_UP => target_angle = 0.0,
-                    c.SDLK_DOWN => target_angle = 180.0,
-                    c.SDLK_LEFT => target_angle = 270.0,
-                    c.SDLK_RIGHT => target_angle = 90.0,
-                    c.SDLK_SLASH => { // 重置所有控制参数
-                        target_angle = 0.0;
-                        scale = Animated.init(1.0, 1.0, 0.002);
-                        is_dragging = false;
-                        movement_offset = .{};
-                        animating = true;
-                    },
-                    else => {},
+                if (mapKeyToAngle(event.key.key)) |new_angle| angle.updateTarget(new_angle);
+                if (event.key.key == c.SDLK_SLASH) {
+                    // 重置所有控制参数
+                    angle = Animated.init(0.0, 0.0, 0.002);
+                    scale = Animated.init(1.0, 1.0, 0.002);
+                    is_dragging = false;
+                    movement_offset = .{};
+                    animating = true;
                 }
             } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL) {
                 const mod_state = c.SDL_GetModState();
                 if (mod_state > 0) {
-                    // 计算新的缩放率、宽度，并更新窗口大小
-                    if (event.wheel.y > 0) scale.target *= 1.4 else scale.target /= 1.4;
-                    if (scale.target > 3) scale.target = 3.0 else if (scale.target < 0.5) scale.target = 0.5;
-                    animating = true;
+                    // 处理缩放
+                    if (event.wheel.y > 0) scale.updateTarget(scale.target * 1.4) else scale.updateTarget(scale.target / 1.4);
+                    if (scale.target > 3) scale.updateTarget(3.0) else if (scale.target < 0.5) scale.updateTarget(0.5);
                 } else {
-                    std.log.debug("Mouse wheel event without modifier: {d}", .{event.wheel.y});
                     // 切换图片
+                    std.log.debug("Mouse wheel event without modifier: {d}", .{event.wheel.y});
                     if (event.wheel.y < 0) {
                         _ = album.next() catch |err| {
                             std.log.err("Failed to switch to next image: {}", .{err});
@@ -137,14 +131,24 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 }
             }
         }
-        if (animating) {
-            if (scale.isNearFinished()) {
-                std.log.debug("Scale is near finished, diff: {d}", .{scale.target - scale.current});
-                scale.finish();
-                animating = false;
-            } else {
-                scale.nextStep();
+        if (animating or scale.state == .running or angle.state == .running) {
+            if (scale.state == .running) {
+                if (scale.isNearFinished()) {
+                    std.log.debug("Scale is near finished, diff: {d}", .{scale.target - scale.current});
+                    scale.finish();
+                } else {
+                    scale.nextStep();
+                }
             }
+            if (angle.state == .running) {
+                if (angle.isNearFinished()) {
+                    std.log.debug("Angle is near finished, diff: {d}", .{angle.target - angle.current});
+                    angle.finish();
+                } else {
+                    angle.nextStep();
+                }
+            }
+            animating = scale.state == .running or angle.state == .running; // 如果没有动画了，停止运动
             std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ scale.current, scale.target, scale.target - scale.current });
             const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * scale.current);
             const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * scale.current);
@@ -154,11 +158,11 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
         const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
         check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
         check(c.SDL_RenderClear(renderer));
-        check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, target_angle, null, c.SDL_FLIP_NONE));
+        check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, angle.current, null, c.SDL_FLIP_NONE));
         check(c.SDL_RenderPresent(renderer));
     }
     // 更新状态中控制参数
-    state.target_angle = target_angle;
+    state.target_angle = angle.target;
     state.target_scale = scale.target;
     state.movement_offset = movement_offset;
     // 通知状态停止渲染
@@ -192,6 +196,17 @@ fn isToggleEvent(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
         return !isInRect(event, dst_rect);
     }
     return false;
+}
+
+// 按键映射旋转角度
+fn mapKeyToAngle(key: c.SDL_Keycode) ?f64 {
+    return switch (key) {
+        c.SDLK_UP => 0.0,
+        c.SDLK_DOWN => 180.0,
+        c.SDLK_LEFT => 270.0,
+        c.SDLK_RIGHT => 90.0,
+        else => null,
+    };
 }
 
 // 判断鼠标位置是否在图片上
