@@ -3,13 +3,18 @@ const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 
+const Stage = enum(c_uint) {
+    vertex = c.SDL_GPU_SHADERSTAGE_VERTEX,
+    fragment = c.SDL_GPU_SHADERSTAGE_FRAGMENT,
+};
+
 // todo: 两个 num 参数合并成一个结构体
 pub fn loadHlslFile(
     allocator: std.mem.Allocator,
     device: *c.SDL_GPUDevice,
     file_name: [*:0]const u8,
     entrypoint: [*:0]const u8,
-    stage: c.SDL_GPUShaderStage,
+    stage: Stage,
     num_samplers: u32,
     num_uniform_buffers: u32,
 ) Error!*c.SDL_GPUShader {
@@ -55,7 +60,7 @@ pub fn loadHlslFile(
         .bytecode = @ptrCast(spirv_bytes),
         .bytecode_size = spirv_size,
         .entrypoint = entrypoint,
-        .shader_stage = stage,
+        .shader_stage = @intFromEnum(stage),
         .props = 0,
     };
 
@@ -70,4 +75,27 @@ pub fn loadHlslFile(
         return Error.SdlCompileShaderFailed;
     }
     return shader.?;
+}
+
+pub fn load(
+    device: *c.SDL_GPUDevice,
+    bytes: []const u8,
+    entrypoint: [*:0]const u8,
+    stage: Stage,
+    num_samplers: u32,
+    num_uniform_buffers: u32,
+) Error!*c.SDL_GPUShader {
+    const create_info = c.SDL_GPUShaderCreateInfo{
+        .code = bytes.ptr,
+        .code_size = bytes.len,
+        .entrypoint = entrypoint,
+        .format = c.SDL_GPU_SHADERFORMAT_SPIRV,
+        .stage = @intFromEnum(stage),
+        .num_samplers = num_samplers,
+        .num_storage_textures = 0,
+        .num_storage_buffers = 0,
+        .num_uniform_buffers = num_uniform_buffers,
+    };
+
+    return c.SDL_CreateGPUShader(device, &create_info) orelse return Error.SdlCreateShaderFailed;
 }

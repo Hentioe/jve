@@ -7,10 +7,10 @@ const Self = @This();
 
 pipeline: *c.SDL_GPUGraphicsPipeline,
 
-pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, window: *Window) Error!Self {
+pub fn init(device: *c.SDL_GPUDevice, window: *Window) Error!Self {
     // 构造棋盘格管线
-    const vert_shader = try shader_loader.loadHlslFile(allocator, device, "checker_vert.hlsl", "main", c.SDL_GPU_SHADERSTAGE_VERTEX, 0, 0);
-    const frag_shader = try shader_loader.loadHlslFile(allocator, device, "checker_frag.hlsl", "main", c.SDL_GPU_SHADERSTAGE_FRAGMENT, 0, 0);
+    const vert_shader = try shader_loader.load(device, @embedFile("checker.vert.spv"), "main", .vertex, 0, 0);
+    const frag_shader = try shader_loader.load(device, @embedFile("checker.frag.spv"), "main", .fragment, 0, 0);
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{ .format = c.SDL_GetGPUSwapchainTextureFormat(device, window.sdl_window) };
     const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
         .vertex_shader = vert_shader, // 编译好的顶点着色器

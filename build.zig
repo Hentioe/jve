@@ -87,4 +87,51 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
+
+    // --- Shader 编译 ---
+    const ShaderStage = enum { vertex, fragment };
+    const ShaderEntry = struct { file: []const u8, stage: ShaderStage };
+
+    const shaders = [_]ShaderEntry{
+        .{ .file = "base.frag.hlsl", .stage = .fragment },
+        .{ .file = "base.vert.hlsl", .stage = .vertex },
+        .{ .file = "blur.frag.hlsl", .stage = .fragment },
+        .{ .file = "busy_fog.frag.hlsl", .stage = .fragment },
+        .{ .file = "checker.frag.hlsl", .stage = .fragment },
+        .{ .file = "checker.vert.hlsl", .stage = .vertex },
+        .{ .file = "mask.frag.hlsl", .stage = .fragment },
+        .{ .file = "onscreen.frag.hlsl", .stage = .fragment },
+        .{ .file = "sharpen.frag.hlsl", .stage = .fragment },
+    };
+
+    const shaders_step = b.step("shaders", "Compile HLSL shaders to SPIR-V");
+    const update_shaders = b.addUpdateSourceFiles();
+
+    for (shaders) |shader| {
+        const src_path = b.pathJoin(&.{ "src", "shaders", shader.file });
+        const compile = b.addSystemCommand(&.{"shadercross"}); // 确保存行在 shadercross 命令
+
+        // 输入文件
+        compile.addFileArg(b.path(src_path));
+        // 其它参数
+        compile.addArgs(&.{ "-s", "HLSL", "-d", "SPIRV", "-t", @tagName(shader.stage), "-e", "main" });
+        compile.addArg("-o");
+
+        // 输出文件名,例如 base.frag.hlsl -> base.frag.spv
+        const spv_name = b.fmt("{s}.spv", .{shader.file[0 .. shader.file.len - ".hlsl".len]});
+
+        // 添加 SPV 为输出文件，这一步让 Run Step 参与 Zig 的缓存系统
+        // 源文件内容 + 命令行参数不变时，shadercross 不会被再次调用
+        const spv_cached = compile.addOutputFileArg(spv_name);
+
+        // 把缓存里的产物同步回项目 sharders 目录，内容不变时不会复制
+        update_shaders.addCopyFileToSource(spv_cached, b.pathJoin(&.{ ".shaders", spv_name }));
+        // 添加到 root 的匿名导入
+        root_mod.addAnonymousImport(spv_name, .{ .root_source_file = spv_cached });
+    }
+
+    shaders_step.dependOn(&update_shaders.step);
+
+    // 让 `zig build` 默认就顺带编译 shader
+    b.getInstallStep().dependOn(shaders_step);
 }

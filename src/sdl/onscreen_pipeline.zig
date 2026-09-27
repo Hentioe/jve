@@ -10,25 +10,16 @@ pipeline: *c.SDL_GPUGraphicsPipeline,
 render_pass: ?*c.SDL_GPURenderPass = undefined,
 
 pub fn init(
-    allocator: std.mem.Allocator,
     device: *c.SDL_GPUDevice,
-    vert_sharder: ?*c.SDL_GPUShader,
+    vert_shader: ?*c.SDL_GPUShader,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 ) Error!Self {
-    const frag_sharder = try shader_loader.loadHlslFile(
-        allocator,
-        device,
-        "passthrough_frag.hlsl",
-        "main",
-        c.SDL_GPU_SHADERSTAGE_FRAGMENT,
-        1,
-        0,
-    );
+    const frag_sharder = try shader_loader.load(device, @embedFile("onscreen.frag.spv"), "main", .fragment, 1, 0);
     const pipeline = try post_util.createPipeline(
         device,
-        .{ .vert = vert_sharder, .frag = frag_sharder },
+        .{ .vert = vert_shader, .frag = frag_sharder },
         vert_buffer_desc,
         vert_attrs,
         color_target_desc,

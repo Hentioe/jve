@@ -6,6 +6,7 @@ const OrtError = @import("ort").Error;
 pub const SdlError = error{
     SdlInitFailed,
     SdlShaderCrossInitFailed,
+    SdlCreateShaderFailed,
     SdlCreateGPUDeviceFailed,
     SdlCreateWindowFailed,
     SdlClaimWindowForGPUDeviceFailed,
