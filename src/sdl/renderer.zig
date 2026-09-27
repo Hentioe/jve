@@ -9,6 +9,7 @@ const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Image = @import("../root.zig").loader.Image;
 const LeaderKey = @import("LeaderKey.zig");
+const Animated = @import("Animated.zig");
 const Point = structs.Point;
 const RenderNext = @import("enums.zig").RenderNext;
 
@@ -47,8 +48,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var is_dragging: bool = false; // 是否正在拖动
     var movement_offset = state.movement_offset; // 移动偏移量
     // 累计缩放倍率
-    var target_scale: f32 = state.target_scale;
-    var current_scale: f32 = 1.0;
+    var scale = Animated.init(1.0, state.target_scale, 0.002);
     while (running) {
         const has_event = if (animating) c.SDL_PollEvent(&event) else c.SDL_WaitEvent(&event);
         if (has_event) {
@@ -98,8 +98,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                     c.SDLK_RIGHT => target_angle = 90.0,
                     c.SDLK_SLASH => { // 重置所有控制参数
                         target_angle = 0.0;
-                        target_scale = 1.0;
-                        current_scale = 1.0;
+                        scale = Animated.init(1.0, 1.0, 0.002);
                         is_dragging = false;
                         movement_offset = .{};
                         animating = true;
@@ -110,8 +109,8 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 const mod_state = c.SDL_GetModState();
                 if (mod_state > 0) {
                     // 计算新的缩放率、宽度，并更新窗口大小
-                    if (event.wheel.y > 0) target_scale *= 1.4 else target_scale /= 1.4;
-                    if (target_scale > 3) target_scale = 3.0 else if (target_scale < 0.5) target_scale = 0.5;
+                    if (event.wheel.y > 0) scale.target *= 1.4 else scale.target /= 1.4;
+                    if (scale.target > 3) scale.target = 3.0 else if (scale.target < 0.5) scale.target = 0.5;
                     animating = true;
                 } else {
                     std.log.debug("Mouse wheel event without modifier: {d}", .{event.wheel.y});
@@ -139,16 +138,16 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             }
         }
         if (animating) {
-            current_scale += (target_scale - current_scale) * 0.002;
-            if (c.SDL_fabsf(target_scale - current_scale) < 0.0001) {
-                current_scale = target_scale;
-            }
-            if (current_scale == target_scale) {
+            if (scale.isNearFinished()) {
+                std.log.debug("Scale is near finished, diff: {d}", .{scale.target - scale.current});
+                scale.finish();
                 animating = false;
+            } else {
+                scale.nextStep();
             }
-            std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ current_scale, target_scale, target_scale - current_scale });
-            const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * current_scale);
-            const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * current_scale);
+            std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ scale.current, scale.target, scale.target - scale.current });
+            const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * scale.current);
+            const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * scale.current);
             calculateDstRect(&dst_rect, window, new_width, new_height, movement_offset);
             window.imageSizeUpdated(new_width, new_height);
         }
@@ -160,7 +159,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     }
     // 更新状态中控制参数
     state.target_angle = target_angle;
-    state.target_scale = target_scale;
+    state.target_scale = scale.target;
     state.movement_offset = movement_offset;
     // 通知状态停止渲染
     state.stopRendering();
