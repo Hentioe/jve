@@ -1,12 +1,19 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const cli = @import("cli.zig");
 const imageviewer = @import("imageviewer");
 
+var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
+
 pub fn main() !void {
     // 创建内存分配器
-    var gpa: std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit(); // todo: 输出检查结果
-    const allocator = gpa.allocator();
+    const allocator, const is_debug = switch (builtin.mode) {
+        .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
+        .ReleaseFast, .ReleaseSmall => .{ std.heap.c_allocator, false },
+    };
+    defer if (is_debug) {
+        _ = debug_allocator.deinit(); // todo: 输出检查结果
+    };
     // 解析命令行参数
     const res = try cli.init(allocator);
     defer res.deinit();
