@@ -53,14 +53,14 @@ pub fn create(allocator: std.mem.Allocator, image_width: i32, image_height: i32,
     };
     // 支持拖动窗口
     const callback_data = @constCast(self_ptr); // 把 self 指针作为 callback_data 传递给 hitTestCallback
-    _ = h.check(c.SDL_SetWindowHitTest(sdl_window, hitTestCallback, callback_data));
+    if (!h.check(c.SDL_SetWindowHitTest(sdl_window, hitTestCallback, callback_data))) return Error.SdlSetWindowHitTestFailed;
     // 返回指针
     return self_ptr;
 }
 
 pub fn destroy(self: *Self) void {
     // 隐藏窗口
-    _ = h.check(c.SDL_HideWindow(self.sdl_window));
+    _ = h.check(c.SDL_HideWindow(self.sdl_window)); // 出错不影响窗口关闭，忽略返回值
     c.SDL_DestroyWindow(self.sdl_window);
     self.allocator.destroy(self); // init 在堆上分配了自身
 }
@@ -75,25 +75,25 @@ pub fn destroy(self: *Self) void {
 //         window_width = self.display_width;
 //     }
 //     // 设置窗口大小
-//     _ = c.SDL_SetWindowSize(self.sdl_window, @intCast(window_width), @intCast(window_height));
+//     c.SDL_SetWindowSize(self.sdl_window, @intCast(window_width), @intCast(window_height));
 //     // 让窗口居中
-//     _ = c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED);
+//     c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED);
 //     // 显示窗口边框
-//     _ = c.SDL_SetWindowBordered(self.sdl_window, self.has_border);
+//     c.SDL_SetWindowBordered(self.sdl_window, self.has_border);
 // }
 
-pub fn hide(self: *Self) void {
-    _ = h.check(c.SDL_HideWindow(self.sdl_window));
+pub fn hide(self: *Self) Error!void {
+    if (!h.check(c.SDL_HideWindow(self.sdl_window))) return Error.SdlHideWindowFailed;
 }
 
-pub fn show(self: *Self) void {
-    _ = h.check(c.SDL_ShowWindow(self.sdl_window));
+pub fn show(self: *Self) Error!void {
+    if (!h.check(c.SDL_ShowWindow(self.sdl_window))) return Error.SdlShowWindowFailed;
 }
 
 pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
     const titile = try std.fmt.allocPrintSentinel(self.allocator, "{s} ({d}x{d})", .{ file_name, self.image_width, self.image_height }, 0);
     defer self.allocator.free(titile);
-    _ = c.SDL_SetWindowTitle(self.sdl_window, titile);
+    if (!h.check(c.SDL_SetWindowTitle(self.sdl_window, titile))) return Error.SdlSetWindowTitleFailed;
 }
 
 pub fn imageSizeUpdated(self: *Self, new_width: i32, new_height: i32) void {

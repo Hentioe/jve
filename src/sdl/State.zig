@@ -119,17 +119,17 @@ pub fn startRendering(self: *Self, image: *const Image, backend: Backend) Error!
     self.current_backend = backend;
 
     if (self.current_backend == .sdl_renderer) {
-        if (self.window) |w| w.show();
+        if (self.window) |w| try w.show();
     } else if (self.current_backend == .sdl_gpu) {
-        if (self.gpu_window) |w| w.show();
+        if (self.gpu_window) |w| try w.show();
     }
 }
 
-pub fn stopRendering(self: *Self) void {
+pub fn stopRendering(self: *Self) Error!void {
     if (self.current_backend == .sdl_renderer) {
-        if (self.window) |w| w.hide();
+        if (self.window) |w| try w.hide();
     } else if (self.current_backend == .sdl_gpu) {
-        if (self.gpu_window) |w| w.hide();
+        if (self.gpu_window) |w| try w.hide();
     }
 }
 

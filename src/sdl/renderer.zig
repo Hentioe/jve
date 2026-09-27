@@ -166,7 +166,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     state.target_scale = scale.target;
     state.movement_offset = movement_offset;
     // 通知状态停止渲染
-    state.stopRendering();
+    try state.stopRendering();
 
     return if (toggle) .toggle else .quit;
 }

@@ -458,7 +458,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         }
     }
 
-    state.stopRendering();
+    try state.stopRendering();
 
     return if (toggle) {
         // todo: 如果图像没有变化，无需写入纹理
