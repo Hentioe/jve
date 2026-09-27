@@ -34,10 +34,11 @@ pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!Image {
 
     // 从文件创建 VipsImage 指针
     var in: [*c]c.VipsImage = null;
-    if (std.mem.eql(u8, extension, ".avif") and !h.check(
-        c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL), // 对 avif 特殊处理（仅获取第一帧）
-    )) {
-        return Error.VipsHeifLoadFailed;
+    if (std.mem.eql(u8, extension, ".avif")) {
+        std.log.info("Heif loading...", .{});
+        if (!h.check(c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL))) { // 对 avif 特殊处理（仅获取第一帧）
+            return Error.VipsHeifLoadFailed;
+        }
     } else {
         in = c.vips_image_new_from_file(filename, VIPS_ARGUMENT_NULL);
     }

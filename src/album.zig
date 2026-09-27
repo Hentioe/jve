@@ -33,7 +33,8 @@ const Cache = struct {
         self.full_path = path;
     }
 };
-var global_cache: ?Cache = null;
+var initialized: bool = false;
+var cache: Cache = undefined;
 
 // 扫描文件所在目录，并定位到该文件；文件不在结果中时停在第一个
 pub fn init(allocator: Allocator, file_path: []const u8) !void {
@@ -49,59 +50,56 @@ pub fn init(allocator: Allocator, file_path: []const u8) !void {
     // 输出图像信息
     std.log.info("Current image: {s}", .{base});
     std.log.info("Image size: {d}x{d}", .{ image.width, image.height });
-    global_cache = Cache{
+    cache = Cache{
         .allocator = allocator,
         .scanner = scanner,
         .image = image,
         .dirty = false,
         // 初始化的路径不要保存，cli 会负责回收
     };
+    initialized = true;
 }
 
 pub fn deinit() void {
-    if (global_cache) |*c| {
-        c.deinit();
+    if (initialized) {
+        cache.deinit();
+        initialized = false;
     }
-    global_cache = null;
-}
-
-fn cache() *Cache {
-    return &global_cache.?;
 }
 
 pub fn next() Error!?[]const u8 {
     std.log.info("Going to next image", .{});
-    cache().dirty = true;
-    return cache().scanner.next();
+    cache.dirty = true;
+    return cache.scanner.next();
 }
 
 pub fn prev() Error!?[]const u8 {
     std.log.info("Going to previous image", .{});
-    cache().dirty = true;
-    return cache().scanner.prev();
+    cache.dirty = true;
+    return cache.scanner.prev();
 }
 
 pub fn current() Error!Image {
-    if (cache().dirty) { // 如果缓存脏了，重新加载当前图片
-        std.log.info("cache() is dirty, reloading current image", .{});
+    if (cache.dirty) { // 如果缓存脏了，重新加载当前图片
+        std.log.info("cache is dirty, reloading current image", .{});
         try reloadCurrent();
     }
-    return cache().image;
+    return cache.image;
 }
 
 // 删除当前图片
 pub fn deleteCurrentGetNext() Error!Image {
-    if (cache().scanner.current()) |file_name| {
-        const dir_path = cache().scanner.dir_path;
-        const full_path = std.fs.path.join(cache().allocator, &[_][]const u8{ dir_path, file_name }) catch |err| {
+    if (cache.scanner.current()) |file_name| {
+        const dir_path = cache.scanner.dir_path;
+        const full_path = std.fs.path.join(cache.allocator, &[_][]const u8{ dir_path, file_name }) catch |err| {
             std.log.err("Failed to join path: {}", .{err});
             return Error.PathJoinFailed;
         };
-        defer cache().allocator.free(full_path);
+        defer cache.allocator.free(full_path);
         std.log.info("Deleting current image: {s}", .{full_path});
         try std.fs.cwd().deleteFile(full_path);
         // 重新扫描
-        try cache().scanner.rescan();
+        try cache.scanner.rescan();
         if (try next() == null) return Error.NoImageLeft;
         return try current();
     } else {
@@ -111,24 +109,24 @@ pub fn deleteCurrentGetNext() Error!Image {
 
 fn reloadCurrent() Error!void {
     std.log.info("Reloading current image", .{});
-    if (cache().scanner.current()) |file_name| {
+    if (cache.scanner.current()) |file_name| {
         // 如果有图片，释放它
-        cache().image.deinit();
+        cache.image.deinit();
         // 组合成文件路径
-        const dir_path = cache().scanner.dir_path;
-        const full_path = std.fs.path.join(cache().allocator, &[_][]const u8{ dir_path, file_name }) catch |err| {
+        const dir_path = cache.scanner.dir_path;
+        const full_path = std.fs.path.join(cache.allocator, &[_][]const u8{ dir_path, file_name }) catch |err| {
             std.log.err("Failed to join path: {}", .{err});
             return Error.PathJoinFailed;
         };
         // 更新缓存中的路径
-        cache().freeOldAndupdateFullPath(full_path);
+        cache.freeOldAndupdateFullPath(full_path);
         // 加载图片
-        const image = try loader.load(cache().allocator, full_path);
+        const image = try loader.load(cache.allocator, full_path);
         // 缓存图片
-        cache().image = image;
+        cache.image = image;
         std.log.info("Current image: {s}", .{image.file_name});
         // 标记缓存为干净
-        cache().dirty = false;
+        cache.dirty = false;
     } else {
         // 没有选择图片
         return Error.NoImageSelected;
