@@ -28,12 +28,11 @@ pub fn build(b: *std.Build) void {
     });
     const sdl_lib = sdl_dep.artifact("SDL3");
     const sdl_test_lib = sdl_dep.artifact("SDL3_test");
-    const sdl_import: Import = .{ .name = "sdl", .module = sdl_lib.root_module };
 
     const root_mod = b.addModule("imageviewer", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
-        .imports = &.{ ort_import, sdl_import },
+        .imports = &.{ort_import},
     });
     const root_import: Import = .{ .name = "imageviewer", .module = root_mod };
     // 链接 sdl
