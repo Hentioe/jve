@@ -26,11 +26,11 @@ pub fn deinit() void {
     sdl.deinit();
 }
 
-pub fn isSupported(suffix: []const u8) VipsError!bool {
+pub fn isSupported(suffix: []const u8) !bool {
     return try vips_format.isSupported(suffix);
 }
 
-pub fn extensions() VipsError![]const []const u8 {
+pub fn extensions() ![]const []const u8 {
     return try vips_format.extensions();
 }
 

@@ -16,7 +16,7 @@ pub fn main() !void {
         file_path = pos;
     }
     // 初始化
-    defer imageviewer.deinit(); // 避免因 initialize 崩溃而未能释放资源
+    defer imageviewer.deinit();
     try imageviewer.init(allocator, file_path);
     // 读取后端参数
     const backend: []const u8 = res.args.backend orelse "sdl_renderer";

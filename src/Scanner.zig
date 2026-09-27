@@ -46,8 +46,6 @@ pub fn scan(self: *Self) Error!void {
     _ = self.arena.reset(.retain_capacity);
     self.index = 0;
 
-    const a = self.arena.allocator();
-
     var dir = try std.fs.cwd().openDir(self.dir_path, .{ .iterate = true });
     defer dir.close();
 
@@ -59,7 +57,7 @@ pub fn scan(self: *Self) Error!void {
         }
         if (!matchExt(entry.name, self.extensions)) continue;
 
-        const owned = try a.dupe(u8, entry.name);
+        const owned = try self.arena.allocator().dupe(u8, entry.name);
         try self.names.append(self.gpa, owned);
     }
 
