@@ -97,7 +97,7 @@ pub fn startRendering(self: *Self, image: *const Image, backend: Backend) Error!
             return Error.SdlCreateGPUDeviceFailed;
         };
         // 绑定窗口到 GPU 设备
-        _ = h.check(c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window)) or return Error.SdlClaimWindowForGPUDeviceFailed;
+        if (!h.check(c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window))) return Error.SdlClaimWindowForGPUDeviceFailed;
         // 关闭垂直同步（修改交换链的 Present Mode）
         // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
         if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
@@ -160,14 +160,14 @@ pub fn readTexture(self: *Self, renderer: *c.SDL_Renderer) Error!?*c.SDL_Texture
             return Error.SdlCreateTextureFailed;
         }
         // 开启纹理混合模式
-        _ = h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND)) or return Error.SdlSetTextureBlendModeFailed;
+        if (!h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND))) return Error.SdlSetTextureBlendModeFailed;
         // 上传纹理
-        _ = h.check(c.SDL_UpdateTexture(
+        if (!h.check(c.SDL_UpdateTexture(
             texture,
             null,
             extracted.pixels_slice.ptr,
             pitch,
-        )) or return Error.SdlUpdateTextureFailed;
+        ))) return Error.SdlUpdateTextureFailed;
 
         return texture;
     } else {

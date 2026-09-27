@@ -7,6 +7,7 @@ const Scanner = @import("Scanner.zig");
 const AlbumError = error{
     NoImageSelected,
     NoImageLeft,
+    CurrentFileNotFound,
     PathJoinFailed,
 };
 
@@ -36,13 +37,13 @@ var initialized: bool = false;
 var cache: Cache = undefined;
 
 // 扫描文件所在目录，并定位到该文件；文件不在结果中时停在第一个
-pub fn init(allocator: Allocator, file_path: []const u8) !void {
+pub fn init(allocator: Allocator, file_path: []const u8) Error!void {
     const dir = std.fs.path.dirname(file_path) orelse ".";
     const base = std.fs.path.basename(file_path);
     var scanner = try Scanner.init(allocator, dir, try root.extensions());
     errdefer scanner.deinit();
     // 选择当前文件
-    _ = scanner.select(base);
+    if (!scanner.select(base)) return Error.CurrentFileNotFound;
     // 加载图片
     std.log.info("Loading image: {s}", .{file_path});
     const image = try root.load(allocator, file_path);
