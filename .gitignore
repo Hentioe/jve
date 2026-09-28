@@ -1,6 +1,6 @@
 /.direnv/
 /.zig-cache/
 /zig-out/
-/.shaders/
+/shaders/
 /images/
 /models/

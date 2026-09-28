@@ -1,1 +1,2 @@
 default_mode = "sdl_gpu"
+shader_dir = "shaders"

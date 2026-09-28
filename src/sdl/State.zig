@@ -4,6 +4,7 @@ const enums = @import("enums.zig");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const structs = @import("structs.zig");
+const config = @import("../root.zig").config;
 const Api = ort.Api;
 const Allocator = std.mem.Allocator;
 const RwLock = std.Thread.RwLock;
@@ -11,9 +12,11 @@ const Error = @import("errors.zig").Error;
 const Image = @import("../root.zig").loader.Image;
 const Size = @import("structs.zig").Size(i32);
 const Window = @import("window.zig");
+const Shaders = std.ArrayList(*c.SDL_GPUShader);
 const Backend = @import("enums.zig").Backend;
 const Point = structs.Point;
 const Extractor = @import("Extractor.zig");
+const ShaderScanner = @import("ShaderScanner.zig");
 const BiRefNet = @import("../models/BiRefNet.zig");
 const Self = @This();
 
@@ -28,6 +31,7 @@ window: ?*Window = null,
 renderer: ?*c.SDL_Renderer = null,
 gpu_window: ?*Window = null,
 gpu_device: ?*c.SDL_GPUDevice = null,
+shaders: ?Shaders = null,
 extracted: ?Extractor = null,
 ort_lock: RwLock = .{},
 ort_api: ?ort.Api = null,
@@ -60,6 +64,7 @@ pub fn deinit(self: *Self) void {
     if (self.extracted) |*extractor| extractor.deinit();
     if (self.birefnet) |*birefnet| birefnet.deinit();
     if (self.ort_api) |*ort_api| ort_api.deinit();
+    if (self.shaders) |*shaders| shaders.deinit(self.allocator);
     self.* = undefined;
 }
 
@@ -109,6 +114,15 @@ pub fn startRendering(self: *Self, image: *const Image, backend: Backend) Error!
             ));
         } else {
             std.log.warn("IMMEDIATE Present Mode not supported", .{});
+        }
+
+        // 扫描和编译着色器
+        if (config.get().shader_dir) |dir| {
+            var shader_scanner = try ShaderScanner.init(self.allocator, dir);
+            defer shader_scanner.deinit();
+            std.log.info("Scanning shaders in directory: {s}", .{dir});
+            try shader_scanner.scan();
+            self.shaders = try shader_scanner.compileShaders(self.allocator, device);
         }
 
         self.gpu_window = window;
