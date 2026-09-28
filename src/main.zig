@@ -6,13 +6,13 @@ const imageviewer = @import("imageviewer");
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
 pub fn main() !void {
-    // 创建内存分配器
+    // 根据编译模式选择内存分配器
     const allocator, const is_debug = switch (builtin.mode) {
         .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
         .ReleaseFast, .ReleaseSmall => .{ std.heap.c_allocator, false },
     };
     defer if (is_debug) {
-        _ = debug_allocator.deinit(); // todo: 输出检查结果
+        std.debug.assert(debug_allocator.deinit() == .ok);
     };
     // 解析命令行参数
     const res = try cli.init(allocator);
