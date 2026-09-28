@@ -5,6 +5,9 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const toml_dep = b.dependency("toml", .{});
+    const toml_import: Import = .{ .name = "toml", .module = toml_dep.module("toml") };
+
     const ort_mod = b.addModule("ort", .{
         .root_source_file = b.path("src/ort.zig"),
         .target = target,
@@ -32,7 +35,7 @@ pub fn build(b: *std.Build) void {
     const root_mod = b.addModule("imageviewer", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
-        .imports = &.{ort_import},
+        .imports = &.{ toml_import, ort_import },
     });
     const root_import: Import = .{ .name = "imageviewer", .module = root_mod };
     // 链接 sdl
@@ -53,7 +56,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{ root_import, clap_import, ort_import },
+            .imports = &.{ root_import, clap_import },
             .link_libc = true,
         }),
     });

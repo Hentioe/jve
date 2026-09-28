@@ -1,10 +1,51 @@
 const std = @import("std");
+const toml = @import("toml");
 const paths = @import("paths.zig");
 const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 const Error = errors.Error;
 
-pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!void {
+pub const Config = struct {
+    base_dir: ?[]const u8 = null, // 基础目录
+    shader_dir: ?[]const u8 = null, // 着色器目录
+};
+
+// 两种不同途径的配置
+pub const ConfigVariant = union(enum) {
+    parsed: toml.Parsed(Config),
+    owned: Config,
+
+    pub inline fn get(self: *const ConfigVariant) *const Config {
+        switch (self.*) {
+            .parsed => |*parsed| return &parsed.value,
+            .owned => |*owned| return owned,
+        }
+    }
+};
+
+pub const Loaded = struct {
+    allocator: Allocator,
+    config: ConfigVariant,
+
+    pub fn get(self: *const Loaded) *const Config {
+        return self.config.get();
+    }
+
+    pub fn deinit(self: *Loaded) void {
+        switch (self.config) {
+            .parsed => |*parsed| {
+                if (parsed.value.base_dir) |base_dir| self.allocator.free(base_dir);
+                parsed.deinit();
+            },
+            .owned => |*owned| {
+                if (owned.base_dir) |base_dir| self.allocator.free(base_dir);
+            },
+        }
+        self.* = undefined;
+    }
+};
+
+pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
     const path = if (config_path) |path| path else val: {
         break :val try paths.findConfigFile(allocator, "imageviewer", "imageviewer.toml");
     };
@@ -13,9 +54,24 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!void {
         if (config_path == null) allocator.free(p);
     };
 
-    // todo: 如果存在配置文件，解析它。否则返回默认配置。
-
+    // 如果存在配置文件，解析它。否则返回默认配置。
     if (path) |p| {
         std.log.info("Loading config file: {s}", .{p});
+
+        var parser = toml.Parser(Config).init(allocator);
+        defer parser.deinit();
+
+        var parsed = parser.parseFile(p) catch |err| {
+            std.log.err("Failed to parse config file: {}", .{err});
+            return Error.ParseError;
+        };
+        // 附加基础目录路径
+        const base_dir = std.fs.path.dirname(p) orelse ".";
+        parsed.value.base_dir = try allocator.dupe(u8, base_dir);
+
+        return Loaded{ .allocator = allocator, .config = .{ .parsed = parsed } };
+    } else {
+        const default = Config{};
+        return Loaded{ .allocator = allocator, .config = .{ .owned = default } };
     }
 }

@@ -23,12 +23,18 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
     try vips.init(allocator);
     try album.init(allocator, file_path);
     try sdl.init();
+
+    if (config.get().base_dir) |base_dir| {
+        std.log.info("Config base dir: {s}", .{base_dir});
+    }
 }
 
 pub fn deinit() void {
-    vips.deinit();
-    album.deinit();
+    // 和 init 的顺序相反，先 deinit 后初始化的组件
     sdl.deinit();
+    album.deinit();
+    vips.deinit();
+    config.deinit();
 }
 
 pub fn isSupported(suffix: []const u8) !bool {
