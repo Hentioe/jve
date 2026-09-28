@@ -1,0 +1,8 @@
+{
+	"Insert allocator": {
+		"scope": "zig",
+		"prefix": "allo",
+		"body": "allocator: Allocator$0",
+		"description": "插入分配器参数"
+	}
+}
