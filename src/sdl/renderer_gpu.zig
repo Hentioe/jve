@@ -13,6 +13,7 @@ const ArrayList = std.ArrayList;
 const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
+const LeaderKey = @import("LeaderKey.zig");
 const Task = @import("Task.zig");
 const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("post_pipeline.zig");
@@ -258,7 +259,6 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 一些常量
     const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
     // 一些功能控制
-    var leader_pressed = false; // 是否按下 leader 键
     var save_screenshot = false; // 是否保存截图
     var copy_screenshot = false; // 是否复制截图到剪贴板
     var is_busy = false; // 是否正在繁忙处理
@@ -273,10 +273,14 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var brightness: f32 = 0; // 亮度调整值（暂未实现）
     var contrast: f32 = 1; // 对比度调整值（暂未实现）
     var gamma: f32 = 1; // Gamma 校正值（暂未实现）
+    // 其它开关
+    var leader = LeaderKey.init(c.SDLK_LALT);
+    var custom_shader_enabled = false; // 是否启用自定义着色器
     // 横向调节控制变量
     var hor_adjusting = false; // 是否正在横向调节
     var hor_value: f32 = 0; // 横向调节的值
     const hor_sensitivity = 100; // 横向调节灵敏度
+    // 任务（后台调用模型）
     var task: ?*Task = null;
     defer if (task) |t| t.finish();
     var tex_mask: ?*c.SDL_GPUTexture = null;
@@ -291,10 +295,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             } else if (isToggleEvent(event)) {
                 toggle = true;
                 running = false;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_LALT) { // Leader 键按下
-                leader_pressed = true;
-            } else if (event.type == c.SDL_EVENT_KEY_UP and event.key.key == c.SDLK_LALT) { // Leader 键抬起
-                leader_pressed = false;
+            } else if (event.key.key == leader.key) {
+                leader.inputType(event.type); // 根据类型，自动管理按下状态
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
                 is_inverted = false;
                 is_grayscale = false;
@@ -302,13 +304,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 contrast = 1;
                 gamma = 1;
                 hor_value = 0;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !leader_pressed) { // R 键反转颜色
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !leader.pressed) { // R 键反转颜色
                 is_inverted = !is_inverted;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
                 is_grayscale = !is_grayscale;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
                 save_screenshot = true;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and leader_pressed and !is_busy) { // Leader+R 去除背景
+            } else if (leader.pressedAndKeyDown(event, c.SDLK_R) and !is_busy) { // Leader+R 去除背景
                 if (task == null) {
                     is_busy = true;
                     if (Task.start(allocator, device, tex_src, image.width, image.height, image.bands, state)) |t| {
@@ -319,6 +321,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                         is_busy = false;
                     }
                 }
+            } else if (leader.pressedAndKeyDown(event, c.SDLK_T)) { // Leader+T 切换自定义着色器的启用状态
+                custom_shader_enabled = !custom_shader_enabled;
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
                 copy_screenshot = true;
             } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节开始
@@ -383,6 +387,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         // 后处理管线
         for (pipelines.items) |pl| {
             // 是否进入管线
+            if (pl.effect == .custom and !custom_shader_enabled) continue; // 没有启用自定义着色器，跳过
             if (pl.effect == .Sharpen and hor_value <= 0) continue; // 没有有效值，跳过
             if ((pl.effect == .BlurX or pl.effect == .BlurY) and hor_value >= 0) continue; // 没有有效值，跳过
             if (pl.effect == .mask and tex_mask == null) continue; // 没有有效的 mask，跳过
