@@ -12,6 +12,7 @@ const PostEffectType = enum {
     BlurY, // 纵向模糊
     BusyFog, // 忙碌雾气
     mask,
+    custom,
 };
 
 effect: PostEffectType,
@@ -41,6 +42,7 @@ pub fn init(
 
 pub fn deinit(self: *Self, device: *c.SDL_GPUDevice) void {
     c.SDL_ReleaseGPUGraphicsPipeline(device, self.pipeline);
+    self.* = undefined;
 }
 
 pub fn bind(

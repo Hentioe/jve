@@ -6,9 +6,10 @@ const post_util = @import("post_util.zig");
 const root = @import("../root.zig");
 const gpu = @import("gpu.zig");
 const structs = @import("structs.zig");
+const clipboard = @import("clipboard.zig");
 const album = root.album;
 const writer = root.writer;
-const clipboard = @import("clipboard.zig");
+const ArrayList = std.ArrayList;
 const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
@@ -205,24 +206,49 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         &vert_attrs,
         &color_target_desc,
     );
-    // 创建后处理管线
+    // 创建内建后处理管线
     const sharpen_frag_shader = try shader_loader.load(device, @embedFile("sharpen.frag.spv"), "main", .fragment, 1, 1);
+    defer c.SDL_ReleaseGPUShader(device, sharpen_frag_shader);
     var sharpen = try PostPipeline.init(.Sharpen, device, .{ .vert = vert_shader, .frag = sharpen_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     const blur_frag_shader = try shader_loader.load(device, @embedFile("blur.frag.spv"), "main", .fragment, 1, 1);
+    defer c.SDL_ReleaseGPUShader(device, blur_frag_shader);
     var blur_x_pl = try PostPipeline.init(.BlurX, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    defer blur_x_pl.deinit(device);
     var blur_y_pl = try PostPipeline.init(.BlurY, device, .{ .vert = vert_shader, .frag = blur_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    defer blur_y_pl.deinit(device);
     const busy_fog_frag_shader = try shader_loader.load(device, @embedFile("busy_fog.frag.spv"), "main", .fragment, 1, 1);
+    defer c.SDL_ReleaseGPUShader(device, busy_fog_frag_shader);
     var busy_fog_pl = try PostPipeline.init(.BusyFog, device, .{ .vert = vert_shader, .frag = busy_fog_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    defer busy_fog_pl.deinit(device);
     // 抠图的 Mask 管线
     const mask_frag_shader = try shader_loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, 2, 0);
+    defer c.SDL_ReleaseGPUShader(device, mask_frag_shader);
     var mask_pl = try PostPipeline.init(.mask, device, .{ .vert = vert_shader, .frag = mask_frag_shader }, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    defer mask_pl.deinit(device);
 
-    // 创建后处理管线列表
-    const pipelines = [_]*PostPipeline{ &sharpen, &blur_x_pl, &blur_y_pl, &mask_pl };
+    // 构造管线列表
+    var builtin = [_]*PostPipeline{ &sharpen, &blur_x_pl, &blur_y_pl, &mask_pl };
+    const builtin_len = builtin.len;
+    var pipelines: ArrayList(*PostPipeline) = .empty;
+    try pipelines.appendSlice(allocator, &builtin); // 添加内置管线
+    defer {
+        for (pipelines.items, 0..) |pl, i| {
+            pl.deinit(device);
+            if (i >= builtin_len) allocator.destroy(pl);
+        }
+        pipelines.deinit(allocator);
+    }
+    if (state.shaders) |shaders| {
+        for (shaders.items) |shader| {
+            const pl = try allocator.create(PostPipeline); // 在堆上创建，避免被作用域回收
+            errdefer allocator.destroy(pl);
+            pl.* = try PostPipeline.init(
+                .custom,
+                device,
+                .{ .vert = vert_shader, .frag = shader },
+                &vert_buffer_desc,
+                &vert_attrs,
+                &color_target_desc,
+            );
+            try pipelines.append(allocator, pl);
+        }
+    }
 
     // --- 渲染循环 (Render Pass 绘制) ---
     var running = true;
@@ -355,7 +381,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         }
 
         // 后处理管线
-        for (pipelines) |pl| {
+        for (pipelines.items) |pl| {
             // 是否进入管线
             if (pl.effect == .Sharpen and hor_value <= 0) continue; // 没有有效值，跳过
             if ((pl.effect == .BlurX or pl.effect == .BlurY) and hor_value >= 0) continue; // 没有有效值，跳过

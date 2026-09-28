@@ -59,12 +59,15 @@ pub fn initBirefnet(self: *Self) Error!void {
 pub fn deinit(self: *Self) void {
     if (self.renderer) |renderer| c.SDL_DestroyRenderer(renderer);
     if (self.window) |window| window.destroy();
+    if (self.shaders) |*shaders| { // 着色器释放时依赖 gpu_device
+        for (shaders.items) |shader| c.SDL_ReleaseGPUShader(self.gpu_device, shader);
+        shaders.deinit(self.allocator);
+    }
     if (self.gpu_device) |device| c.SDL_DestroyGPUDevice(device);
     if (self.gpu_window) |window| window.destroy();
     if (self.extracted) |*extractor| extractor.deinit();
     if (self.birefnet) |*birefnet| birefnet.deinit();
     if (self.ort_api) |*ort_api| ort_api.deinit();
-    if (self.shaders) |*shaders| shaders.deinit(self.allocator);
     self.* = undefined;
 }
 
