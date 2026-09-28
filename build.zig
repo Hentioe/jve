@@ -126,8 +126,6 @@ pub fn build(b: *std.Build) void {
         // 源文件内容 + 命令行参数不变时，shadercross 不会被再次调用
         const spv_cached = compile.addOutputFileArg(spv_name);
 
-        // 把缓存里的产物同步回项目 sharders 目录，内容不变时不会复制
-        update_shaders.addCopyFileToSource(spv_cached, b.pathJoin(&.{ ".shaders", spv_name }));
         // 添加到 root 的匿名导入
         root_mod.addAnonymousImport(spv_name, .{ .root_source_file = spv_cached });
     }
