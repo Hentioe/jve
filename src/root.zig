@@ -5,6 +5,7 @@ const VipsError = @import("vips/errors.zig").Error;
 const Backend = @import("sdl/enums.zig").Backend;
 const Allocator = std.mem.Allocator;
 
+pub const config = @import("config.zig");
 pub const vips = @import("vips.zig");
 pub const sdl = @import("sdl.zig");
 pub const album = @import("album.zig");
@@ -18,6 +19,7 @@ pub const clipboard = @import("clipboard.zig");
 pub const LoadError = errors.LoadError;
 
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
+    try config.init(allocator, "./imageviewer.toml");
     try vips.init(allocator);
     try album.init(allocator, file_path);
     try sdl.init();
