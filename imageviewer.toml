@@ -1,1 +1,1 @@
-# 空配置文件，待用
+default_mode = "sdl_gpu"

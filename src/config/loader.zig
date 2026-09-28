@@ -7,6 +7,7 @@ const Error = errors.Error;
 
 pub const Config = struct {
     base_dir: ?[]const u8 = null, // 基础目录
+    default_mode: []const u8 = "sdl_gpu", // 默认模式
     shader_dir: ?[]const u8 = null, // 着色器目录
 };
 
