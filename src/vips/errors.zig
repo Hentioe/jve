@@ -11,7 +11,9 @@ pub const VipsError = error{
     VipsResizeFailed,
     VipsLinear1Failed,
     VipsFlattenFailed,
+    VipsImageNewFromMemoryFailed,
     VipsBandJoinConst2Failed,
+    VipsWriteToMemoryFailed,
 };
 
 pub const CustomError = error{

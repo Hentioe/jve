@@ -2,7 +2,9 @@ const std = @import("std");
 const c = @import("vips/c.zig").c;
 const h = @import("vips/helper.zig");
 const format = @import("vips/format.zig");
+
 pub const Error = @import("vips/errors.zig").Error;
+pub const Image = @import("vips/Image.zig");
 
 pub fn init(allocator: std.mem.Allocator) Error!void {
     // 初始化 vips
