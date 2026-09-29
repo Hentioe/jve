@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const accelerator = @import("accelerator.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const ProviderOptions = @import("enums.zig").ProviderOptions;
@@ -42,25 +43,17 @@ pub fn init(allocator: Allocator, logid: [*]const u8) Error!Self {
     const provider_count: u32 = @intCast(provider_len);
     var provider_list = try std.ArrayList([]const u8).initCapacity(allocator, provider_count);
     for (0..provider_count) |i| {
-        const c_str = providers[i];
-        const s = std.mem.span(c_str);
+        const s = std.mem.span(providers[i]);
         const owned_s = try allocator.dupe(u8, s); // 复制一份
+        // 用日志把可用的 EP 列表打印出来
         try provider_list.append(allocator, owned_s);
+        std.log.info("Available: {s}", .{owned_s});
     }
-    // 用日志把可用的 EP 列表打印出来
+    // 遍历 EP 列表，创建加速配置
+    var provider_options_list = try std.ArrayList(ProviderOptions).initCapacity(allocator, provider_count);
     for (provider_list.items) |item| {
-        std.log.info("Available: {s}", .{item});
-    }
-    // 遍历 provider_list 并创建部分对应的 ProviderOptions
-    var provider_options_list = try std.ArrayList(ProviderOptions).initCapacity(allocator, 0);
-    for (provider_list.items) |item| {
-        if (std.mem.eql(u8, item, "MIGraphXExecutionProvider")) { // 添加 MiGraphX 配置
-            const migraphx_options: c.OrtMIGraphXProviderOptions = .{
-                .device_id = 0, // todo: 获取设备 id
-                .migraphx_fp16_enable = 1,
-            };
-            try provider_options_list.append(allocator, ProviderOptions{ .migraphx = migraphx_options });
-        }
+        const options = try accelerator.buidlOptions(item);
+        if (options) |o| try provider_options_list.append(allocator, o);
     }
 
     return .{
