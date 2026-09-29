@@ -371,7 +371,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             if (t.poll() == .done) {
                 std.log.info("Task result is reading...", .{});
                 if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex);
-                tex_mask = gpu.createTexture(device, &offscreen_info, t.result.data_ptr, .{ .w = t.result.width, .h = t.result.height });
+                const result = t.result.?;
+                tex_mask = gpu.createTexture(device, &offscreen_info, result.data_ptr, .{ .w = result.width, .h = result.height });
                 t.finish();
                 task = null;
                 is_busy = false;

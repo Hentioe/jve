@@ -17,7 +17,8 @@ const State = enum(u8) { running, done, failed };
 allocator: Allocator,
 state: atomic.Value(State) = .init(.running),
 thread: std.Thread = undefined,
-result: resizer.Result = undefined,
+extracted: ?Extractor = null,
+result: ?resizer.Result = null,
 
 pub fn start(
     allocator: Allocator,
@@ -50,14 +51,14 @@ fn run(
     std.log.debug("bands: {d}", .{bands});
     std.log.info("Task is running", .{});
     // 创建提取器
-    var extracted = try Extractor.extract(self.allocator, device, texture, width, height, bands);
-    defer extracted.deinit();
+    self.extracted = try Extractor.extract(self.allocator, device, texture, width, height, bands);
     // 初始化模型
     try render_state.initBirefnet();
+    const data_ptr = self.extracted.?.pixels_slice.ptr;
     // 运行模型推理
     self.result = try render_state.birefnet.?.run(
         self.allocator,
-        .{ .data_ptr = extracted.pixels_slice.ptr, .width = @intCast(width), .height = @intCast(height), .bands = @intCast(bands) },
+        .{ .data_ptr = data_ptr, .width = @intCast(width), .height = @intCast(height), .bands = @intCast(bands) },
     );
     self.state.store(.done, .release);
 }
@@ -67,7 +68,8 @@ pub fn poll(self: *Self) State {
 }
 
 pub fn finish(self: *Self) void {
-    self.thread.join();
-    self.result.deinit();
+    self.thread.detach();
+    if (self.result) |*r| r.deinit();
+    if (self.extracted) |*e| e.deinit();
     self.allocator.destroy(self);
 }
