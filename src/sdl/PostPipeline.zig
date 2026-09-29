@@ -6,7 +6,7 @@ const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
 
 // 功能类型枚举
-const PostEffectType = enum {
+const EffectType = enum {
     Sharpen, // 锐化
     BlurX, // 横向模糊
     BlurY, // 纵向模糊
@@ -15,12 +15,44 @@ const PostEffectType = enum {
     custom,
 };
 
-effect: PostEffectType,
+pub const Builder = struct {
+    device: *c.SDL_GPUDevice,
+    vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
+    vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
+    color_target_desc: *const c.SDL_GPUColorTargetDescription,
+
+    pub fn init(
+        device: *c.SDL_GPUDevice,
+        vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
+        vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
+        color_target_desc: *const c.SDL_GPUColorTargetDescription,
+    ) Builder {
+        return Builder{
+            .device = device,
+            .vert_buffer_desc = vert_buffer_desc,
+            .vert_attrs = vert_attrs,
+            .color_target_desc = color_target_desc,
+        };
+    }
+
+    pub fn build(self: *const Builder, effect: EffectType, shader_pair: ShaderPair) !Self {
+        return try Self.init(
+            effect,
+            self.device,
+            shader_pair,
+            self.vert_buffer_desc,
+            self.vert_attrs,
+            self.color_target_desc,
+        );
+    }
+};
+
+effect: EffectType,
 pipeline: *c.SDL_GPUGraphicsPipeline,
 render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(
-    effect: PostEffectType,
+    effect: EffectType,
     device: *c.SDL_GPUDevice,
     shader_pair: ShaderPair,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
@@ -127,9 +159,6 @@ pub fn bindWithPass(
     c.SDL_BindGPUFragmentSamplers(render_pass, 0, &sampler_bind, 1);
 }
 
-pub fn drawWithPass(
-    _: *const Self,
-    render_pass: ?*c.SDL_GPURenderPass,
-) void {
+pub fn drawWithPass(_: *const Self, render_pass: ?*c.SDL_GPURenderPass) void {
     c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
 }
