@@ -13,6 +13,7 @@ const ArrayList = std.ArrayList;
 const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
+const Pipeline = @import("Pipeline.zig");
 const LeaderKey = @import("LeaderKey.zig");
 const Task = @import("Task.zig");
 const Checkerboard = @import("checkerboard_gpu.zig");
@@ -20,7 +21,9 @@ const PostPipeline = @import("PostPipeline.zig");
 const OnscreenPipeline = @import("onscreen_pipeline.zig");
 const Screenshot = @import("Screenshot.zig");
 const RenderNext = @import("enums.zig").RenderNext;
+const Point = structs.Point;
 const FogUniforms = structs.FogUniforms;
+const MarkerUniforms = structs.MarkerUniforms;
 
 // 定义顶点与 UV 坐标
 const Vertex = struct {
@@ -222,6 +225,14 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     const mask_frag_shader = try shader_loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, 2, 0);
     defer c.SDL_ReleaseGPUShader(device, mask_frag_shader);
     var mask_pl = try pl_builder.build(.mask, .{ .vert = vert_shader, .frag = mask_frag_shader });
+    // 构造标记管线
+    const marker_vert_shader = try shader_loader.load(device, @embedFile("marker.vert.spv"), "main", .vertex, 0, 1);
+    defer c.SDL_ReleaseGPUShader(device, marker_vert_shader);
+    const marker_frag_shader = try shader_loader.load(device, @embedFile("marker.frag.spv"), "main", .fragment, 1, 0);
+    defer c.SDL_ReleaseGPUShader(device, marker_frag_shader);
+    var marker_pl = try Pipeline.init(device, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader });
+    defer marker_pl.deinit();
+
     // 构造管线列表
     var builtin = [_]*PostPipeline{ &sharpen, &blur_x_pl, &blur_y_pl, &mask_pl };
     const builtin_count = builtin.len;
@@ -270,8 +281,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var contrast: f32 = 1; // 对比度调整值（暂未实现）
     var gamma: f32 = 1; // Gamma 校正值（暂未实现）
     // 其它开关
-    var leader = LeaderKey.init(c.SDLK_LALT);
+    var leader = LeaderKey.init(c.SDLK_LALT); // Leader 键
     var custom_shader_enabled = false; // 是否启用自定义着色器
+    // 标记位置
+    var marker_pos: ?Point = null; // 标记位置
     // 横向调节控制变量
     var hor_adjusting = false; // 是否正在横向调节
     var hor_value: f32 = 0; // 横向调节的值
@@ -293,6 +306,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 running = false;
             } else if (event.key.key == leader.key) {
                 leader.inputType(event.type); // 根据类型，自动管理按下状态
+                window.leader_pressed = leader.pressed; // 更新窗口的 leader_pressed 状态
             } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
                 is_inverted = false;
                 is_grayscale = false;
@@ -330,6 +344,11 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and hor_adjusting) { // 横向调节中
                 hor_value += event.motion.xrel / hor_sensitivity;
                 std.log.debug("Horizontal value updated: {}", .{hor_value});
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) { // 鼠标左键单击，获取位置
+                const x = event.button.x;
+                const y = event.button.y;
+                marker_pos = Point{ .x = x, .y = y };
+                std.log.debug("Marker position updated: ({}, {})", .{ x, y });
             }
         }
         // 获取当前帧的 Command Buffer
@@ -444,9 +463,19 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 // 开启渲染通道
                 onscreen.begin(swapchain_texture, render_cmd_buf);
                 // 绘制棋盘格
+                checkerboard.bind(onscreen.render_pass);
                 checkerboard.draw(onscreen.render_pass);
                 // 渲染到屏幕（内容 + 后处理 + 棋盘格）
                 onscreen.draw(tex_src, sampler);
+                if (marker_pos) |pos| {
+                    // 绘制标记
+                    marker_pl.bind(onscreen.render_pass);
+                    // 传递标记位置
+                    const marker_uniforms: MarkerUniforms = .fromScreen(pos.x, pos.y, image.width, image.height);
+                    marker_pl.pushVertexUniforms(render_cmd_buf, 0, &marker_uniforms, @sizeOf(MarkerUniforms));
+                    // 绘制标记
+                    marker_pl.draw(onscreen.render_pass);
+                }
                 // 后续：在屏幕之上继续添加新内容
                 if (is_busy) {
                     // 添加忙雾

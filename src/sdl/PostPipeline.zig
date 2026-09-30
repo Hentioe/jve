@@ -13,6 +13,7 @@ const EffectType = enum {
     BusyFog, // 忙碌雾气
     mask,
     custom,
+    marker,
 };
 
 pub const Builder = struct {

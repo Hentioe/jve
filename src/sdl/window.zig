@@ -12,6 +12,7 @@ image_height: i32,
 display_width: i32,
 display_height: i32,
 has_border: bool,
+leader_pressed: bool = false,
 sdl_window: *c.SDL_Window,
 
 const Options = struct {
@@ -106,7 +107,7 @@ pub fn imageSizeUpdated(self: *Self, new_width: i32, new_height: i32) void {
 
 fn hitTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, self_ptr: ?*anyopaque) callconv(.c) c_uint {
     const self: *Self = @ptrCast(@alignCast(self_ptr)); // 还原回调数据
-    if (self.has_border) {
+    if (self.has_border and !self.leader_pressed) {
         return c.SDL_HITTEST_DRAGGABLE; // 允许通过拖动窗口的任意位置来移动窗口
     } else {
         return c.SDL_HITTEST_NORMAL; // 如果无边框，不支持拖动
