@@ -11,7 +11,6 @@ pub const sdl = @import("sdl.zig");
 pub const album = @import("album.zig");
 pub const loader = @import("vips/loader.zig");
 pub const writer = @import("vips/writer.zig");
-pub const resizer = @import("vips/resizer.zig");
 pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
 pub const State = @import("sdl/State.zig");

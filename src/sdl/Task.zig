@@ -5,20 +5,29 @@ const gpu = @import("gpu.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const loader = @import("../vips/loader.zig");
-const Image = loader.Image;
 const Size = @import("structs.zig").Size(u32);
-const resizer = @import("../root.zig").resizer;
+const Image = @import("../vips.zig").Image;
 const RenderState = @import("State.zig");
 const Extractor = @import("Extractor.zig");
 const Self = @This();
 
 const State = enum(u8) { running, done, failed };
+const Result = struct {
+    width: u32,
+    height: u32,
+    data_ptr: *anyopaque,
+    _out: Image.Out,
+
+    pub fn deinit(self: *Result) void {
+        self._out.deinit();
+    }
+};
 
 allocator: Allocator,
 state: atomic.Value(State) = .init(.running),
 thread: std.Thread = undefined,
 extracted: ?Extractor = null,
-result: ?resizer.Result = null,
+result: ?Result = null,
 
 pub fn start(
     allocator: Allocator,
@@ -56,10 +65,18 @@ fn run(
     try render_state.initBirefnet();
     const data_ptr = self.extracted.?.pixels_slice.ptr;
     // 运行模型推理
-    self.result = try render_state.birefnet.?.run(
+    var image = try render_state.birefnet.?.run(
         self.allocator,
         .{ .data_ptr = data_ptr, .width = @intCast(width), .height = @intCast(height), .bands = @intCast(bands) },
     );
+    defer image.deinit();
+    const out = try image.allocOutInMemory();
+    self.result = Result{
+        .width = @intCast(image.width),
+        .height = @intCast(image.height),
+        .data_ptr = out.data_ptr,
+        ._out = out,
+    };
     self.state.store(.done, .release);
 }
 

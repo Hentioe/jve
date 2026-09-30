@@ -73,6 +73,18 @@ pub fn removeAlpha(self: *Self) Error!void {
     self.bands = c.vips_image_get_bands(self._in);
 }
 
+pub fn addAlpha(self: *Self) Error!void {
+    if (self.bands == 4) return;
+    const alpha: f64 = 255.0;
+    var out: ?*c.VipsImage = null;
+    if (!h.check(c.vips_bandjoin_const1(self._in, &out, alpha, VIPS_ARGUMENT_NULL))) {
+        return Error.VipsBandJoinConst2Failed;
+    }
+    c.g_object_unref(self._in);
+    self._in = out.?; // 更新为添加 Alpha 通道后的图像
+    self.bands = c.vips_image_get_bands(self._in);
+}
+
 pub fn resize(self: *Self, new_width: i32, new_height: i32) Error!void {
     // 计算缩放参数
     const scale_x = @as(f64, @floatFromInt(new_width)) / @as(f64, @floatFromInt(self.width));

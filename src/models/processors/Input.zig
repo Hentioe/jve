@@ -1,11 +1,10 @@
 const std = @import("std");
-const vips = @import("../vips.zig");
+const enums = @import("../enums.zig");
 const Allocator = std.mem.Allocator;
-const Image = vips.Image;
+const Image = @import("../../vips.zig").Image;
+const Size = enums.Size;
+const PixelLayout = enums.PixelLayout;
 const Self = @This();
-
-const Size = struct { w: i32, h: i32 };
-const PixelLayout = enum { NCHW, NHWC };
 
 width: u32,
 height: u32,
@@ -44,6 +43,7 @@ const Preprocessed = struct {
 };
 
 // todo: 添加错误集
+// todo: 输出 vips 错误
 pub fn preprocess(input: Self, allocator: Allocator, options: Options) !Preprocessed {
     var image = try Image.init(
         input.data_ptr,

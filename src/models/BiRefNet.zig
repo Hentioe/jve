@@ -1,10 +1,11 @@
 const std = @import("std");
 const ort = @import("ort");
-const resizer = @import("../root.zig").resizer;
 const Allocator = std.mem.Allocator;
+const Image = @import("../vips.zig").Image;
 const Api = ort.Api;
 const Session = ort.Session;
-const Input = @import("Input.zig");
+const Input = @import("processors/Input.zig");
+const Output = @import("processors/Output.zig");
 const Self = @This();
 
 const Size = struct { w: i32, h: i32 };
@@ -18,8 +19,8 @@ variant: Variant,
 
 pub fn init(api: *const Api, variant: Variant) !Self {
     const session = try switch (variant) {
-        .lite => api.createSession("models/BiRefNet_lite.onnx", .{}),
-        .normal => api.createSession("models/BiRefNet.onnx", .{}),
+        .lite => api.createSession("models/BiRefNet_lite.onnx", .{ .disable_gpu = true }),
+        .normal => api.createSession("models/BiRefNet.onnx", .{ .disable_gpu = true }),
     };
 
     return .{ .api = api, .session = session, .variant = variant };
@@ -30,11 +31,11 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn run(self: *const Self, allocator: Allocator, input: Input) !resizer.Result {
+pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
     // 打印输入的基本信息
     std.log.info("Image size: {d}x{d}, bands: {d}", .{ input.width, input.height, input.bands });
 
-    // 前处理：缩放、归一化、NCHW 布局
+    // 前处理：强制 3 通道、缩放、归一化、NCHW 布局
     var preprocessed = try input.preprocess(allocator, .{
         .forced_bands = 3,
         .new_size = .{ .w = 1024, .h = 1024 },
@@ -65,44 +66,20 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !resizer.Resul
     defer self.api.releaseValue(output_sensor);
     std.log.info("Background removal completed", .{});
 
-    // 后处理：解析输出、缩放回原始尺寸
+    // 后处理：解析输出、添加透明通道、缩放回原始尺寸
     const output_ptr = try self.api.getTensorMutableData(output_sensor);
-    const output_f32_ptr: [*]f32 = @ptrCast(@alignCast(output_ptr));
-    const output_data = output_f32_ptr[0 .. PIXEL_COUNT * 3];
-    const nhwc_data = try postprocess(allocator, output_data, 1024, 1024, 3);
-    defer allocator.free(nhwc_data);
-
-    return try resizer.resize( // 缩放回原始尺寸
-        nhwc_data.ptr,
-        1024,
-        1024,
+    var image = try Output.parse(
+        allocator,
+        output_ptr,
+        .{ .w = 1024, .h = 1024 },
         3,
-        @intCast(input.width),
-        @intCast(input.height),
-        .{ .force_output_bands = 4 },
+        .FLOAT,
+        .NCHW,
+        true,
     );
-}
 
-// 后处理：NCHW -> NHWC
-// todo: 添加错误处理集
-pub fn postprocess(allocator: Allocator, src: []const f32, width: u32, height: u32, bands: u32) ![]u8 {
-    const plane_size = width * height;
-    const dst = try allocator.alloc(u8, plane_size * bands);
+    try image.resize(@intCast(input.width), @intCast(input.height));
+    try image.addAlpha();
 
-    for (0..height) |h| {
-        const row_off = h * width;
-        for (0..width) |w| {
-            const hw_idx = row_off + w;
-            const hwc_idx = hw_idx * bands;
-            for (0..bands) |c| {
-                const idx = c * plane_size + hw_idx;
-                // Sigmoid 转成 [0.0, 1.0] 连续概率
-                const prob = 1.0 / (1.0 + std.math.exp(-src[idx]));
-                // 乘以 255.0 并转成 u8（保留连续灰度/Alpha）
-                const val = std.math.clamp(prob * 255.0, 0.0, 255.0);
-                dst[hwc_idx + c] = @intFromFloat(val);
-            }
-        }
-    }
-    return dst;
+    return image;
 }
