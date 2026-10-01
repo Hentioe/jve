@@ -3,11 +3,12 @@ const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const structs = @import("structs.zig");
 const root = @import("../root.zig");
+const config = root.config;
 const album = root.album;
 const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
-const Image = @import("../root.zig").loader.Image;
+const Image = root.loader.Image;
 const LeaderKey = @import("LeaderKey.zig");
 const Animated = @import("Animated.zig");
 const Point = structs.Point;
@@ -42,8 +43,10 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var toggle = false;
     var animating = true;
     var event: c.SDL_Event = undefined;
+    const max_scale = config.get().max_scale;
+    const min_scale = config.get().min_scale;
     // 其它控制参数
-    var leader = LeaderKey.init(c.SDLK_LALT);
+    var leader = LeaderKey.init(c.SDLK_LALT); // Leader 键
     var is_dragging: bool = false; // 是否正在拖动
     var movement_offset = state.movement_offset; // 移动偏移量
     var scale = Animated.init(1.0, state.target_scale, 0.002); // 缩放
@@ -105,7 +108,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 if (mod_state > 0) {
                     // 处理缩放
                     if (event.wheel.y > 0) scale.updateTarget(scale.target * 1.4) else scale.updateTarget(scale.target / 1.4);
-                    if (scale.target > 3) scale.updateTarget(3.0) else if (scale.target < 0.5) scale.updateTarget(0.5);
+                    if (scale.target > max_scale) scale.updateTarget(max_scale) else if (scale.target < min_scale) scale.updateTarget(min_scale);
                 } else {
                     // 切换图片
                     std.log.debug("Mouse wheel event without modifier: {d}", .{event.wheel.y});

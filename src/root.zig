@@ -22,10 +22,6 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
     try vips.init(allocator);
     try album.init(allocator, file_path);
     try sdl.init();
-
-    if (config.get().base_dir) |base_dir| {
-        std.log.info("Config base dir: {s}", .{base_dir});
-    }
 }
 
 pub fn deinit() void {

@@ -6,8 +6,10 @@ const Allocator = std.mem.Allocator;
 const Error = errors.Error;
 
 pub const Config = struct {
-    base_dir: ?[]const u8 = null, // 基础目录
+    _base_dir: ?[]const u8 = null, // 基础目录（不可配置，自动设置）
     default_mode: []const u8 = "sdl_gpu", // 默认模式
+    min_scale: f32 = 0.5, // 最小缩放倍数
+    max_scale: f32 = 3.0, // 最大缩放倍数
     shader_dir: ?[]const u8 = null, // 着色器目录
 };
 
@@ -35,11 +37,11 @@ pub const Loaded = struct {
     pub fn deinit(self: *Loaded) void {
         switch (self.config) {
             .parsed => |*parsed| {
-                if (parsed.value.base_dir) |base_dir| self.allocator.free(base_dir);
+                if (parsed.value._base_dir) |base_dir| self.allocator.free(base_dir);
                 parsed.deinit();
             },
             .owned => |*owned| {
-                if (owned.base_dir) |base_dir| self.allocator.free(base_dir);
+                if (owned._base_dir) |base_dir| self.allocator.free(base_dir);
             },
         }
         self.* = undefined;
@@ -68,7 +70,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
         };
         // 附加基础目录路径
         const base_dir = std.fs.path.dirname(p) orelse ".";
-        parsed.value.base_dir = try allocator.dupe(u8, base_dir);
+        parsed.value._base_dir = try allocator.dupe(u8, base_dir);
 
         return Loaded{ .allocator = allocator, .config = .{ .parsed = parsed } };
     } else {
