@@ -24,6 +24,7 @@ pub const SdlError = error{
     SdlUpdateTextureFailed,
     SdlMapGPUTransferBufferFailed,
     SdlSetClipboardDataFailed,
+    SdlSetRenderVSyncFailed,
     AlbumError, // todo: 包含 Album 错误集
 };
 

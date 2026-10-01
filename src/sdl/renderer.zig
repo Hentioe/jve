@@ -5,14 +5,30 @@ const structs = @import("structs.zig");
 const root = @import("../root.zig");
 const config = root.config;
 const album = root.album;
-const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
+const State = @import("State.zig");
 const Window = @import("window.zig");
 const Image = root.loader.Image;
 const LeaderKey = @import("LeaderKey.zig");
 const Animated = @import("Animated.zig");
 const Point = structs.Point;
 const RenderNext = @import("enums.zig").RenderNext;
+
+const EventType = @FieldType(c.union_SDL_Event, "type");
+const EventAction = union(enum) {
+    none,
+    leader: EventType,
+    quit,
+    toggle,
+    drag_start: struct { button_x: f32, button_y: f32 },
+    drag_stop: struct { button_x: f32, button_y: f32 },
+    dragging: struct { xrel: f32, yrel: f32 },
+    rotate: struct { key: c.SDL_Keycode },
+    delete,
+    scale: struct { wheel_y: f32 },
+    next_or_prev: struct { wheel_y: f32 },
+    reset,
+};
 
 // 基于 sdl_renderer 渲染图片
 pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
@@ -37,38 +53,89 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
     calculateDstRect(&dst_rect, window, image.width, image.height, .{});
-
-    // 循环并处理 SDL 事件
+    // 循环、动画和事件参数
+    var event: c.SDL_Event = undefined;
+    var action: EventAction = .none;
     var running = true;
     var toggle = false;
-    var animating = true;
-    var event: c.SDL_Event = undefined;
+    var dirty = true;
+    var last_time: f64 = @floatFromInt(c.SDL_GetPerformanceCounter());
+    // 其它控制常量
+    const perf_freq: f64 = @floatFromInt(c.SDL_GetPerformanceFrequency());
     const max_scale = config.get().max_scale;
     const min_scale = config.get().min_scale;
     // 其它控制参数
     var leader = LeaderKey.init(c.SDLK_LALT); // Leader 键
     var is_dragging: bool = false; // 是否正在拖动
-    var movement_offset = state.movement_offset; // 移动偏移量
-    var scale = Animated.init(1.0, state.target_scale, 0.002); // 缩放
-    var angle = Animated.init(0.0, state.target_angle, 0.002); // 旋转
+    var move_offset = state.move_offset; // 移动偏移量
+    var scale = Animated.init(1.0, state.target_scale, 15); // 缩放
+    var angle = Animated.init(0.0, state.target_angle, 15); // 旋转
     while (running) {
-        const has_event = if (animating) c.SDL_PollEvent(&event) else c.SDL_WaitEvent(&event);
-        if (has_event) {
-            if (isQuitEvent(event)) {
-                running = false;
+        // 计算 delta
+        const current_time: f64 = @floatFromInt(c.SDL_GetPerformanceCounter());
+        const delta = (current_time - last_time) / perf_freq;
+        // std.log.info("Delta time: {}", .{delta});
+        defer last_time = current_time; // 帧结束更新 last_time
+        defer action = .none; // 帧结束重置动作
+        // 判断事件的动作类型
+        while (c.SDL_PollEvent(&event)) {
+            if (event.key.key == leader.key) {
+                action = .{ .leader = event.type };
+            } else if (isQuitEvent(event)) {
+                action = .quit;
             } else if (isToggleEvent(event, &dst_rect)) {
+                action = .toggle;
+            } else if (isDragStartEvent(event, &dst_rect)) {
+                action = .{ .drag_start = .{ .button_x = event.button.x, .button_y = event.button.y } };
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_LEFT) {
+                action = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
+            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and is_dragging) {
+                handleDragingEvent(event, &action);
+            } else if (isRotateEvent(event)) {
+                action = .{ .rotate = .{ .key = event.key.key } };
+            } else if (leader.pressedAndKeyDown(event, c.SDLK_D)) {
+                action = .delete;
+            } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and (c.SDL_GetModState() & c.SDL_KMOD_CTRL) != 0) {
+                action = .{ .scale = .{ .wheel_y = event.wheel.y } };
+            } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL) {
+                action = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) {
+                action = .reset;
+            }
+        }
+
+        // 根据动作修改状态
+        switch (action) {
+            .none => {},
+            .leader => |event_type| leader.inputType(event_type), // 根据类型，自动管理按下状态
+            .quit => running = false,
+            .toggle => {
                 running = false;
                 toggle = true;
-            } else if (event.key.key == leader.key) {
-                leader.inputType(event.type); // 根据类型，自动管理按下状态
-            } else if (leader.pressedAndKeyDown(event, c.SDLK_D)) {
+            },
+            .drag_start => |payload| {
+                is_dragging = true;
+                std.log.info("Started dragging at mouse position: ({}, {})", .{ payload.button_x, payload.button_y });
+            },
+            .drag_stop => |payload| {
+                is_dragging = false;
+                dirty = false;
+                std.log.info("Stopped dragging at mouse position: ({}, {})", .{ payload.button_x, payload.button_y });
+            },
+            .dragging => |payload| {
+                move_offset.x += payload.xrel;
+                move_offset.y += payload.yrel;
+                dirty = true;
+            },
+            .rotate => |payload| if (mapKeyToAngle(payload.key)) |new_angle| angle.updateTarget(new_angle),
+            .delete => {
                 // 删除当前相册图片
                 std.log.info("Deleting current image: {s}", .{image.file_name});
                 if (album.deleteCurrentGetNext()) |new_image| {
                     image = new_image;
                     c.SDL_DestroyTexture(texture);
                     texture = try createTexture(renderer, &new_image);
-                    animating = true; // 动画触发 dst_rect 更新
+                    dirty = true; // 动画触发 dst_rect 更新
                 } else |err| {
                     if (err == error.NoImageLeft) {
                         running = false; // 没有图片了，退出循环
@@ -77,70 +144,54 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                         std.log.err("Failed to delete current image: {}", .{err});
                     }
                 }
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) {
-                const mouse_pt = c.SDL_FPoint{ .x = event.button.x, .y = event.button.y };
-                if (c.SDL_PointInRectFloat(&mouse_pt, &dst_rect)) { // 检查点击位置是否在纹理矩形范围内
-                    is_dragging = true;
-                    std.log.info("Started dragging at mouse position: ({}, {})", .{ mouse_pt.x, mouse_pt.y });
-                }
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_LEFT) {
-                // 停止拖动
-                std.log.info("Stopped dragging at mouse position: ({}, {})", .{ event.button.x, event.button.y });
-                is_dragging = false;
-                animating = false;
-            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and is_dragging) {
-                // 更新移动偏移量
-                movement_offset.x += event.motion.xrel;
-                movement_offset.y += event.motion.yrel;
-                animating = true;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN) {
-                if (mapKeyToAngle(event.key.key)) |new_angle| angle.updateTarget(new_angle);
-                if (event.key.key == c.SDLK_SLASH) {
-                    // 重置所有控制参数
-                    angle = Animated.init(0.0, 0.0, 0.002);
-                    scale = Animated.init(1.0, 1.0, 0.002);
-                    is_dragging = false;
-                    movement_offset = .{};
-                    animating = true;
-                }
-            } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL) {
-                const mod_state = c.SDL_GetModState();
-                if (mod_state > 0) {
-                    // 处理缩放
-                    if (event.wheel.y > 0) scale.updateTarget(scale.target * 1.4) else scale.updateTarget(scale.target / 1.4);
-                    if (scale.target > max_scale) scale.updateTarget(max_scale) else if (scale.target < min_scale) scale.updateTarget(min_scale);
-                } else {
-                    // 切换图片
-                    std.log.debug("Mouse wheel event without modifier: {d}", .{event.wheel.y});
-                    if (event.wheel.y < 0) {
-                        _ = album.next() catch |err| {
-                            std.log.err("Failed to switch to next image: {}", .{err});
-                        };
-                    } else {
-                        _ = album.prev() catch |err| {
-                            std.log.err("Failed to switch to previous image: {}", .{err});
-                        };
-                    }
-                    const crrent = album.current() catch |err| blk: {
-                        std.log.err("Failed to get current image: {}", .{err});
-                        break :blk null;
+            },
+            .scale => |payload| {
+                // 处理缩放
+                std.log.debug("Mouse wheel event for scaling: {d}", .{payload.wheel_y});
+                if (payload.wheel_y > 0) scale.updateTarget(scale.target * 1.4) else scale.updateTarget(scale.target / 1.4);
+                if (scale.target > max_scale) scale.updateTarget(max_scale) else if (scale.target < min_scale) scale.updateTarget(min_scale);
+            },
+            .next_or_prev => |payload| {
+                // 切换图片
+                std.log.debug("Mouse wheel event without modifier: {d}", .{payload.wheel_y});
+                if (payload.wheel_y < 0) {
+                    _ = album.next() catch |err| {
+                        std.log.err("Failed to switch to next image: {}", .{err});
                     };
-                    if (crrent) |new_image| {
-                        image = new_image;
-                        c.SDL_DestroyTexture(texture);
-                        texture = try createTexture(renderer, &new_image);
-                    }
-                    animating = true; // 动画触发 dst_rect 更新
+                } else {
+                    _ = album.prev() catch |err| {
+                        std.log.err("Failed to switch to previous image: {}", .{err});
+                    };
                 }
-            }
+                const crrent = album.current() catch |err| blk: {
+                    std.log.err("Failed to get current image: {}", .{err});
+                    break :blk null;
+                };
+                if (crrent) |new_image| {
+                    image = new_image;
+                    c.SDL_DestroyTexture(texture);
+                    texture = try createTexture(renderer, &new_image);
+                }
+                dirty = true; // 动画触发 dst_rect 更新
+            },
+            .reset => {
+                // 重置所有控制参数
+                angle.reset();
+                scale.reset();
+                is_dragging = false;
+                move_offset = .{};
+                dirty = true;
+            },
         }
-        if (animating or scale.state == .running or angle.state == .running) {
+
+        // 根据状态执行渲染
+        if (dirty or scale.state == .running or angle.state == .running) {
             if (scale.state == .running) {
                 if (scale.isNearFinished()) {
                     std.log.debug("Scale is near finished, diff: {d}", .{scale.target - scale.current});
                     scale.finish();
                 } else {
-                    scale.nextStep();
+                    scale.nextStep(delta);
                 }
             }
             if (angle.state == .running) {
@@ -148,14 +199,14 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                     std.log.debug("Angle is near finished, diff: {d}", .{angle.target - angle.current});
                     angle.finish();
                 } else {
-                    angle.nextStep();
+                    angle.nextStep(delta);
                 }
             }
-            animating = scale.state == .running or angle.state == .running; // 如果没有动画了，停止运动
+            dirty = scale.state == .running or angle.state == .running; // 如果没有动画了，停止运动
             std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ scale.current, scale.target, scale.target - scale.current });
             const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * scale.current);
             const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * scale.current);
-            calculateDstRect(&dst_rect, window, new_width, new_height, movement_offset);
+            calculateDstRect(&dst_rect, window, new_width, new_height, move_offset);
             window.imageSizeUpdated(new_width, new_height);
         }
         const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
@@ -164,10 +215,10 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
         check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, angle.current, null, c.SDL_FLIP_NONE));
         check(c.SDL_RenderPresent(renderer));
     }
-    // 更新状态中控制参数
+    // 缓存控制参数
     state.target_angle = angle.target;
     state.target_scale = scale.target;
-    state.movement_offset = movement_offset;
+    state.move_offset = move_offset;
     // 通知状态停止渲染
     try state.stopRendering();
 
@@ -175,9 +226,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
 }
 
 inline fn check(ok: bool) void {
-    if (!ok) {
-        h.printError();
-    }
+    if (!ok) h.printError();
 }
 
 // 是否是退出事件
@@ -201,6 +250,36 @@ fn isToggleEvent(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
     return false;
 }
 
+// 是否是拖拽开始事件
+fn isDragStartEvent(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
+    const point = c.SDL_FPoint{ .x = event.button.x, .y = event.button.y };
+    return event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and
+        event.button.button == c.SDL_BUTTON_LEFT and
+        c.SDL_PointInRectFloat(&point, dst_rect);
+}
+
+// 方向键的数组
+const DIRECTION_KEYS = [_]c.SDL_Keycode{ c.SDLK_UP, c.SDLK_DOWN, c.SDLK_LEFT, c.SDLK_RIGHT };
+// 是否是旋转
+fn isRotateEvent(event: c.SDL_Event) bool {
+    return event.type == c.SDL_EVENT_KEY_DOWN and
+        std.mem.indexOfScalar(u32, &DIRECTION_KEYS, event.key.key) != null;
+}
+
+fn handleDragingEvent(event: c.SDL_Event, action: *EventAction) void {
+    switch (action.*) {
+        .dragging => |*payload| {
+            // 如果这一帧里已经有 dragging 动作了，累加位移
+            payload.xrel += event.motion.xrel;
+            payload.yrel += event.motion.yrel;
+        },
+        .drag_stop => {}, // 鼠标松开时，可能残留移动事件，避免覆盖 drag_stop
+        else => {
+            action.* = .{ .dragging = .{ .xrel = event.motion.xrel, .yrel = event.motion.yrel } };
+        },
+    }
+}
+
 // 按键映射旋转角度
 fn mapKeyToAngle(key: c.SDL_Keycode) ?f64 {
     return switch (key) {
@@ -220,26 +299,11 @@ fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
         mouse_y >= dst_rect.y and mouse_y <= dst_rect.y + dst_rect.h;
 }
 
-// 待删除：此后端不再需要窗口模式
-// fn toggleWindowModel(window: *Window, dst_rect: *c.SDL_FRect, animating: *bool) void {
-//     // 切换边框模式
-//     window.toggleBorder();
-//     // 重建 dst_rect
-//     updateImageRect(dst_rect, window, window.image_width, window.image_height);
-//     if (window.has_border) {
-//         animating.* = false;
-//     }
-// }
-
 // 重新计算 rect
 fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32, offset: Point) void {
     const window_width = window.display_width;
     const window_height = window.display_height;
-    // 待删除：此后端不再需要窗口模式
-    // if (window.has_border) {
-    //     window_width = window.image_width;
-    //     window_height = window.image_height;
-    // }
+
     dst_rect.w = @floatFromInt(new_width);
     dst_rect.h = @floatFromInt(new_height);
     const center_x: f32 = @floatFromInt(@divFloor(window_width - new_width, 2));
@@ -262,19 +326,14 @@ fn createTexture(renderer: *c.SDL_Renderer, image: *const Image) Error!*c.SDL_Te
         image.height,
     );
     // 开启纹理混合模式
-    if (!h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND))) {
-        return Error.SdlSetTextureBlendModeFailed;
-    }
+    if (!h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND))) return Error.SdlSetTextureBlendModeFailed;
     // 上传纹理
-    if (!c.SDL_UpdateTexture(
+    if (!h.check(c.SDL_UpdateTexture(
         texture,
         null,
         image.pixels_ptr,
         pitch,
-    )) {
-        h.printError();
-        return Error.SdlUpdateTextureFailed;
-    }
+    ))) return Error.SdlUpdateTextureFailed;
 
     return texture;
 }

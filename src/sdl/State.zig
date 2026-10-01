@@ -28,7 +28,7 @@ size: Size,
 bands: i32,
 target_angle: f64 = 0.0,
 target_scale: f64 = 1.0,
-movement_offset: Point = .{},
+move_offset: Point = .{},
 current_backend: Backend = undefined,
 window: ?*Window = null,
 renderer: ?*c.SDL_Renderer = null,
@@ -96,6 +96,8 @@ pub fn startRendering(self: *Self, image: *const Image, backend: Backend) Error!
             h.printError();
             return Error.SdlCreateRendererFailed;
         };
+        // 开启垂直同步
+        if (!h.check(c.SDL_SetRenderVSync(renderer, 1))) return Error.SdlSetRenderVSyncFailed;
         self.window = window;
         self.renderer = renderer;
     } else if (backend == .sdl_gpu and self.gpu_window == null) {
