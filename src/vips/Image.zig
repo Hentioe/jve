@@ -73,15 +73,27 @@ pub fn removeAlpha(self: *Self) Error!void {
     self.bands = c.vips_image_get_bands(self._in);
 }
 
-pub fn addAlpha(self: *Self) Error!void {
+pub fn addAlpha(self: *Self, alpha: f64) Error!void {
     if (self.bands == 4) return;
-    const alpha: f64 = 255.0;
     var out: ?*c.VipsImage = null;
     if (!h.check(c.vips_bandjoin_const1(self._in, &out, alpha, VIPS_ARGUMENT_NULL))) {
         return Error.VipsBandJoinConst2Failed;
     }
     c.g_object_unref(self._in);
     self._in = out.?; // 更新为添加 Alpha 通道后的图像
+    self.bands = c.vips_image_get_bands(self._in);
+}
+
+// 将单通道灰度图复制为 RGB 三通道（用于把模型输出的单通道 mask 交给需要 RGBA 的渲染器）
+pub fn toRgb(self: *Self) Error!void {
+    if (self.bands >= 3) return;
+    var images = [_]?*c.VipsImage{ self._in, self._in, self._in };
+    var out: ?*c.VipsImage = null;
+    if (!h.check(c.vips_bandjoin(@ptrCast(&images), &out, 3, VIPS_ARGUMENT_NULL))) {
+        return Error.VipsBandJoinFailed;
+    }
+    c.g_object_unref(self._in);
+    self._in = out.?; // 更新为复制成 RGB 后的图像
     self.bands = c.vips_image_get_bands(self._in);
 }
 

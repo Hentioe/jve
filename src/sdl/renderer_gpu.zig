@@ -323,7 +323,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             } else if (leader.pressedAndKeyDown(event, c.SDLK_R) and !is_busy) { // Leader+R 去除背景
                 if (task == null) {
                     is_busy = true;
-                    if (Task.start(allocator, device, tex_src, image.width, image.height, image.bands, state)) |t| {
+                    if (Task.start(allocator, device, tex_src, state, .{ .width = image.width, .height = image.height, .bands = image.bands, .click = marker_pos })) |t| {
                         std.log.info("Task started successfully", .{});
                         task = t;
                     } else |err| {

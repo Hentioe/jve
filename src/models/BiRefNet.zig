@@ -8,10 +8,8 @@ const Input = @import("processors/Input.zig");
 const Output = @import("processors/Output.zig");
 const Self = @This();
 
-const Size = struct { w: i32, h: i32 };
 const Variant = enum { lite, normal };
-
-const PIXEL_COUNT = 1024 * 1024;
+const SIZE = 1024;
 
 api: *const Api,
 session: Session,
@@ -38,7 +36,7 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
     // 前处理：强制 3 通道、缩放、归一化、NCHW 布局
     var preprocessed = try input.preprocess(allocator, .{
         .forced_bands = 3,
-        .new_size = .{ .w = 1024, .h = 1024 },
+        .new_size = .{ .w = SIZE, .h = SIZE },
         .normalized = true,
         .new_layout = .NCHW,
     });
@@ -46,11 +44,11 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
 
     // 确保图片符合 BiRefNet 模型的输入要求：必须是 3 通道的图像，且宽高为 1024x1024
     std.debug.assert(preprocessed.bands == 3);
-    std.debug.assert(preprocessed.width == 1024);
-    std.debug.assert(preprocessed.height == 1024);
+    std.debug.assert(preprocessed.width == SIZE);
+    std.debug.assert(preprocessed.height == SIZE);
 
     // 构造输入张量
-    const input_shape = [_]i64{ 1, 3, 1024, 1024 };
+    const input_shape = [_]i64{ 1, 3, SIZE, SIZE };
     const input_shape_ptr: [*]const i64 = &input_shape;
     const input_tensor = try self.session.createTensorWithData(
         input_shape_ptr,
@@ -71,15 +69,17 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
     var image = try Output.parse(
         allocator,
         output_ptr,
-        .{ .w = 1024, .h = 1024 },
-        3,
+        .{ .w = SIZE, .h = SIZE },
+        1,
         .FLOAT,
         .NCHW,
+        true,
         true,
     );
 
     try image.resize(@intCast(input.width), @intCast(input.height));
-    try image.addAlpha();
+    try image.toRgb();
+    try image.addAlpha(255.0);
 
     return image;
 }

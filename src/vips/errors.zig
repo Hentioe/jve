@@ -13,6 +13,7 @@ pub const VipsError = error{
     VipsFlattenFailed,
     VipsImageNewFromMemoryFailed,
     VipsBandJoinConst2Failed,
+    VipsBandJoinFailed,
     VipsWriteToMemoryFailed,
 };
 

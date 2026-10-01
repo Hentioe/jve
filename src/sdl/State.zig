@@ -18,7 +18,10 @@ const Point = structs.Point;
 const Extractor = @import("Extractor.zig");
 const ShaderScanner = @import("ShaderScanner.zig");
 const BiRefNet = @import("../models/BiRefNet.zig");
+const MagicTouch = @import("../models/MagicTouch.zig");
 const Self = @This();
+
+pub const Model = enum { BiRefNet, MagicTouch };
 
 allocator: Allocator,
 size: Size,
@@ -36,6 +39,7 @@ extracted: ?Extractor = null,
 ort_lock: RwLock = .{},
 ort_api: ?ort.Api = null,
 birefnet: ?BiRefNet = null,
+magick_touch: ?MagicTouch = null,
 
 pub fn init(allocator: Allocator) Error!Self {
     return Self{
@@ -45,13 +49,22 @@ pub fn init(allocator: Allocator) Error!Self {
     };
 }
 
-pub fn initBirefnet(self: *Self) Error!void {
+pub fn initModel(self: *Self, model: Model) Error!void {
     self.ort_lock.lock();
     if (self.ort_api == null) {
         self.ort_api = try Api.init(self.allocator, "imageviewer");
     }
-    if (self.birefnet == null) {
-        self.birefnet = try BiRefNet.init(&self.ort_api.?, .lite);
+    switch (model) {
+        .BiRefNet => {
+            if (self.birefnet == null) {
+                self.birefnet = try BiRefNet.init(&self.ort_api.?, .lite);
+            }
+        },
+        .MagicTouch => {
+            if (self.magick_touch == null) {
+                self.magick_touch = try MagicTouch.init(&self.ort_api.?);
+            }
+        },
     }
     self.ort_lock.unlock();
 }

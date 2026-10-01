@@ -27,9 +27,10 @@ pub const SdlError = error{
     AlbumError, // todo: 包含 Album 错误集
 };
 
-pub const ExtractorError = error{
+pub const CustomError = error{
     NotDownloaded,
     NoPixelData,
+    ModelNotInitialized,
 };
 
-pub const Error = SdlError || ExtractorError || AllocatorError || OrtError || SpawnError || std.posix.AccessError || Scanner.Error;
+pub const Error = SdlError || CustomError || AllocatorError || OrtError || SpawnError || std.posix.AccessError || Scanner.Error;

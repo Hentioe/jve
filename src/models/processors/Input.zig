@@ -1,15 +1,17 @@
 const std = @import("std");
 const enums = @import("../enums.zig");
 const Allocator = std.mem.Allocator;
-const Image = @import("../../vips.zig").Image;
 const Size = enums.Size;
 const PixelLayout = enums.PixelLayout;
+const Position = @import("../Position.zig");
+const Image = @import("../../vips.zig").Image;
 const Self = @This();
 
 width: u32,
 height: u32,
 bands: u32,
 data_ptr: *const anyopaque,
+click_position: ?Position = null,
 
 const Options = struct {
     new_size: ?Size = null,
@@ -39,6 +41,10 @@ const Preprocessed = struct {
             }
         }
         self._out.deinit();
+    }
+
+    pub fn Data(self: *Preprocessed, T: type) []T {
+        return @as([*]T, @ptrCast(@alignCast(self.data_ptr)))[0 .. self.data_size / @sizeOf(T)];
     }
 };
 
