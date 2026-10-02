@@ -21,44 +21,13 @@ const PostPipeline = @import("PostPipeline.zig");
 const OnscreenPipeline = @import("onscreen_pipeline.zig");
 const Screenshot = @import("Screenshot.zig");
 const RenderNext = @import("enums.zig").RenderNext;
-const Point = structs.Point;
+const Point = structs.Point(f32);
+const Vertex = structs.Vertex;
+const BaseUniforms = structs.BaseUniforms;
+const SharpenUniforms = structs.SharpenUniforms;
 const FogUniforms = structs.FogUniforms;
+const BlurUniforms = structs.BlurUniforms;
 const MarkerUniforms = structs.MarkerUniforms;
-
-// 定义顶点与 UV 坐标
-const Vertex = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-    u: f32,
-    v: f32,
-};
-
-// 基础片段着色器 Uniforms
-const BaseUniforms = extern struct {
-    invert: f32, // 0.0 ~ 1.0
-    grayscale: f32, // 0.0 为全彩，1.0 为完全灰阶（0.5 为半去色）
-    brightness: f32, // 0.0 为正常，正数为增亮，负数为变暗
-    contrast: f32, // 1.0 为正常，>1.0 增加对比度
-    gamma: f32, // 1.0 为正常
-    padding: [3]f32 = .{ 0.0, 0.0, 0.0 }, // 补齐 16 字节对齐 (5 * 4 = 20 字节，加 12 字节凑齐 32 字节)
-};
-
-// 锐化效果的片段着色器 Uniforms
-const SharpenUniforms = extern struct {
-    strength: f32,
-    textureSize: [2]f32,
-    padding: f32 = 0.0,
-};
-
-// 模糊效果的片段着色器 Uniforms
-const BlurParams = extern struct {
-    blurIntensity: f32,
-    texelSize: [2]f32,
-    _pad0: f32 = 0.0,
-    direction: [2]f32,
-    _pad1: [2]f32 = .{ 0.0, 0.0 },
-};
 
 // 基于 SDL_GPU 渲染图片
 pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
@@ -422,12 +391,12 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(SharpenUniforms));
             } else if (pl.effect == .BlurX or pl.effect == .BlurY) {
                 // 传递模糊参数
-                const uniforms: BlurParams = .{
-                    .blurIntensity = -hor_value, // 从负数转换而来
-                    .texelSize = .{ texel_size_w, texel_size_h },
+                const uniforms: BlurUniforms = .{
+                    .blur_intensity = -hor_value, // 从负数转换而来
+                    .texel_size = .{ texel_size_w, texel_size_h },
                     .direction = if (pl.effect == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
                 };
-                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(BlurParams));
+                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(BlurUniforms));
             }
 
             // 绘制管线内容
@@ -530,8 +499,5 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
 
 // 是否是切换事件
 fn isToggleEvent(event: c.SDL_Event) bool {
-    if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT) { // 右键
-        return true;
-    }
-    return false;
+    return event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT; // 右键
 }

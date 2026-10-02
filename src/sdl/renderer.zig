@@ -12,7 +12,7 @@ const Image = root.loader.Image;
 const LeaderKey = @import("LeaderKey.zig");
 const Animated = @import("Animated.zig");
 const Delta = @import("Delta.zig");
-const Point = structs.Point;
+const Point = structs.Point(f32);
 const RenderNext = @import("enums.zig").RenderNext;
 
 const EventType = @FieldType(c.union_SDL_Event, "type");

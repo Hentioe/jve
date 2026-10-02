@@ -11,7 +11,7 @@ render_pass: ?*c.SDL_GPURenderPass = undefined,
 
 pub fn init(
     device: *c.SDL_GPUDevice,
-    vert_shader: ?*c.SDL_GPUShader,
+    vert_shader: *c.SDL_GPUShader,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,

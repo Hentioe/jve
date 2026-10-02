@@ -1,9 +1,8 @@
-// Constant Buffer in space3
-cbuffer BlurParams : register(b0, space3)
+cbuffer BlurUniforms : register(b0, space3)
 {
-  float g_BlurIntensity;  // 模糊强度 (范围：1.0 - 10.0)
   float2 g_TexelSize;     // 纹理单像素尺寸：传 [1.0 / Width, 1.0 / Height]
   float2 g_Direction;     // 模糊方向：横向传 [1.0, 0.0]，纵向传 [0.0, 1.0]
+  float g_BlurIntensity;  // 模糊强度 (范围：1.0 - 10.0)
 };
 
 // Texture and Sampler in space2
