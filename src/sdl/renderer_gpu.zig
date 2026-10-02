@@ -21,6 +21,7 @@ const PostPipeline = @import("PostPipeline.zig");
 const OnscreenPipeline = @import("onscreen_pipeline.zig");
 const Screenshot = @import("Screenshot.zig");
 const RenderNext = @import("enums.zig").RenderNext;
+const Delta = @import("Delta.zig");
 const Point = structs.Point(f32);
 const Vertex = structs.Vertex;
 const BaseUniforms = structs.BaseUniforms;
@@ -28,6 +29,25 @@ const SharpenUniforms = structs.SharpenUniforms;
 const FogUniforms = structs.FogUniforms;
 const BlurUniforms = structs.BlurUniforms;
 const MarkerUniforms = structs.MarkerUniforms;
+
+const EventType = @FieldType(c.union_SDL_Event, "type");
+const EventAction = union(enum) {
+    none,
+    quit,
+    toggle,
+    leader: EventType,
+    reset,
+    invert,
+    grayscale,
+    save_screenshot,
+    copy_screenshot,
+    start_task,
+    toggle_custom_shader,
+    slide_start: struct { button: u8 },
+    slide_stop: struct { button: u8 },
+    sliding: struct { xrel: f32 },
+    marker: struct { x: f32, y: f32 },
+};
 
 // 基于 SDL_GPU 渲染图片
 pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
@@ -230,8 +250,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // --- 渲染循环 (Render Pass 绘制) ---
     var running = true;
     var event: c.SDL_Event = undefined;
+    var action: EventAction = .none;
     var toggle = false;
-    var animating = false;
+    var dirty = false;
+    var delta = Delta.init();
     // 一些常量
     const color_transparent: c.SDL_FColor = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
     // 一些功能控制
@@ -254,10 +276,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var custom_shader_enabled = false; // 是否启用自定义着色器
     // 标记位置
     var marker_pos: ?Point = null; // 标记位置
-    // 横向调节控制变量
-    var hor_adjusting = false; // 是否正在横向调节
-    var hor_value: f32 = 0; // 横向调节的值
-    const hor_sensitivity = 100; // 横向调节灵敏度
+    // 横向滑动控制变量
+    var is_sliding = false; // 是否正在横向滑动
+    var slide_value: f32 = 0; // 横向滑动的值
+    const slide_sensitivity = 100; // 横向滑动灵敏度
     // 任务（后台调用模型）
     var task: ?*Task = null;
     defer if (task) |t| t.finish();
@@ -265,31 +287,62 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     defer if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex);
 
     while (running) {
-        if (is_busy) animating = true;
-        const has_event = if (animating) c.SDL_PollEvent(&event) else c.SDL_WaitEvent(&event);
-        if (has_event) {
+        // 计算 delta
+        delta.update();
+        // std.log.info("delta: {}, fps: {}", .{ delta.value, delta.fps });
+        defer action = .none; // 重置动作
+        if (is_busy) dirty = true; // 繁忙的时候，渲染总是脏的状态（刷新迷雾动画）
+
+        // 将事件映射为动作
+        while (c.SDL_PollEvent(&event)) {
             if (event.type == c.SDL_EVENT_QUIT) {
-                running = false;
+                action = .quit;
             } else if (isToggleEvent(event)) {
+                action = .toggle;
+            } else if (event.key.key == leader.key) {
+                action = .{ .leader = event.type };
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
+                action = .reset;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !leader.pressed) { // R 键反转颜色
+                action = .invert;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
+                action = .grayscale;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
+                action = .save_screenshot;
+            } else if (leader.pressedAndKeyDown(event, c.SDLK_R) and !is_busy) { // Leader+R 去除背景
+                action = .start_task;
+            } else if (leader.pressedAndKeyDown(event, c.SDLK_T)) { // Leader+T 切换自定义着色器的启用状态
+                action = .toggle_custom_shader;
+            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
+                action = .copy_screenshot;
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节开始
+                action = .{ .slide_start = .{ .button = event.button.button } };
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节结束
+                action = .{ .slide_stop = .{ .button = event.button.button } };
+            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and is_sliding) { // 滑动中
+                handleSlidingEvent(event, &action);
+            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) { // 鼠标左键单击，获取位置
+                action = .{ .marker = .{ .x = event.button.x, .y = event.button.y } };
+            }
+        }
+
+        // 根据动作修改状态
+        switch (action) {
+            .none => {},
+            .quit => running = false,
+            .toggle => {
                 toggle = true;
                 running = false;
-            } else if (event.key.key == leader.key) {
-                leader.inputType(event.type); // 根据类型，自动管理按下状态
+            },
+            .leader => |event_type| {
+                leader.inputType(event_type); // 根据类型，自动管理按下状态
                 window.leader_pressed = leader.pressed; // 更新窗口的 leader_pressed 状态
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
-                is_inverted = false;
-                is_grayscale = false;
-                brightness = 0;
-                contrast = 1;
-                gamma = 1;
-                hor_value = 0;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !leader.pressed) { // R 键反转颜色
-                is_inverted = !is_inverted;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
-                is_grayscale = !is_grayscale;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
-                save_screenshot = true;
-            } else if (leader.pressedAndKeyDown(event, c.SDLK_R) and !is_busy) { // Leader+R 去除背景
+            },
+            .invert => is_inverted = !is_inverted,
+            .grayscale => is_grayscale = !is_grayscale,
+            .save_screenshot => save_screenshot = true,
+            .copy_screenshot => copy_screenshot = true,
+            .start_task => {
                 if (task == null) {
                     is_busy = true;
                     if (Task.start(allocator, device, tex_src, state, .{ .width = image.width, .height = image.height, .bands = image.bands, .click = marker_pos })) |t| {
@@ -300,26 +353,35 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                         is_busy = false;
                     }
                 }
-            } else if (leader.pressedAndKeyDown(event, c.SDLK_T)) { // Leader+T 切换自定义着色器的启用状态
-                custom_shader_enabled = !custom_shader_enabled;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
-                copy_screenshot = true;
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节开始
-                hor_adjusting = true;
-                std.log.debug("Mouse wheel event down: {}", .{event.button.button});
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节结束
-                hor_adjusting = false;
-                std.log.debug("Mouse wheel event up: {}", .{event.button.button});
-            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and hor_adjusting) { // 横向调节中
-                hor_value += event.motion.xrel / hor_sensitivity;
-                std.log.debug("Horizontal value updated: {}", .{hor_value});
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) { // 鼠标左键单击，获取位置
-                const x = event.button.x;
-                const y = event.button.y;
-                marker_pos = Point{ .x = x, .y = y };
-                std.log.debug("Marker position updated: ({}, {})", .{ x, y });
-            }
+            },
+            .toggle_custom_shader => custom_shader_enabled = !custom_shader_enabled,
+            .slide_start => |payload| {
+                is_sliding = true;
+                std.log.debug("Mouse wheel event down: {}", .{payload.button});
+            },
+            .slide_stop => |payload| {
+                is_sliding = false;
+                std.log.debug("Mouse wheel event up: {}", .{payload.button});
+            },
+            .sliding => |payload| {
+                slide_value += payload.xrel / slide_sensitivity;
+                std.log.debug("Horizontal value updated: {}", .{slide_value});
+            },
+            .marker => |payload| {
+                marker_pos = Point{ .x = payload.x, .y = payload.y };
+                std.log.debug("Marker position updated: ({}, {})", .{ payload.x, payload.y });
+            },
+            .reset => {
+                is_inverted = false;
+                is_grayscale = false;
+                brightness = 0;
+                contrast = 1;
+                gamma = 1;
+                slide_value = 0;
+                marker_pos = null;
+            },
         }
+
         // 获取当前帧的 Command Buffer
         const render_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
         // 开启 Render Pass
@@ -364,7 +426,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 t.finish();
                 task = null;
                 is_busy = false;
-                animating = false;
+                dirty = false;
                 std.log.info("Task result read complete", .{});
             }
         }
@@ -373,8 +435,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         for (pipelines.items) |pl| {
             // 是否进入管线
             if (pl.effect == .custom and !custom_shader_enabled) continue; // 没有启用自定义着色器，跳过
-            if (pl.effect == .Sharpen and hor_value <= 0) continue; // 没有有效值，跳过
-            if ((pl.effect == .BlurX or pl.effect == .BlurY) and hor_value >= 0) continue; // 没有有效值，跳过
+            if (pl.effect == .Sharpen and slide_value <= 0) continue; // 没有有效值，跳过
+            if ((pl.effect == .BlurX or pl.effect == .BlurY) and slide_value >= 0) continue; // 没有有效值，跳过
             if (pl.effect == .mask and tex_mask == null) continue; // 没有有效的 mask，跳过
             // 绑定管线
             if (pl.effect == .mask) {
@@ -385,14 +447,14 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             if (pl.effect == .Sharpen) {
                 // 传递锐化参数
                 const uniforms: SharpenUniforms = .{
-                    .strength = hor_value,
+                    .strength = slide_value,
                     .textureSize = .{ @floatFromInt(image.width), @floatFromInt(image.height) },
                 };
                 c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(SharpenUniforms));
             } else if (pl.effect == .BlurX or pl.effect == .BlurY) {
                 // 传递模糊参数
                 const uniforms: BlurUniforms = .{
-                    .blur_intensity = -hor_value, // 从负数转换而来
+                    .blur_intensity = -slide_value, // 从负数转换而来
                     .texel_size = .{ texel_size_w, texel_size_h },
                     .direction = if (pl.effect == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
                 };
@@ -445,12 +507,12 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                     // 绘制标记
                     marker_pl.draw(onscreen.render_pass);
                 }
-                // 后续：在屏幕之上继续添加新内容
+                // 在屏幕之上继续添加新内容
                 if (is_busy) {
                     // 添加忙雾
                     busy_fog_pl.bindWithPass(onscreen.render_pass, swapchain_texture, sampler, &verts_binding);
-                    const fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(c.SDL_GetTicks())) / 1000.0 };
-                    c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &fog_uniforms, @sizeOf(FogUniforms));
+                    const busy_fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(c.SDL_GetTicks())) * delta.valueAsF32() };
+                    c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &busy_fog_uniforms, @sizeOf(FogUniforms));
                     busy_fog_pl.drawWithPass(onscreen.render_pass);
                 }
                 onscreen.end();
@@ -500,4 +562,17 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
 // 是否是切换事件
 fn isToggleEvent(event: c.SDL_Event) bool {
     return event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT; // 右键
+}
+
+fn handleSlidingEvent(event: c.SDL_Event, action: *EventAction) void {
+    switch (action.*) {
+        .sliding => |*payload| {
+            // 如果这一帧里已经有 sliding 动作了，累加位移
+            payload.xrel += event.motion.xrel;
+        },
+        .slide_stop => {}, // 中键松开时，可能残留滑动事件，避免覆盖 slide_stop
+        else => {
+            action.* = .{ .sliding = .{ .xrel = event.motion.xrel } };
+        },
+    }
 }

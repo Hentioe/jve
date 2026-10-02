@@ -24,3 +24,8 @@ pub fn update(self: *Self) void {
     self.fps = if (self.value > 0) 1.0 / self.value else 0;
     self.last_counter = now;
 }
+
+// 返回 f32 类型的 value
+pub fn valueAsF32(self: *Self) f32 {
+    return @floatCast(self.value);
+}

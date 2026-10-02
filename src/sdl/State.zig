@@ -123,16 +123,17 @@ pub fn startRendering(self: *Self, image: *const Image, backend: Backend) Error!
         if (!h.check(c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window))) return Error.SdlClaimWindowForGPUDeviceFailed;
         // 关闭垂直同步（修改交换链的 Present Mode）
         // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
-        if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
-            _ = h.check(c.SDL_SetGPUSwapchainParameters( // 此处忽略返回状态（仅输出错误消息）
-                device,
-                window.sdl_window,
-                c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-                c.SDL_GPU_PRESENTMODE_IMMEDIATE,
-            ));
-        } else {
-            std.log.warn("IMMEDIATE Present Mode not supported", .{});
-        }
+        // 注意：目前垂直同步关闭已被取消，sdl_gpu 仍然是默认状态。
+        // if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
+        //     _ = h.check(c.SDL_SetGPUSwapchainParameters( // 忽略返回状态，仅输出错误消息
+        //         device,
+        //         window.sdl_window,
+        //         c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+        //         c.SDL_GPU_PRESENTMODE_IMMEDIATE,
+        //     ));
+        // } else {
+        //     std.log.warn("IMMEDIATE Present Mode not supported", .{});
+        // }
 
         // 扫描和编译着色器
         if (config.get().shader_dir) |dir| {
