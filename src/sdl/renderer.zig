@@ -11,6 +11,7 @@ const Window = @import("window.zig");
 const Image = root.loader.Image;
 const LeaderKey = @import("LeaderKey.zig");
 const Animated = @import("Animated.zig");
+const Delta = @import("Delta.zig");
 const Point = structs.Point;
 const RenderNext = @import("enums.zig").RenderNext;
 
@@ -59,9 +60,8 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var running = true;
     var toggle = false;
     var dirty = true;
-    var last_time: f64 = @floatFromInt(c.SDL_GetPerformanceCounter());
+    var delta = Delta.init(); // 帧间隔计时器
     // 其它控制常量
-    const perf_freq: f64 = @floatFromInt(c.SDL_GetPerformanceFrequency());
     const max_scale = config.get().max_scale;
     const min_scale = config.get().min_scale;
     // 其它控制参数
@@ -72,11 +72,9 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var angle = Animated.init(0.0, state.target_angle, 15); // 旋转
     while (running) {
         // 计算 delta
-        const current_time: f64 = @floatFromInt(c.SDL_GetPerformanceCounter());
-        const delta = (current_time - last_time) / perf_freq;
-        // std.log.info("Delta time: {}", .{delta});
-        defer last_time = current_time; // 帧结束更新 last_time
-        defer action = .none; // 帧结束重置动作
+        delta.update();
+        // std.log.info("delta: {}, fps: {}", .{ delta.value, delta.fps });
+        defer action = .none; // 重置动作
         // 判断事件的动作类型
         while (c.SDL_PollEvent(&event)) {
             if (event.key.key == leader.key) {
@@ -191,7 +189,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                     std.log.debug("Scale is near finished, diff: {d}", .{scale.target - scale.current});
                     scale.finish();
                 } else {
-                    scale.nextStep(delta);
+                    scale.nextStep(delta.value);
                 }
             }
             if (angle.state == .running) {
@@ -199,7 +197,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                     std.log.debug("Angle is near finished, diff: {d}", .{angle.target - angle.current});
                     angle.finish();
                 } else {
-                    angle.nextStep(delta);
+                    angle.nextStep(delta.value);
                 }
             }
             dirty = scale.state == .running or angle.state == .running; // 如果没有动画了，停止运动
