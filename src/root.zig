@@ -1,7 +1,5 @@
 const std = @import("std");
 const errors = @import("errors.zig");
-const vips_format = @import("vips/format.zig");
-const VipsError = @import("vips/errors.zig").Error;
 const Backend = @import("sdl/enums.zig").Backend;
 const Allocator = std.mem.Allocator;
 
@@ -33,14 +31,14 @@ pub fn deinit() void {
 }
 
 pub fn isSupported(suffix: []const u8) !bool {
-    return try vips_format.isSupported(suffix);
+    return try vips.formats.isSupported(suffix);
 }
 
 pub fn extensions() ![]const []const u8 {
-    return try vips_format.extensions();
+    return try vips.formats.get();
 }
 
-pub fn load(allocator: Allocator, file_path: []const u8) LoadError!loader.Image {
+pub fn load(allocator: Allocator, file_path: []const u8) LoadError!loader.Loaded {
     // 检查文件的可访问性
     const stat = std.fs.cwd().statFile(file_path) catch |err| return err;
     // 检查输入是否为文件

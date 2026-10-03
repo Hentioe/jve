@@ -1,8 +1,8 @@
 const std = @import("std");
 const vips = @import("vips.zig");
 
-pub const CustomLoadError = error{
+pub const CustomError = error{
     NotAFile,
 };
 
-pub const LoadError = CustomLoadError || std.fs.File.OpenError || vips.Error;
+pub const LoadError = CustomError || std.fs.File.OpenError || vips.Error;

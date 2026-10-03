@@ -1,6 +1,6 @@
 const std = @import("std");
 const root = @import("root.zig");
-const Image = root.loader.Image;
+const Loaded = root.loader.Loaded;
 const Allocator = std.mem.Allocator;
 const Scanner = @import("Scanner.zig");
 
@@ -17,7 +17,7 @@ pub const Error = AlbumError || root.LoadError || Scanner.Error || std.posix.Unl
 const Cache = struct {
     allocator: Allocator,
     scanner: Scanner,
-    image: Image,
+    image: Loaded,
     dirty: bool,
     full_path: ?[]const u8 = null,
 
@@ -79,7 +79,7 @@ pub fn prev() Error!?[]const u8 {
     return cache.scanner.prev();
 }
 
-pub fn current() Error!Image {
+pub fn current() Error!Loaded {
     if (cache.dirty) { // 如果缓存脏了，重新加载当前图片
         std.log.info("cache is dirty, reloading current image", .{});
         try reloadCurrent();
@@ -88,7 +88,7 @@ pub fn current() Error!Image {
 }
 
 // 删除当前图片
-pub fn deleteCurrentGetNext() Error!Image {
+pub fn deleteCurrentGetNext() Error!Loaded {
     if (cache.scanner.current()) |file_name| {
         const dir_path = cache.scanner.dir_path;
         const full_path = std.fs.path.join(cache.allocator, &[_][]const u8{ dir_path, file_name }) catch |err| {

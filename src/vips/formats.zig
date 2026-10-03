@@ -31,9 +31,11 @@ const Cache = struct {
         self.* = undefined;
     }
 };
+var initialized: bool = false;
 var cache: Cache = undefined;
 
-pub fn extensions() Error![]const []const u8 {
+pub fn get() Error![]const []const u8 {
+    if (!initialized) return Error.NotInitialized;
     return cache.suffixes;
 }
 
@@ -48,11 +50,14 @@ pub fn init(allocator: Allocator) Error!void {
     std.log.info("Vips supports {d} format(s)", .{n});
     // 初始化缓存
     cache = try Cache.init(allocator, suffixes_ptr, n);
+    initialized = true;
 }
 
 pub fn deinit() void {
+    if (!initialized) return;
     cache.deinit();
     cache = undefined;
+    initialized = false;
 }
 
 pub fn isSupported(suffix: []const u8) Error!bool {

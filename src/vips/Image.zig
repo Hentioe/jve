@@ -11,6 +11,7 @@ pub const Format = enum(c_int) {
     FLOAT = c.VIPS_FORMAT_FLOAT,
 };
 
+// Out 结构体便于回收内存（避免外部调用 glib）
 pub const Out = struct {
     data_ptr: *anyopaque,
     data_size: usize,
@@ -25,11 +26,11 @@ pub const Out = struct {
     }
 };
 
-_in: *c.VipsImage,
 width: i32,
 height: i32,
 bands: i32,
 format: Format,
+_in: *c.VipsImage,
 
 pub fn init(input_ptr: *const anyopaque, width: i32, height: i32, bands: i32, format: Format) Error!Self {
     const format_bytes: usize = if (format == .FLOAT) @sizeOf(f32) else @sizeOf(u8);
@@ -51,6 +52,71 @@ pub fn init(input_ptr: *const anyopaque, width: i32, height: i32, bands: i32, fo
         .bands = bands,
         .format = format,
         ._in = in,
+    };
+}
+
+// 从文件加载图像，返回 Image 实例
+pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
+    const extension = std.fs.path.extension(path);
+    const filename = try allocator.dupeZ(u8, path);
+    defer allocator.free(filename);
+
+    // 从文件创建 VipsImage 指针
+    var in: [*c]c.VipsImage = null;
+    if (std.mem.eql(u8, extension, ".avif")) {
+        std.log.info("Heif loading...", .{});
+        if (!h.check(c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL))) { // 对 avif 特殊处理（仅获取第一帧）
+            return Error.VipsHeifLoadFailed;
+        }
+    } else {
+        in = c.vips_image_new_from_file(filename, VIPS_ARGUMENT_NULL);
+    }
+    if (in == null) {
+        h.printError();
+        return Error.VipsImageLoadFailed;
+    }
+
+    // 获取通道数
+    const bands = c.vips_image_get_bands(in);
+    if (bands < 3) {
+        c.g_object_unref(in);
+        return Error.UnsupportedBands;
+    }
+
+    var self = Self{
+        .width = c.vips_image_get_width(in),
+        .height = c.vips_image_get_height(in),
+        .bands = bands,
+        .format = .UCHAR, // 占位，toSrgb 会更新为真实格式
+        ._in = in,
+    };
+    errdefer self.deinit();
+
+    // 强制转换为 sRGB：高色深图像（如 USHORT）会在此被转换为 UCHAR
+    try self.toSrgb();
+
+    return self;
+}
+
+// 将图像转换为 sRGB 色彩空间
+pub fn toSrgb(self: *Self) Error!void {
+    var out: ?*c.VipsImage = null;
+    if (!h.check(c.vips_colourspace(self._in, &out, c.VIPS_INTERPRETATION_sRGB, VIPS_ARGUMENT_NULL))) {
+        return Error.VipsImageLoadFailed;
+    }
+    c.g_object_unref(self._in); // 释放原始图像
+    self._in = out.?; // 更新为 sRGB 图像
+    self.width = c.vips_image_get_width(self._in);
+    self.height = c.vips_image_get_height(self._in);
+    self.bands = c.vips_image_get_bands(self._in);
+    self.format = try formatFromVips(c.vips_image_get_format(self._in)); // sRGB 后格式通常为 UCHAR
+}
+
+fn formatFromVips(value: c_int) Error!Format {
+    return switch (value) {
+        c.VIPS_FORMAT_UCHAR => .UCHAR,
+        c.VIPS_FORMAT_FLOAT => .FLOAT,
+        else => Error.UnsupportedFormat,
     };
 }
 
@@ -123,6 +189,7 @@ pub fn normalize(self: *Self) Error!void {
     self.format = .FLOAT; // 更新为浮点格式
 }
 
+// 将图像写入一块新内存并返回 Out 结构体
 pub fn allocOutInMemory(self: *Self) Error!Out {
     var size: usize = 0;
     const data_ptr = c.vips_image_write_to_memory(self._in, &size) orelse return Error.VipsWriteToMemoryFailed;

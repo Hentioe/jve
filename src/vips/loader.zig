@@ -1,12 +1,10 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const h = @import("helper.zig");
-const consts = @import("consts.zig");
-const format = @import("format.zig");
-const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
+const formats = @import("formats.zig");
 const Error = @import("errors.zig").Error;
+pub const Image = @import("Image.zig");
 
-pub const Image = struct {
+pub const Loaded = struct {
     allocator: std.mem.Allocator,
     file_path: []const u8, // 涉及内存申请
     file_name: []const u8, // file_path 的切片
@@ -15,84 +13,45 @@ pub const Image = struct {
     bands: i32,
     format: i32,
     size: usize,
-    pixels_ptr: [*c]c_ushort, // vips 的指针
+    pixels_ptr: [*c]c_ushort, // 像素数据的指针
+    _out: Image.Out, // 持有像素数据内存，负责安全回收
 
-    pub fn deinit(self: *Image) void {
+    pub fn deinit(self: *Loaded) void {
         self.allocator.free(self.file_path);
-        c.g_free(self.pixels_ptr);
+        self._out.deinit();
         self.* = undefined;
     }
 };
 
-pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!Image {
+pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!Loaded {
     // 获取扩展名
     const extension = std.fs.path.extension(path);
-    if (!try format.isSupported(extension)) return Error.UnsupportedFormat; // 主动检查格式是否支持
+    if (!try formats.isSupported(extension)) return Error.UnsupportedFormat; // 主动检查格式是否支持
 
-    const filename = try allocator.dupeZ(u8, path);
-    defer allocator.free(filename);
+    // 从文件创建图像（initFromFile 内部已转换为 sRGB）
+    var image = try Image.initFromFile(allocator, path);
+    defer image.deinit();
 
-    // 从文件创建 VipsImage 指针
-    var in: [*c]c.VipsImage = null;
-    if (std.mem.eql(u8, extension, ".avif")) {
-        std.log.info("Heif loading...", .{});
-        if (!h.check(c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL))) { // 对 avif 特殊处理（仅获取第一帧）
-            return Error.VipsHeifLoadFailed;
-        }
-    } else {
-        in = c.vips_image_new_from_file(filename, VIPS_ARGUMENT_NULL);
-    }
-    if (in == null) {
-        h.printError();
-        return Error.VipsImageLoadFailed;
-    }
-    defer c.g_object_unref(in);
-
-    // 获取通道数
-    var bands = c.vips_image_get_bands(in);
-    if (bands < 3) return Error.UnsupportedBands;
-    // 获取宽度
-    const width = c.vips_image_get_width(in);
-    // 获取高度
-    const height = c.vips_image_get_height(in);
-    // 获取格式
-    const _format = c.vips_image_get_format(in);
-
-    // 转换为 SRGB
-    var srgb: [*c]c.VipsImage = null;
-    if (!h.check(c.vips_colourspace(in, &srgb, c.VIPS_INTERPRETATION_sRGB, VIPS_ARGUMENT_NULL))) return Error.VipsImageLoadFailed;
-    defer c.g_object_unref(srgb);
-
-    // 转换为 RGBA
-    var rgba: [*c]c.VipsImage = null;
-    if (c.vips_image_hasalpha(srgb) != 0) { // 如果有 alpha 通道，不转换
-        rgba = srgb;
-    } else {
-        if (!h.check(c.vips_addalpha(srgb, &rgba, VIPS_ARGUMENT_NULL))) return Error.VipsAddAlphaFailed;
-        bands += 1;
-    }
-    defer {
-        if (rgba != srgb) c.g_object_unref(rgba); // 只有在 rgba 与 srgb 不同的情况下才释放 rgba
-    }
+    // 转换为 RGBA（已有 alpha 通道时内部会跳过）
+    try image.addAlpha(255.0);
     // 提取像素数据
-    var size: usize = 0;
-    const pixels_ptr: [*c]c_ushort = @ptrCast(@alignCast(
-        c.vips_image_write_to_memory(rgba, &size),
-    ));
+    var out = try image.allocOutInMemory();
+    errdefer out.deinit();
 
     // 将外部传入的 path 复制一遍
     const file_path = try allocator.alloc(u8, path.len);
     @memcpy(file_path, path);
 
-    return Image{
+    return Loaded{
         .allocator = allocator,
         .file_path = file_path,
         .file_name = std.fs.path.basename(file_path),
-        .width = width,
-        .height = height,
-        .bands = bands,
-        .format = _format,
-        .size = size,
-        .pixels_ptr = pixels_ptr,
+        .width = image.width,
+        .height = image.height,
+        .bands = image.bands,
+        .format = @intFromEnum(image.format),
+        .size = out.data_size,
+        .pixels_ptr = @ptrCast(@alignCast(out.data_ptr)),
+        ._out = out,
     };
 }

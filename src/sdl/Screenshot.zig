@@ -1,7 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const root = @import("../root.zig");
-const Image = root.loader.Image;
+const Loaded = root.loader.Loaded;
 const writer = root.writer;
 const clipboard = @import("clipboard.zig");
 const Allocator = std.mem.Allocator;
@@ -11,9 +11,9 @@ const Self = @This();
 
 allocator: Allocator,
 extractor: Extractor,
-image: *const Image,
+image: *const Loaded,
 
-pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c.SDL_GPUTexture, image: *const Image) Error!Self {
+pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c.SDL_GPUTexture, image: *const Loaded) Error!Self {
     // 创建下载器
     var extractor = Extractor.init( // todo: 重构下载器，init 函数不再传递图片信息
         allocator,

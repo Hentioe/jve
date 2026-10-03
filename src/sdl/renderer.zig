@@ -8,7 +8,7 @@ const album = root.album;
 const Error = @import("errors.zig").Error;
 const State = @import("State.zig");
 const Window = @import("window.zig");
-const Image = root.loader.Image;
+const Loaded = root.loader.Loaded;
 const LeaderKey = @import("LeaderKey.zig");
 const Animated = @import("Animated.zig");
 const Delta = @import("Delta.zig");
@@ -33,19 +33,19 @@ const EventAction = union(enum) {
 
 // 基于 sdl_renderer 渲染图片
 pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
-    var image = album.current() catch return Error.AlbumError;
+    var loaded = album.current() catch return Error.AlbumError;
     // 更新状态
-    try state.startRendering(&image, .sdl_renderer);
+    try state.startRendering(&loaded, .sdl_renderer);
     // 创建窗口
     var window = state.window.?; // 确保在 startRendering 中完成初始化
     // 更新窗口标题
-    try window.setTitle(image.file_name);
+    try window.setTitle(loaded.file_name);
     // 创建渲染器
     const renderer = state.renderer.?;
     // 创建纹理（先尝试从缓存中读取）
     var texture = try state.readTexture(renderer);
     if (texture == null) { // 没有就创建新的纹理
-        texture = try createTexture(renderer, &image);
+        texture = try createTexture(renderer, &loaded);
     } else {
         // 复用纹理
         std.log.info("Reusing texture from state", .{});
@@ -53,7 +53,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     errdefer c.SDL_DestroyTexture(texture);
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
-    calculateDstRect(&dst_rect, window, image.width, image.height, .{});
+    calculateDstRect(&dst_rect, window, loaded.width, loaded.height, .{});
     // 循环、动画和事件参数
     var event: c.SDL_Event = undefined;
     var action: EventAction = .none;
@@ -115,11 +115,11 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             .rotate => |payload| if (mapKeyToAngle(payload.key)) |new_angle| angle.updateTarget(new_angle),
             .delete => {
                 // 删除当前相册图片
-                std.log.info("Deleting current image: {s}", .{image.file_name});
-                if (album.deleteCurrentGetNext()) |new_image| {
-                    image = new_image;
+                std.log.info("Deleting current image: {s}", .{loaded.file_name});
+                if (album.deleteCurrentGetNext()) |next_loaded| {
+                    loaded = next_loaded;
                     c.SDL_DestroyTexture(texture);
-                    texture = try createTexture(renderer, &new_image);
+                    texture = try createTexture(renderer, &next_loaded);
                     dirty = true; // 动画触发 dst_rect 更新
                 } else |err| {
                     if (err == error.NoImageLeft) {
@@ -148,14 +148,14 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                         std.log.err("Failed to switch to previous image: {}", .{err});
                     };
                 }
-                const crrent = album.current() catch |err| blk: {
+                const crrent = album.current() catch |err| val: {
                     std.log.err("Failed to get current image: {}", .{err});
-                    break :blk null;
+                    break :val null;
                 };
-                if (crrent) |new_image| {
-                    image = new_image;
+                if (crrent) |current_loaded| {
+                    loaded = current_loaded;
                     c.SDL_DestroyTexture(texture);
-                    texture = try createTexture(renderer, &new_image);
+                    texture = try createTexture(renderer, &current_loaded);
                 }
                 dirty = true; // 动画触发 dst_rect 更新
             },
@@ -178,6 +178,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 } else {
                     scale.nextStep(delta.value);
                 }
+                std.log.debug("current_scale: {d}, target_scale: {d}, diff: {d}", .{ scale.current, scale.target, scale.target - scale.current });
             }
             if (angle.state == .running) {
                 if (angle.isNearFinished()) {
@@ -188,9 +189,8 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 }
             }
             dirty = scale.state == .running or angle.state == .running; // 如果没有动画了，停止运动
-            std.log.debug("current_scale: {d}, target_scale: {d}, diff: {d}", .{ scale.current, scale.target, scale.target - scale.current });
-            const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * scale.current);
-            const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * scale.current);
+            const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(loaded.width)) * scale.current);
+            const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(loaded.height)) * scale.current);
             calculateDstRect(&dst_rect, window, new_width, new_height, move_offset);
             window.imageSizeUpdated(new_width, new_height);
         }
@@ -330,7 +330,7 @@ fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new
     dst_rect.y = center_y + offset.y;
 }
 
-fn createTexture(renderer: *c.SDL_Renderer, image: *const Image) Error!*c.SDL_Texture {
+fn createTexture(renderer: *c.SDL_Renderer, image: *const Loaded) Error!*c.SDL_Texture {
     // 计算 pitch
     const pitch = image.width * image.bands;
     std.log.info("Pitch: {d}", .{pitch});
