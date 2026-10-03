@@ -16,6 +16,7 @@ const Window = @import("window.zig");
 const Pipeline = @import("Pipeline.zig");
 const LeaderKey = @import("LeaderKey.zig");
 const Task = @import("Task.zig");
+const Uploader = @import("Uploader.zig");
 const Checkerboard = @import("checkerboard_gpu.zig");
 const PostPipeline = @import("PostPipeline.zig");
 const OnscreenPipeline = @import("onscreen_pipeline.zig");
@@ -62,9 +63,11 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     try window.setTitle(image.file_name);
     // 创建 GPU 设备
     const device = state.gpu_device.?;
+    // 创建上传器
+    var uploader = Uploader.init(allocator, device);
+    defer uploader.deinit();
 
     // --- 纹理 (Texture)---
-    // 1. 创建 GPU 纹理
     const texture_info = c.SDL_GPUTextureCreateInfo{
         .type = c.SDL_GPU_TEXTURETYPE_2D,
         .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 对应常见的 RGBA8888 像素格式
@@ -74,12 +77,12 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
-    const texture = try gpu.createTexture(
-        device,
+    const texture = try uploader.uploadTexture(
         &texture_info,
         image.pixels_ptr,
-        .{ .w = @intCast(image.width), .h = @intCast(image.height) },
+        try Size(u32).fromI32(image.width, image.height),
     );
+    try uploader.submit(); // 提交上传
 
     // --- 顶点 (Vertex) ---
     // 1. 创建顶点：铺满屏幕的 6 个顶点（两个三角形组成一个矩形）

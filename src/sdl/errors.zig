@@ -14,6 +14,10 @@ pub const SdlError = error{
     SdlCreateRendererFailed,
     SdlCreateTextureFailed,
     SdlCreateGPUTextureFailed,
+    SdlCreateGPUTransferBufferFailed,
+    SdlAcquireGPUCommandBufferFailed,
+    SdlBeginGPUCopyPassFailed,
+    SdlEndGPUCopyPassFailed,
     SdlLoadFileFailed,
     SdlCompileShaderFailed,
     SdlSetWindowHitTestFailed,
@@ -36,4 +40,6 @@ pub const CustomError = error{
     ModelNotInitialized,
 };
 
-pub const Error = SdlError || CustomError || AllocatorError || OrtError || SpawnError || std.posix.AccessError || Scanner.Error;
+pub const SizeError = error{Negative};
+
+pub const Error = SdlError || CustomError || SizeError || AllocatorError || OrtError || SpawnError || std.posix.AccessError || Scanner.Error;

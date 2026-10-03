@@ -1,10 +1,22 @@
 const c = @import("c.zig").c;
 const std = @import("std");
+const SizeError = @import("errors.zig").SizeError;
 
 pub fn Size(comptime T: type) type {
     return struct {
         w: T,
         h: T,
+
+        const Self = @This();
+
+        /// 仅适用于 Size(u32)
+        pub fn fromI32(w: i32, h: i32) SizeError!Self {
+            if (T != u32) {
+                @compileError("fromI32 is only available for Size(u32), got Size(" ++ @typeName(T) ++ ")");
+            }
+            if (w < 0 or h < 0) return SizeError.Negative;
+            return .{ .w = @intCast(w), .h = @intCast(h) };
+        }
     };
 }
 
