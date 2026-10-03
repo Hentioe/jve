@@ -22,6 +22,7 @@ const OnscreenPipeline = @import("onscreen_pipeline.zig");
 const Screenshot = @import("Screenshot.zig");
 const RenderNext = @import("enums.zig").RenderNext;
 const Delta = @import("Delta.zig");
+const Size = structs.Size;
 const Point = structs.Point(f32);
 const Vertex = structs.Vertex;
 const BaseUniforms = structs.BaseUniforms;
@@ -73,7 +74,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
-    const texture = gpu.createTexture(
+    const texture = try gpu.createTexture(
         device,
         &texture_info,
         image.pixels_ptr,
@@ -402,12 +403,17 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             if (t.poll() == .done) {
                 std.log.info("Task result is reading...", .{});
                 if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex);
-                const result = t.result.?;
-                tex_mask = gpu.createTexture(device, &offscreen_info, result.data_ptr, .{ .w = result.width, .h = result.height });
+                const data_ptr = t.result.?.data_ptr;
+                const size: Size(u32) = .{ .w = t.result.?.width, .h = t.result.?.height };
+                if (gpu.createTexture(device, &offscreen_info, data_ptr, size)) |created| {
+                    tex_mask = created;
+                    task = null;
+                    is_busy = false;
+                    dirty = false;
+                } else |err| {
+                    std.log.err("Failed to create GPU texture: {}", .{err});
+                }
                 t.finish();
-                task = null;
-                is_busy = false;
-                dirty = false;
                 std.log.info("Task result read complete", .{});
             }
         }

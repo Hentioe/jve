@@ -13,6 +13,7 @@ pub const SdlError = error{
     SdlClaimWindowForGPUDeviceFailed,
     SdlCreateRendererFailed,
     SdlCreateTextureFailed,
+    SdlCreateGPUTextureFailed,
     SdlLoadFileFailed,
     SdlCompileShaderFailed,
     SdlSetWindowHitTestFailed,
@@ -25,6 +26,7 @@ pub const SdlError = error{
     SdlMapGPUTransferBufferFailed,
     SdlSetClipboardDataFailed,
     SdlSetRenderVSyncFailed,
+    SdlSubmitGPUCommandBufferFailed,
     AlbumError, // todo: 包含 Album 错误集
 };
 
