@@ -1,13 +1,25 @@
-const std = @import("std");
-const c = @import("c.zig").c;
 const Self = @This();
 
 const FINISH_EPSILON = 0.001;
 const State = enum { running, finished };
 
-init_current: f64,
-init_target: f64,
-init_step: f64,
+// 将状态拆分为初始值和目标值，通过累积步长逐步逼近目标以在渲染循环中实现动画。用法例子：
+// var scale = Animated.init(1.0, 2.0, 15); // 包装「缩放」状态
+// white(running) {
+//     // ...
+//     scale.nextStep(delta.value); // 在循环中不断步进
+//     const new_width = width * scale.current; // 计算当前的新宽度
+//     const new_height = height * scale.current; // 计算当前的新高度
+// }
+
+// 存储初始化的值（用于重置）
+const Initial = struct {
+    current: f64,
+    target: f64,
+    step: f64,
+};
+
+initial: Initial,
 current: f64,
 target: f64,
 step: f64,
@@ -16,9 +28,11 @@ state: State,
 pub fn init(current: f64, target: f64, step: f64) Self {
     const state: State = if (current != target) .running else .finished;
     return Self{
-        .init_current = current,
-        .init_target = target,
-        .init_step = step,
+        .initial = Initial{
+            .current = current,
+            .target = target,
+            .step = step,
+        },
         .current = current,
         .target = target,
         .step = step,
@@ -46,8 +60,8 @@ pub fn finish(self: *Self) void {
 }
 
 pub fn reset(self: *Self) void {
-    self.current = self.init_current;
-    self.target = self.init_target;
-    self.step = self.init_step;
+    self.current = self.initial.current;
+    self.target = self.initial.target;
+    self.step = self.initial.step;
     self.state = if (self.current != self.target) .running else .finished;
 }
