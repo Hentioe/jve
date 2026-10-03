@@ -32,6 +32,7 @@ pub const SdlError = error{
     SdlSetClipboardDataFailed,
     SdlSetRenderVSyncFailed,
     SdlSubmitGPUCommandBufferFailed,
+    SdlBeginRenderPassFailed,
     AlbumError, // todo: 包含 Album 错误集
 };
 

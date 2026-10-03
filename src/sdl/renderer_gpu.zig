@@ -156,13 +156,12 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
     };
-    const base_pl: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse {
-        return Error.CreateGPUGraphicsPipelineFailed;
-    };
+    // 基础着色器（负责图像渲染）
+    const base_pl: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse return Error.CreateGPUGraphicsPipelineFailed;
     defer c.SDL_ReleaseGPUGraphicsPipeline(device, base_pl);
-
-    // 构造棋盘格
-    const checkerboard = try Checkerboard.init(device, window);
+    // 构造棋盘格（透明图片的背景）
+    var checkerboard = try Checkerboard.init(device, window);
+    defer checkerboard.deinit();
 
     // 创建离屏渲染纹理 A 和 B
     const offscreen_info: c.SDL_GPUTextureCreateInfo = .{
@@ -182,25 +181,19 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var tex_src = tex_a;
     var tex_dst = tex_b;
     // 创建屏幕渲染的直通管线
-    var onscreen = try OnscreenPipeline.init(
-        device,
-        vert_shader,
-        &vert_buffer_desc,
-        &vert_attrs,
-        &color_target_desc,
-    );
+    var onscreen = try OnscreenPipeline.init(device, vert_shader, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     // 创建内建的后处理管线
     const pl_builder = PostPipeline.Builder.init(device, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     const sharpen_frag_shader = try shader_loader.load(device, @embedFile("sharpen.frag.spv"), "main", .fragment, 1, 1);
     defer c.SDL_ReleaseGPUShader(device, sharpen_frag_shader);
-    var sharpen = try pl_builder.build(.Sharpen, .{ .vert = vert_shader, .frag = sharpen_frag_shader });
+    var sharpen = try pl_builder.build(.sharpen, .{ .vert = vert_shader, .frag = sharpen_frag_shader });
     const blur_frag_shader = try shader_loader.load(device, @embedFile("blur.frag.spv"), "main", .fragment, 1, 1);
     defer c.SDL_ReleaseGPUShader(device, blur_frag_shader);
-    var blur_x_pl = try pl_builder.build(.BlurX, .{ .vert = vert_shader, .frag = blur_frag_shader });
-    var blur_y_pl = try pl_builder.build(.BlurY, .{ .vert = vert_shader, .frag = blur_frag_shader });
+    var blur_x_pl = try pl_builder.build(.blur_x, .{ .vert = vert_shader, .frag = blur_frag_shader });
+    var blur_y_pl = try pl_builder.build(.blur_y, .{ .vert = vert_shader, .frag = blur_frag_shader });
     const busy_fog_frag_shader = try shader_loader.load(device, @embedFile("busy_fog.frag.spv"), "main", .fragment, 1, 1);
     defer c.SDL_ReleaseGPUShader(device, busy_fog_frag_shader);
-    var busy_fog_pl = try pl_builder.build(.BusyFog, .{ .vert = vert_shader, .frag = busy_fog_frag_shader });
+    var busy_fog_pl = try pl_builder.build(.busy_fog, .{ .vert = vert_shader, .frag = busy_fog_frag_shader });
     const mask_frag_shader = try shader_loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, 2, 0);
     defer c.SDL_ReleaseGPUShader(device, mask_frag_shader);
     var mask_pl = try pl_builder.build(.mask, .{ .vert = vert_shader, .frag = mask_frag_shader });
@@ -212,7 +205,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var marker_pl = try Pipeline.init(device, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader });
     defer marker_pl.deinit();
 
-    // 构造管线列表
+    // 构造后处理管线列表
     var builtin = [_]*PostPipeline{ &sharpen, &blur_x_pl, &blur_y_pl, &mask_pl };
     const builtin_count = builtin.len;
     var pipelines: ArrayList(*PostPipeline) = .empty;
@@ -354,7 +347,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         }
 
         // 获取当前帧的 Command Buffer
-        const render_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
+        const cmd_buf = c.SDL_AcquireGPUCommandBuffer(device) orelse return Error.SdlAcquireGPUCommandBufferFailed;
         // 开启 Render Pass
         const base_color_target: c.SDL_GPUColorTargetInfo = .{
             .texture = tex_src,
@@ -362,14 +355,14 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             .store_op = c.SDL_GPU_STOREOP_STORE,
             .clear_color = color_transparent,
         };
-        const render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &base_color_target, 1, null);
+        const render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &base_color_target, 1, null);
         // 绑定图形管线
         c.SDL_BindGPUGraphicsPipeline(render_pass, base_pl);
         // 绑定顶点缓冲区
         c.SDL_BindGPUVertexBuffers(render_pass, 0, &vertices_binding, 1);
         // 绑定图像的像素纹理以及采样器
         c.SDL_BindGPUFragmentSamplers(render_pass, 0, &tex_binding, 1);
-        // 准备要传递的参数
+        // 准备片段着色器的的参数
         const base_uniforms: BaseUniforms = .{
             .invert = if (is_inverted) 1.0 else 0.0,
             .brightness = brightness,
@@ -377,15 +370,15 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             .gamma = gamma,
             .grayscale = if (is_grayscale) 1.0 else 0.0,
         };
-        // 将参数推送到片段着色器 (Fragment Shader) 的 slot 0 槽位
-        c.SDL_PushGPUFragmentUniformData(render_cmd_buf, // 当前命令缓冲区
+        // 将参数推送到片段着色器的 slot 0
+        c.SDL_PushGPUFragmentUniformData(cmd_buf, // 当前命令缓冲区
             0, // 着色器中的 slot 索引（对应 register b0）
             &base_uniforms, // 数据指针
             @sizeOf(BaseUniforms) // 数据字节大小
         );
         // 绘制矩形 (绘制 6 个顶点 = 2 个三角形)
         c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
-        // 结束 Pass
+        // 结束渲染通道
         c.SDL_EndGPURenderPass(render_pass);
         // 检查任务
         if (task) |t| {
@@ -409,48 +402,49 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
 
         // 后处理管线
         for (pipelines.items) |pl| {
-            // 是否进入管线
+            // 判断是否进入管线
             if (pl.effect == .custom and !custom_shader_enabled) continue; // 没有启用自定义着色器，跳过
-            if (pl.effect == .Sharpen and slide_value <= 0) continue; // 没有有效值，跳过
-            if ((pl.effect == .BlurX or pl.effect == .BlurY) and slide_value >= 0) continue; // 没有有效值，跳过
+            if (pl.effect == .sharpen and slide_value <= 0) continue; // 没有有效值，跳过
+            if ((pl.effect == .blur_x or pl.effect == .blur_y) and slide_value >= 0) continue; // 没有有效值，跳过
             if (pl.effect == .mask and tex_mask == null) continue; // 没有有效的 mask，跳过
             // 绑定管线
             if (pl.effect == .mask) {
-                pl.bindMask(tex_dst, tex_src, tex_mask, sampler, render_cmd_buf, &vertices_binding);
+                pl.bindWithMaskTex(cmd_buf, tex_dst, tex_src, tex_mask, sampler, &vertices_binding);
             } else {
-                pl.bind(tex_dst, tex_src, sampler, render_cmd_buf, &vertices_binding);
+                pl.bind(cmd_buf, tex_dst, tex_src, sampler, &vertices_binding);
             }
-            if (pl.effect == .Sharpen) {
+            if (pl.effect == .sharpen) {
                 // 传递锐化参数
                 const uniforms: SharpenUniforms = .{
                     .strength = slide_value,
                     .textureSize = .{ @floatFromInt(image.width), @floatFromInt(image.height) },
                 };
-                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(SharpenUniforms));
-            } else if (pl.effect == .BlurX or pl.effect == .BlurY) {
+                c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &uniforms, @sizeOf(SharpenUniforms));
+            } else if (pl.effect == .blur_x or pl.effect == .blur_y) {
                 // 传递模糊参数
                 const uniforms: BlurUniforms = .{
                     .blur_intensity = -slide_value, // 从负数转换而来
                     .texel_size = .{ texel_size_w, texel_size_h },
-                    .direction = if (pl.effect == .BlurX) hor_float2 else ver_float2, // 横向或纵向模糊
+                    .direction = if (pl.effect == .blur_x) hor_float2 else ver_float2, // 横向或纵向模糊
                 };
-                c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &uniforms, @sizeOf(BlurUniforms));
+                c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &uniforms, @sizeOf(BlurUniforms));
             }
 
             // 绘制管线内容
             pl.draw();
+            pl.end();
             // 乒乓交换：把这一轮的输出 dst，作为下一轮的输入 src
-            const temp = tex_src;
+            const tmp = tex_src;
             tex_src = tex_dst;
-            tex_dst = temp;
+            tex_dst = tmp;
         }
 
         // 获取当前帧的 Swapchain 纹理
         var swapchain_texture: ?*c.SDL_GPUTexture = null;
-        if (c.SDL_WaitAndAcquireGPUSwapchainTexture(render_cmd_buf, window.sdl_window, @constCast(&swapchain_texture), null, null)) {
+        if (c.SDL_WaitAndAcquireGPUSwapchainTexture(cmd_buf, window.sdl_window, @constCast(&swapchain_texture), null, null)) {
             if (swapchain_texture != null) {
-                // 用 SDL_GPUBlitInfo 直接将 tex_src 贴到屏幕，更加高效但无法渲染棋盘格
                 {
+                    // 用 SDL_GPUBlitInfo 直接将 tex_src 贴到屏幕，更加高效但无法渲染棋盘格
                     // const blit_info: c.SDL_GPUBlitInfo = .{
                     //     .source = .{
                     //         .texture = tex_src,
@@ -467,35 +461,36 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                     // };
                     // c.SDL_BlitGPUTexture(render_cmd_buf, &blit_info);
                 }
-                // 开启渲染通道
-                onscreen.begin(swapchain_texture, render_cmd_buf);
+                // 开启屏幕渲染
+                try onscreen.begin(cmd_buf, swapchain_texture);
                 // 绘制棋盘格
-                checkerboard.bind(onscreen.render_pass);
-                checkerboard.draw(onscreen.render_pass);
-                // 渲染到屏幕（内容 + 后处理 + 棋盘格）
+                checkerboard.bind(onscreen.render_pass); // 绑定到屏幕通道
+                checkerboard.draw();
+                // 重新绑定屏幕管线，绘制内容（图片 + 后处理）
+                onscreen.bind();
                 onscreen.draw(tex_src, sampler);
+                // 在屏幕之上继续添加新内容
                 if (marker_pos) |pos| {
                     // 绘制标记
                     marker_pl.bind(onscreen.render_pass);
                     // 传递标记位置
                     const marker_uniforms: MarkerUniforms = .fromScreen(pos.x, pos.y, image.width, image.height);
-                    marker_pl.pushVertexUniforms(render_cmd_buf, 0, &marker_uniforms, @sizeOf(MarkerUniforms));
+                    marker_pl.pushVertexUniforms(cmd_buf, 0, &marker_uniforms, @sizeOf(MarkerUniforms));
                     // 绘制标记
-                    marker_pl.draw(onscreen.render_pass);
+                    marker_pl.draw();
                 }
-                // 在屏幕之上继续添加新内容
                 if (is_busy) {
                     // 添加忙雾
-                    busy_fog_pl.bindWithPass(onscreen.render_pass, swapchain_texture, sampler, &vertices_binding);
+                    busy_fog_pl.bindScreen(onscreen.render_pass, swapchain_texture, sampler, &vertices_binding);
                     const busy_fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(c.SDL_GetTicks())) * delta.valueAsF32() };
-                    c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &busy_fog_uniforms, @sizeOf(FogUniforms));
-                    busy_fog_pl.drawWithPass(onscreen.render_pass);
+                    c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &busy_fog_uniforms, @sizeOf(FogUniforms));
+                    busy_fog_pl.draw();
                 }
                 onscreen.end();
             }
         }
         // 提交绘制命令，渲染到屏幕
-        _ = c.SDL_SubmitGPUCommandBuffer(render_cmd_buf);
+        if (!h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf))) return Error.SdlSubmitGPUCommandBufferFailed;
 
         // 处理截图保存和复制
         if (save_screenshot or copy_screenshot) {

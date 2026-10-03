@@ -7,6 +7,7 @@ const Self = @This();
 
 device: *c.SDL_GPUDevice,
 sdl_pipeline: *c.SDL_GPUGraphicsPipeline,
+render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(device: *c.SDL_GPUDevice, window: *c.SDL_Window, sharders: ShaderPair) Error!Self {
     // 构造管线
@@ -42,18 +43,19 @@ pub fn deinit(self: *Self) void {
     c.SDL_ReleaseGPUGraphicsPipeline(self.device, self.sdl_pipeline);
 }
 
-pub fn bind(self: *Self, render_pass: ?*c.SDL_GPURenderPass) void {
+pub fn bind(self: *Self, render_pass: *c.SDL_GPURenderPass) void {
     c.SDL_BindGPUGraphicsPipeline(render_pass, self.sdl_pipeline);
+    self.render_pass = render_pass;
 }
 
-pub fn pushVertexUniforms(_: *const Self, command_buffer: ?*c.SDL_GPUCommandBuffer, slot_index: u32, data: ?*const anyopaque, length: u32) void {
-    c.SDL_PushGPUVertexUniformData(command_buffer, slot_index, data, length);
+pub fn pushVertexUniforms(_: *const Self, cmd_buf: ?*c.SDL_GPUCommandBuffer, slot_index: u32, data: ?*const anyopaque, length: u32) void {
+    c.SDL_PushGPUVertexUniformData(cmd_buf, slot_index, data, length);
 }
 
-pub fn draw(_: *Self, render_pass: ?*c.SDL_GPURenderPass) void {
-    c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
+pub fn draw(self: *Self) void {
+    c.SDL_DrawGPUPrimitives(self.render_pass, 6, 1, 0, 0);
 }
 
-pub fn end(_: *Self, render_pass: ?*c.SDL_GPURenderPass) void {
-    c.SDL_EndGPURenderPass(render_pass);
+pub fn end(self: *Self) void {
+    c.SDL_EndGPURenderPass(self.render_pass);
 }

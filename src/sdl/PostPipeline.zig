@@ -7,13 +7,13 @@ const Self = @This();
 
 // 功能类型枚举
 const EffectType = enum {
-    Sharpen, // 锐化
-    BlurX, // 横向模糊
-    BlurY, // 纵向模糊
-    BusyFog, // 忙碌雾气
-    mask,
-    custom,
-    marker,
+    sharpen, // 锐化
+    blur_x, // 横向模糊
+    blur_y, // 纵向模糊
+    busy_fog, // 忙碌雾气
+    mask, // 遮罩
+    marker, // 标记
+    custom, // 自定义
 };
 
 pub const Builder = struct {
@@ -80,10 +80,10 @@ pub fn deinit(self: *Self, device: *c.SDL_GPUDevice) void {
 
 pub fn bind(
     self: *Self,
+    cmd_buf: *c.SDL_GPUCommandBuffer,
     tex_dst: ?*c.SDL_GPUTexture,
     tex_src: ?*c.SDL_GPUTexture,
     sampler: ?*c.SDL_GPUSampler,
-    render_cmd_buf: ?*c.SDL_GPUCommandBuffer,
     vertex_binding: *const c.SDL_GPUBufferBinding,
 ) void {
     const color_target: c.SDL_GPUColorTargetInfo = .{
@@ -93,7 +93,7 @@ pub fn bind(
         .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
     };
     // 开始渲染通道
-    self.render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
+    self.render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null);
     // 绑定顶点缓冲区
     c.SDL_BindGPUVertexBuffers(self.render_pass, 0, vertex_binding, 1);
     // 绑定管线
@@ -106,13 +106,13 @@ pub fn bind(
     c.SDL_BindGPUFragmentSamplers(self.render_pass, 0, &sampler_bind, 1);
 }
 
-pub fn bindMask(
+pub fn bindWithMaskTex(
     self: *Self,
+    cmd_buf: *c.SDL_GPUCommandBuffer,
     tex_dst: ?*c.SDL_GPUTexture,
     tex_src: ?*c.SDL_GPUTexture,
     tex_mask: ?*c.SDL_GPUTexture,
     sampler: ?*c.SDL_GPUSampler,
-    render_cmd_buf: ?*c.SDL_GPUCommandBuffer,
     vertex_binding: *const c.SDL_GPUBufferBinding,
 ) void {
     const color_target: c.SDL_GPUColorTargetInfo = .{
@@ -122,7 +122,7 @@ pub fn bindMask(
         .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
     };
     // 开始渲染通道
-    self.render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
+    self.render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null);
     // 绑定顶点缓冲区
     c.SDL_BindGPUVertexBuffers(self.render_pass, 0, vertex_binding, 1);
     // 绑定管线
@@ -136,30 +136,30 @@ pub fn bindMask(
 }
 
 pub fn draw(self: *const Self) void {
-    // 这里可以添加任何在渲染结束时需要执行的操作
     c.SDL_DrawGPUPrimitives(self.render_pass, 6, 1, 0, 0);
+}
+
+pub fn end(self: *Self) void {
     c.SDL_EndGPURenderPass(self.render_pass);
 }
 
-pub fn bindWithPass(
+// 从外部传入 render_pass
+pub fn bindScreen(
     self: *Self,
     render_pass: ?*c.SDL_GPURenderPass,
-    tex_src: ?*c.SDL_GPUTexture,
+    swapchain_texture: ?*c.SDL_GPUTexture,
     sampler: ?*c.SDL_GPUSampler,
     vertex_binding: *const c.SDL_GPUBufferBinding,
 ) void {
+    self.render_pass = render_pass;
     // 绑定顶点缓冲区
     c.SDL_BindGPUVertexBuffers(render_pass, 0, vertex_binding, 1);
     // 绑定管线
     c.SDL_BindGPUGraphicsPipeline(render_pass, self.pipeline);
     const sampler_bind: c.SDL_GPUTextureSamplerBinding = .{
-        .texture = tex_src,
+        .texture = swapchain_texture,
         .sampler = sampler,
     };
     // 绑定采样器
     c.SDL_BindGPUFragmentSamplers(render_pass, 0, &sampler_bind, 1);
-}
-
-pub fn drawWithPass(_: *const Self, render_pass: ?*c.SDL_GPURenderPass) void {
-    c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
 }

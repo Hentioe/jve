@@ -7,7 +7,7 @@ const Window = @import("window.zig");
 const Self = @This();
 
 pipeline: *c.SDL_GPUGraphicsPipeline,
-render_pass: ?*c.SDL_GPURenderPass = undefined,
+render_pass: *c.SDL_GPURenderPass = undefined,
 
 pub fn init(
     device: *c.SDL_GPUDevice,
@@ -30,18 +30,21 @@ pub fn init(
     };
 }
 
-pub fn begin(self: *Self, swapchain_texture: ?*c.SDL_GPUTexture, render_cmd_buf: ?*c.SDL_GPUCommandBuffer) void {
+pub fn begin(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, swapchain_texture: ?*c.SDL_GPUTexture) Error!void {
     const color_target: c.SDL_GPUColorTargetInfo = .{
         .texture = swapchain_texture,
         .load_op = c.SDL_GPU_LOADOP_CLEAR,
         .store_op = c.SDL_GPU_STOREOP_STORE,
         .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0 },
     };
-    self.render_pass = c.SDL_BeginGPURenderPass(render_cmd_buf, &color_target, 1, null);
+    self.render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null) orelse return Error.SdlBeginRenderPassFailed;
+}
+
+pub fn bind(self: *Self) void {
+    c.SDL_BindGPUGraphicsPipeline(self.render_pass, self.pipeline);
 }
 
 pub fn draw(self: *Self, tex_src: ?*c.SDL_GPUTexture, sampler: ?*c.SDL_GPUSampler) void {
-    c.SDL_BindGPUGraphicsPipeline(self.render_pass, self.pipeline);
     const sampler_binding: c.SDL_GPUTextureSamplerBinding = .{
         .texture = tex_src,
         .sampler = sampler,

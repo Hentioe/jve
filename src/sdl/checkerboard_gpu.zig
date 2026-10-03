@@ -5,7 +5,11 @@ const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Self = @This();
 
+device: *c.SDL_GPUDevice,
 pipeline: *c.SDL_GPUGraphicsPipeline,
+vert_shader: *c.SDL_GPUShader,
+frag_shader: *c.SDL_GPUShader,
+render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(device: *c.SDL_GPUDevice, window: *Window) Error!Self {
     // 构造棋盘格管线
@@ -20,15 +24,26 @@ pub fn init(device: *c.SDL_GPUDevice, window: *Window) Error!Self {
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
     };
     return Self{
+        .device = device,
         .pipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse unreachable,
+        .vert_shader = vert_shader,
+        .frag_shader = frag_shader,
     };
 }
 
-pub fn bind(self: *const Self, render_pass: ?*c.SDL_GPURenderPass) void {
-    c.SDL_BindGPUGraphicsPipeline(render_pass, self.pipeline);
+pub fn deinit(self: *Self) void {
+    c.SDL_ReleaseGPUGraphicsPipeline(self.device, self.pipeline);
+    c.SDL_ReleaseGPUShader(self.device, self.vert_shader);
+    c.SDL_ReleaseGPUShader(self.device, self.frag_shader);
+    self.* = undefined;
 }
 
-pub fn draw(_: *const Self, render_pass: ?*c.SDL_GPURenderPass) void {
+pub fn bind(self: *Self, render_pass: *c.SDL_GPURenderPass) void {
+    c.SDL_BindGPUGraphicsPipeline(render_pass, self.pipeline);
+    self.render_pass = render_pass;
+}
+
+pub fn draw(self: *const Self) void {
     // 绘制 3 个顶点覆盖整个屏幕
-    c.SDL_DrawGPUPrimitives(render_pass, 3, 1, 0, 0);
+    c.SDL_DrawGPUPrimitives(self.render_pass, 3, 1, 0, 0);
 }
