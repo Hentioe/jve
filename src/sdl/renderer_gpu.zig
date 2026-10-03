@@ -293,38 +293,19 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         defer action = .none; // 重置动作
         if (is_busy) dirty = true; // 繁忙的时候，渲染总是脏的状态（刷新迷雾动画）
 
-        // 将事件映射为动作
-        while (c.SDL_PollEvent(&event)) {
-            if (event.type == c.SDL_EVENT_QUIT) {
-                action = .quit;
-            } else if (isToggleEvent(event)) {
-                action = .toggle;
-            } else if (event.key.key == leader.key) {
-                action = .{ .leader = event.type };
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
-                action = .reset;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !leader.pressed) { // R 键反转颜色
-                action = .invert;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
-                action = .grayscale;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
-                action = .save_screenshot;
-            } else if (leader.pressedAndKeyDown(event, c.SDLK_R) and !is_busy) { // Leader+R 去除背景
-                action = .start_task;
-            } else if (leader.pressedAndKeyDown(event, c.SDLK_T)) { // Leader+T 切换自定义着色器的启用状态
-                action = .toggle_custom_shader;
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
-                action = .copy_screenshot;
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节开始
-                action = .{ .slide_start = .{ .button = event.button.button } };
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节结束
-                action = .{ .slide_stop = .{ .button = event.button.button } };
-            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and is_sliding) { // 滑动中
-                handleSlidingEvent(event, &action);
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) { // 鼠标左键单击，获取位置
-                action = .{ .marker = .{ .x = event.button.x, .y = event.button.y } };
-            }
+        // 动作的依赖项
+        const action_deps: ActionDeps = .{
+            .leader = &leader,
+            .is_sliding = is_sliding,
+            .is_busy = is_busy,
+        };
+        if (!dirty) {
+            var wait_event: c.SDL_Event = undefined;
+            if (c.SDL_WaitEvent(&wait_event)) updateActionFromEvent(&action, wait_event, action_deps);
+            delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
+        // 从事件中更新动作
+        while (c.SDL_PollEvent(&event)) updateActionFromEvent(&action, event, action_deps);
 
         // 根据动作修改状态
         switch (action) {
@@ -557,6 +538,44 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     } else {
         return .quit;
     };
+}
+
+const ActionDeps = struct {
+    leader: *LeaderKey,
+    is_sliding: bool,
+    is_busy: bool,
+};
+
+fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionDeps) void {
+    if (event.type == c.SDL_EVENT_QUIT) {
+        action.* = .quit;
+    } else if (isToggleEvent(event)) {
+        action.* = .toggle;
+    } else if (event.key.key == deps.leader.key) {
+        action.* = .{ .leader = event.type };
+    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
+        action.* = .reset;
+    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !deps.leader.pressed) { // R 键反转颜色
+        action.* = .invert;
+    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
+        action.* = .grayscale;
+    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
+        action.* = .save_screenshot;
+    } else if (deps.leader.pressedAndKeyDown(event, c.SDLK_R) and !deps.is_busy) { // Leader+R 去除背景
+        action.* = .start_task;
+    } else if (deps.leader.pressedAndKeyDown(event, c.SDLK_T)) { // Leader+T 切换自定义着色器的启用状态
+        action.* = .toggle_custom_shader;
+    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
+        action.* = .copy_screenshot;
+    } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节开始
+        action.* = .{ .slide_start = .{ .button = event.button.button } };
+    } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_MIDDLE) { // 横向调节结束
+        action.* = .{ .slide_stop = .{ .button = event.button.button } };
+    } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and deps.is_sliding) { // 滑动中
+        handleSlidingEvent(event, action);
+    } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) { // 鼠标左键单击，获取位置
+        action.* = .{ .marker = .{ .x = event.button.x, .y = event.button.y } };
+    }
 }
 
 // 是否是切换事件
