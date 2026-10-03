@@ -99,7 +99,6 @@ pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
 
 pub fn imageSizeUpdated(self: *Self, new_width: i32, new_height: i32) void {
     if (new_width != self.image_width and new_height != self.image_height) {
-        std.log.info("new_width: {d}, new_height: {d}", .{ new_width, new_height });
         self.image_width = new_width;
         self.image_height = new_height;
     }

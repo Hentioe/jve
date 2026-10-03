@@ -75,32 +75,19 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
         delta.update();
         // std.log.info("delta: {}, fps: {}", .{ delta.value, delta.fps });
         defer action = .none; // 重置动作
-        // 判断事件的动作类型
-        while (c.SDL_PollEvent(&event)) {
-            if (event.key.key == leader.key) {
-                action = .{ .leader = event.type };
-            } else if (isQuitEvent(event)) {
-                action = .quit;
-            } else if (isToggleEvent(event, &dst_rect)) {
-                action = .toggle;
-            } else if (isDragStartEvent(event, &dst_rect)) {
-                action = .{ .drag_start = .{ .button_x = event.button.x, .button_y = event.button.y } };
-            } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_LEFT) {
-                action = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
-            } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and is_dragging) {
-                handleDragingEvent(event, &action);
-            } else if (isRotateEvent(event)) {
-                action = .{ .rotate = .{ .key = event.key.key } };
-            } else if (leader.pressedAndKeyDown(event, c.SDLK_D)) {
-                action = .delete;
-            } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and (c.SDL_GetModState() & c.SDL_KMOD_CTRL) != 0) {
-                action = .{ .scale = .{ .wheel_y = event.wheel.y } };
-            } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL) {
-                action = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
-            } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) {
-                action = .reset;
-            }
+        // 动作的依赖项
+        const action_deps: ActionDeps = .{
+            .leader = &leader,
+            .dst_rect = &dst_rect,
+            .is_dragging = is_dragging,
+        };
+        if (!dirty) {
+            var wait_event: c.SDL_Event = undefined;
+            if (c.SDL_WaitEvent(&wait_event)) updateActionFromEvent(&action, wait_event, action_deps);
+            delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
+        // 从事件中更新动作
+        while (c.SDL_PollEvent(&event)) updateActionFromEvent(&action, event, action_deps);
 
         // 根据动作修改状态
         switch (action) {
@@ -201,7 +188,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 }
             }
             dirty = scale.state == .running or angle.state == .running; // 如果没有动画了，停止运动
-            std.log.debug("current_scale: {any}, target_scale: {any}, diff: {d}", .{ scale.current, scale.target, scale.target - scale.current });
+            std.log.debug("current_scale: {d}, target_scale: {d}, diff: {d}", .{ scale.current, scale.target, scale.target - scale.current });
             const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * scale.current);
             const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * scale.current);
             calculateDstRect(&dst_rect, window, new_width, new_height, move_offset);
@@ -221,6 +208,38 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     try state.stopRendering();
 
     return if (toggle) .toggle else .quit;
+}
+
+const ActionDeps = struct {
+    leader: *LeaderKey,
+    dst_rect: *c.SDL_FRect,
+    is_dragging: bool,
+};
+
+fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionDeps) void {
+    if (event.key.key == deps.leader.key) {
+        action.* = .{ .leader = event.type };
+    } else if (isQuitEvent(event)) {
+        action.* = .quit;
+    } else if (isToggleEvent(event, deps.dst_rect)) {
+        action.* = .toggle;
+    } else if (isDragStartEvent(event, deps.dst_rect)) {
+        action.* = .{ .drag_start = .{ .button_x = event.button.x, .button_y = event.button.y } };
+    } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_LEFT) {
+        action.* = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
+    } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and deps.is_dragging) {
+        handleDragingEvent(event, action);
+    } else if (isRotateEvent(event)) {
+        action.* = .{ .rotate = .{ .key = event.key.key } };
+    } else if (deps.leader.pressedAndKeyDown(event, c.SDLK_D)) {
+        action.* = .delete;
+    } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and (c.SDL_GetModState() & c.SDL_KMOD_CTRL) != 0) {
+        action.* = .{ .scale = .{ .wheel_y = event.wheel.y } };
+    } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL) {
+        action.* = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
+    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) {
+        action.* = .reset;
+    }
 }
 
 inline fn check(ok: bool) void {

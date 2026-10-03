@@ -25,6 +25,12 @@ pub fn update(self: *Self) void {
     self.last_counter = now;
 }
 
+pub fn reset(self: *Self) void {
+    self.value = 0;
+    self.fps = 0;
+    self.last_counter = c.SDL_GetPerformanceCounter();
+}
+
 // 返回 f32 类型的 value
 pub fn valueAsF32(self: *Self) f32 {
     return @floatCast(self.value);
