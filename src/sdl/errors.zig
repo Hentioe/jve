@@ -14,6 +14,7 @@ pub const SdlError = error{
     SdlCreateRendererFailed,
     SdlCreateTextureFailed,
     SdlCreateGPUTextureFailed,
+    SdlCreateGPUBufferFailed,
     SdlCreateGPUTransferBufferFailed,
     SdlAcquireGPUCommandBufferFailed,
     SdlBeginGPUCopyPassFailed,

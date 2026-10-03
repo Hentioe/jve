@@ -67,7 +67,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var uploader = Uploader.init(allocator, device);
     defer uploader.deinit();
 
-    // --- 纹理 (Texture)---
+    // --- 纹理 (Texture) ---
     const texture_info = c.SDL_GPUTextureCreateInfo{
         .type = c.SDL_GPU_TEXTURETYPE_2D,
         .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 对应常见的 RGBA8888 像素格式
@@ -77,15 +77,15 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
+    // 上传纹理
     const texture = try uploader.uploadTexture(
         &texture_info,
         image.pixels_ptr,
         try Size(u32).fromI32(image.width, image.height),
     );
-    try uploader.submit(); // 提交上传
 
     // --- 顶点 (Vertex) ---
-    // 1. 创建顶点：铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
+    // 铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
     const verts: [6]Vertex = .{
         // 三角形 1
         .{ .x = -1.0, .y = 1.0, .z = 0.0, .u = 0.0, .v = 0.0 }, // 左上
@@ -96,29 +96,15 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .{ .x = 1.0, .y = -1.0, .z = 0.0, .u = 1.0, .v = 1.0 }, // 右下
         .{ .x = -1.0, .y = -1.0, .z = 0.0, .u = 0.0, .v = 1.0 }, // 左下
     };
-    const verts_size = @sizeOf(Vertex) * verts.len;
-    // 2. 将顶点上传到 GPU Buffer
-    // 创建 GPU Buffer
-    const verts_buffer_info = c.SDL_GPUBufferCreateInfo{ .usage = c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
-    const verts_buffer = c.SDL_CreateGPUBuffer(device, &verts_buffer_info);
-    defer c.SDL_ReleaseGPUBuffer(device, verts_buffer);
-    const verts_binding: c.SDL_GPUBufferBinding = .{ .buffer = verts_buffer, .offset = 0 }; // 顶点绑定
-    // 通过 TransferBuffer 将顶点复制到 GPU Buffer
-    const verts_transfer_info = c.SDL_GPUTransferBufferCreateInfo{ .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = verts_size };
-    const verts_transfer_buf = c.SDL_CreateGPUTransferBuffer(device, &verts_transfer_info);
-    // verts_transfer_buf 的释放放在后面
-    const verts_map_ptr = c.SDL_MapGPUTransferBuffer(device, verts_transfer_buf, false);
-    _ = c.SDL_memcpy(verts_map_ptr, @ptrCast(&verts), verts_size);
-    c.SDL_UnmapGPUTransferBuffer(device, verts_transfer_buf);
-    // 3. 提交上传指令
-    const verts_cmd_buf = c.SDL_AcquireGPUCommandBuffer(device);
-    const verts_copy_pass = c.SDL_BeginGPUCopyPass(verts_cmd_buf);
-    const src = c.SDL_GPUTransferBufferLocation{ .transfer_buffer = verts_transfer_buf, .offset = 0 };
-    const dst = c.SDL_GPUBufferRegion{ .buffer = verts_buffer, .offset = 0, .size = verts_size };
-    c.SDL_UploadToGPUBuffer(verts_copy_pass, &src, &dst, false);
-    c.SDL_EndGPUCopyPass(verts_copy_pass);
-    _ = c.SDL_SubmitGPUCommandBuffer(verts_cmd_buf);
-    c.SDL_ReleaseGPUTransferBuffer(device, verts_transfer_buf); // 释放传输缓存
+    // 上传顶点
+    const vertices_size = @sizeOf(Vertex) * verts.len;
+    const vertices_buffer_info = c.SDL_GPUBufferCreateInfo{ .usage = c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = vertices_size };
+    const vertices_buffer = try uploader.uploadBuffer(&vertices_buffer_info, @ptrCast(&verts), vertices_size);
+    defer c.SDL_ReleaseGPUBuffer(device, vertices_buffer);
+    const vertices_binding: c.SDL_GPUBufferBinding = .{ .buffer = vertices_buffer, .offset = 0 }; // 顶点绑定
+
+    // 一次性提交纹理与顶点上传
+    try uploader.submit();
 
     // --- 纹理采样器 (Sampler) ---
     // 创建采样器
@@ -380,7 +366,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         // 绑定图形管线
         c.SDL_BindGPUGraphicsPipeline(render_pass, base_pl);
         // 绑定顶点缓冲区
-        c.SDL_BindGPUVertexBuffers(render_pass, 0, &verts_binding, 1);
+        c.SDL_BindGPUVertexBuffers(render_pass, 0, &vertices_binding, 1);
         // 绑定图像的像素纹理以及采样器
         c.SDL_BindGPUFragmentSamplers(render_pass, 0, &tex_binding, 1);
         // 准备要传递的参数
@@ -430,9 +416,9 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             if (pl.effect == .mask and tex_mask == null) continue; // 没有有效的 mask，跳过
             // 绑定管线
             if (pl.effect == .mask) {
-                pl.bindMask(tex_dst, tex_src, tex_mask, sampler, render_cmd_buf, &verts_binding);
+                pl.bindMask(tex_dst, tex_src, tex_mask, sampler, render_cmd_buf, &vertices_binding);
             } else {
-                pl.bind(tex_dst, tex_src, sampler, render_cmd_buf, &verts_binding);
+                pl.bind(tex_dst, tex_src, sampler, render_cmd_buf, &vertices_binding);
             }
             if (pl.effect == .Sharpen) {
                 // 传递锐化参数
@@ -500,7 +486,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 // 在屏幕之上继续添加新内容
                 if (is_busy) {
                     // 添加忙雾
-                    busy_fog_pl.bindWithPass(onscreen.render_pass, swapchain_texture, sampler, &verts_binding);
+                    busy_fog_pl.bindWithPass(onscreen.render_pass, swapchain_texture, sampler, &vertices_binding);
                     const busy_fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(c.SDL_GetTicks())) * delta.valueAsF32() };
                     c.SDL_PushGPUFragmentUniformData(render_cmd_buf, 0, &busy_fog_uniforms, @sizeOf(FogUniforms));
                     busy_fog_pl.drawWithPass(onscreen.render_pass);
