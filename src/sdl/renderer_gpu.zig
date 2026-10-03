@@ -191,7 +191,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     defer c.SDL_ReleaseGPUShader(device, blur_frag_shader);
     var blur_x_pl = try pl_builder.build(.blur_x, .{ .vert = vert_shader, .frag = blur_frag_shader });
     var blur_y_pl = try pl_builder.build(.blur_y, .{ .vert = vert_shader, .frag = blur_frag_shader });
-    const busy_fog_frag_shader = try shader_loader.load(device, @embedFile("busy_fog.frag.spv"), "main", .fragment, 1, 1);
+    const busy_fog_frag_shader = try shader_loader.load(device, @embedFile("busy_fog.frag.spv"), "main", .fragment, 0, 1);
     defer c.SDL_ReleaseGPUShader(device, busy_fog_frag_shader);
     var busy_fog_pl = try pl_builder.build(.busy_fog, .{ .vert = vert_shader, .frag = busy_fog_frag_shader });
     const mask_frag_shader = try shader_loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, 2, 0);
@@ -391,10 +391,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                     tex_mask = created;
                     task = null;
                     is_busy = false;
-                    dirty = false;
                 } else |err| {
                     std.log.err("Failed to create GPU texture: {}", .{err});
                 }
+                dirty = false;
                 t.finish();
                 std.log.info("Task result read complete", .{});
             }
@@ -480,9 +480,9 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                     marker_pl.draw();
                 }
                 if (is_busy) {
-                    // 添加忙雾
-                    busy_fog_pl.bindScreen(onscreen.render_pass, swapchain_texture, sampler, &vertices_binding);
-                    const busy_fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(c.SDL_GetTicks())) * delta.valueAsF32() };
+                    // 添加忙雾（不采样纹理，仅使用 uniform）
+                    busy_fog_pl.bindScreen(onscreen.render_pass, &vertices_binding);
+                    const busy_fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(c.SDL_GetTicks())) / 1000.0 };
                     c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &busy_fog_uniforms, @sizeOf(FogUniforms));
                     busy_fog_pl.draw();
                 }

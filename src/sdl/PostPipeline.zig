@@ -143,12 +143,10 @@ pub fn end(self: *Self) void {
     c.SDL_EndGPURenderPass(self.render_pass);
 }
 
-// 从外部传入 render_pass
+/// 从外部传入 render_pass（不使用采样器）
 pub fn bindScreen(
     self: *Self,
     render_pass: ?*c.SDL_GPURenderPass,
-    swapchain_texture: ?*c.SDL_GPUTexture,
-    sampler: ?*c.SDL_GPUSampler,
     vertex_binding: *const c.SDL_GPUBufferBinding,
 ) void {
     self.render_pass = render_pass;
@@ -156,10 +154,4 @@ pub fn bindScreen(
     c.SDL_BindGPUVertexBuffers(render_pass, 0, vertex_binding, 1);
     // 绑定管线
     c.SDL_BindGPUGraphicsPipeline(render_pass, self.pipeline);
-    const sampler_bind: c.SDL_GPUTextureSamplerBinding = .{
-        .texture = swapchain_texture,
-        .sampler = sampler,
-    };
-    // 绑定采样器
-    c.SDL_BindGPUFragmentSamplers(render_pass, 0, &sampler_bind, 1);
 }
