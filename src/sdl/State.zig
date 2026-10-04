@@ -90,7 +90,7 @@ pub fn startRendering(self: *Self, image: *const Loaded, backend: Backend) Error
             self.allocator,
             image.width,
             image.height,
-            .{ .has_border = false, .backend = backend },
+            .{ .windowed = false, .backend = backend },
         );
         const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse {
             h.printError();
@@ -152,9 +152,12 @@ pub fn startRendering(self: *Self, image: *const Loaded, backend: Backend) Error
     self.current_backend = backend;
 
     if (self.current_backend == .sdl_renderer) {
-        if (self.window) |w| try w.show();
+        if (self.window) |window| try window.show();
     } else if (self.current_backend == .sdl_gpu) {
-        if (self.gpu_window) |w| try w.show();
+        if (self.gpu_window) |window| {
+            window.imageSizeUpdated(image.width, image.height); // 显示前更新窗口中的图片尺寸
+            try window.show();
+        }
     }
 }
 
@@ -203,7 +206,7 @@ pub fn readTexture(self: *Self, renderer: *c.SDL_Renderer) Error!?*c.SDL_Texture
         ))) return Error.SdlUpdateTextureFailed;
 
         return texture;
-    } else {
-        return null;
     }
+
+    return null;
 }

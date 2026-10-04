@@ -227,7 +227,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             window.imageSizeUpdated(new_width, new_height);
         }
         const render_angle: f64 = if (slide.isRunning()) slide.angle else spin.current;
-        const alpha: u8 = if (window.has_border) 255 else 60; // 根据边框模式设置背景透明度
+        const alpha: u8 = if (window.windowed) 255 else 60; // 根据边框模式设置背景透明度
         check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
         check(c.SDL_RenderClear(renderer));
         check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, render_angle, null, c.SDL_FLIP_NONE));
