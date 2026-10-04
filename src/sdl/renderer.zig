@@ -65,7 +65,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     // 其它控制常量
     const max_scale = config.get().max_scale;
     const min_scale = config.get().min_scale;
-    const switch_animation = true; // 切换图片时是否播放侧滑自旋动画；为 false 则原位直接替换
+    const slide_animation = config.get().animation.image_switch; // 切换图片时是否播放侧滑自旋动画；为 false 则原位直接替换
     // 其它控制参数
     var leader = LeaderKey.init(c.SDLK_LALT); // Leader 键
     var is_dragging: bool = false; // 是否正在拖动
@@ -163,7 +163,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                     c.SDL_DestroyTexture(texture);
                     texture = try createTexture(renderer, &current_loaded);
                 }
-                if (switch_animation) {
+                if (slide_animation) {
                     // 从屏幕外滑入：下一张自左侧边缘（顺时针），上一张自右侧边缘（逆时针）
                     const scaled_w: f64 = @as(f64, @floatFromInt(loaded.width)) * scale.current;
                     const window_w: f64 = @floatFromInt(window.display_width);

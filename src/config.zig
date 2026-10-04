@@ -20,6 +20,6 @@ pub fn deinit() void {
     initialized = false;
 }
 
-pub inline fn get() *const loader.Config {
+pub inline fn get() *const loader.MainConfig {
     return cache.get();
 }

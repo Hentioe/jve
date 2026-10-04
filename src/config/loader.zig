@@ -5,20 +5,27 @@ const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 const Error = errors.Error;
 
-pub const Config = struct {
+pub const AnimationConfig = struct {
+    image_switch: bool = true, // 是否启用图片切换动画
+};
+
+pub const MainConfig = struct {
     _base_dir: ?[]const u8 = null, // 基础目录（不可配置，自动设置）
     default_mode: []const u8 = "sdl_gpu", // 默认模式
     min_scale: f32 = 0.5, // 最小缩放倍数
     max_scale: f32 = 3.0, // 最大缩放倍数
     shader_dir: ?[]const u8 = null, // 着色器目录
+    animation: AnimationConfig = .{
+        .image_switch = true,
+    },
 };
 
-// 两种不同途径的配置
-pub const ConfigVariant = union(enum) {
-    parsed: toml.Parsed(Config),
-    owned: Config,
+// 两种不同来源的配置
+pub const FromVariant = union(enum) {
+    parsed: toml.Parsed(MainConfig), // 来自解析器
+    owned: MainConfig, // 来自默认值构造
 
-    pub inline fn get(self: *const ConfigVariant) *const Config {
+    pub inline fn get(self: *const FromVariant) *const MainConfig {
         switch (self.*) {
             .parsed => |*parsed| return &parsed.value,
             .owned => |*owned| return owned,
@@ -28,9 +35,9 @@ pub const ConfigVariant = union(enum) {
 
 pub const Loaded = struct {
     allocator: Allocator,
-    config: ConfigVariant,
+    config: FromVariant,
 
-    pub fn get(self: *const Loaded) *const Config {
+    pub fn get(self: *const Loaded) *const MainConfig {
         return self.config.get();
     }
 
@@ -61,7 +68,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
     if (path) |p| {
         std.log.info("Loading config file: {s}", .{p});
 
-        var parser = toml.Parser(Config).init(allocator);
+        var parser = toml.Parser(MainConfig).init(allocator);
         defer parser.deinit();
 
         var parsed = parser.parseFile(p) catch |err| {
@@ -74,7 +81,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
 
         return Loaded{ .allocator = allocator, .config = .{ .parsed = parsed } };
     } else {
-        const default = Config{};
+        const default = MainConfig{};
         return Loaded{ .allocator = allocator, .config = .{ .owned = default } };
     }
 }

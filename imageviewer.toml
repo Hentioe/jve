@@ -2,3 +2,6 @@ default_mode = "sdl_gpu"
 min_scale = 0.5
 max_scale = 3.0
 shader_dir = "shaders"
+
+[animation]
+image_switch = true
