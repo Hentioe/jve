@@ -50,7 +50,7 @@ pub fn init(allocator: Allocator, file_path: []const u8) Error!void {
     const image = try root.load(allocator, file_path);
     // 输出图像信息
     std.log.info("Current image: {s}", .{base});
-    std.log.info("Image size: {d}x{d}", .{ image.width, image.height });
+    std.log.info("Image shape: {f}", .{image.shape});
     cache = Cache{
         .allocator = allocator,
         .scanner = scanner,

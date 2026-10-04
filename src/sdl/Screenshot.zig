@@ -16,13 +16,7 @@ image: *const LImage,
 
 pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c.SDL_GPUTexture, image: *const LImage) Error!Self {
     // 创建下载器
-    var extractor = Extractor.init( // todo: 重构下载器，init 函数不再传递图片信息
-        allocator,
-        device,
-        image.width,
-        image.height,
-        image.bands,
-    );
+    var extractor = Extractor.init(allocator, device, image.shape);
     errdefer extractor.deinit();
     // 下载纹理
     try extractor.downloadTexture(texture);
@@ -58,9 +52,7 @@ pub fn saveToFile(self: *const Self) void {
     // 写入到文件
     if (writer.savePixelsToFile(
         self.extracted.pixels_slice.ptr,
-        self.image.width,
-        self.image.height,
-        self.image.bands,
+        self.image.shape,
         joined orelse out_filename,
     )) {
         std.log.info("Screenshot saved, size: {d}", .{self.extracted.buffer_size});
@@ -75,13 +67,9 @@ pub fn copyToClipboard(self: *const Self) void {
         std.log.err("Screenshot not downloaded yet", .{});
         return;
     }
+    const pixels_ptr = self.extracted.pixels_slice.ptr;
     // 创建编码器
-    var encoder = writer.Encoder.init(
-        self.extracted.pixels_slice.ptr,
-        self.image.width,
-        self.image.height,
-        self.image.bands,
-    );
+    var encoder = writer.Encoder.init(pixels_ptr, self.image.shape);
     defer encoder.deinit();
     // 编码图片
     if (encoder.encode()) {

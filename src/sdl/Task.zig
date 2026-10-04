@@ -1,13 +1,14 @@
 const std = @import("std");
 const c = @import("c.zig").c;
+const root = @import("../root.zig");
 const atomic = std.atomic;
 const gpu = @import("gpu.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const loader = @import("../vips/loader.zig");
-const structs = @import("structs.zig");
-const Size = structs.Size(u32);
-const Point = structs.Point(f32);
+const IShape = root.IShape;
+const ISize = root.ISize(u32);
+const Point = root.Point(f32);
 const Image = @import("../vips.zig").Image;
 const RenderState = @import("State.zig");
 const Extractor = @import("Extractor.zig");
@@ -15,12 +16,7 @@ const Position = @import("../models/Position.zig");
 const ModelInput = @import("../models/processors/Input.zig");
 const Self = @This();
 
-const Input = struct {
-    width: i32,
-    height: i32,
-    bands: i32,
-    click: ?Point = null,
-};
+const Input = struct { shape: IShape(i32), click: ?Point = null };
 const State = enum(u8) { running, done, failed };
 const Result = struct {
     width: u32,
@@ -65,23 +61,19 @@ fn run(
 ) !void {
     std.log.info("Task is running", .{});
     // 提取像素数据
-    self.extracted = try Extractor.extract(self.allocator, device, texture, input.width, input.height, input.bands);
+    self.extracted = try Extractor.extract(self.allocator, device, texture, input.shape);
     // 初始化模型
     // 如果存在点击座标，则用 MagicTouch 否则用 BiRefNet
     const model: RenderState.Model = if (input.click != null) .MagicTouch else .BiRefNet;
     try render_state.initModel(model);
     const data_ptr = self.extracted.?.pixels_slice.ptr;
-    const u_width: u32 = @intCast(input.width);
-    const u_height: u32 = @intCast(input.height);
-    const u_bands: u32 = @intCast(input.bands);
+    const u_shape = input.shape.to(u32);
     const click_position: ?Position = if (input.click) |click| .{ .x = click.x, .y = click.y } else null;
     // 运行模型推理
     var image: Image = undefined;
     const model_input: ModelInput = .{
         .data_ptr = data_ptr,
-        .width = u_width,
-        .height = u_height,
-        .bands = u_bands,
+        .shape = u_shape,
         .click_position = click_position,
     };
     switch (model) {

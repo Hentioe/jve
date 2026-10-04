@@ -3,17 +3,21 @@ const errors = @import("errors.zig");
 const Backend = @import("sdl/enums.zig").Backend;
 const Allocator = std.mem.Allocator;
 
+pub const structs = @import("structs.zig");
 pub const config = @import("config.zig");
 pub const vips = @import("vips.zig");
 pub const sdl = @import("sdl.zig");
 pub const album = @import("album.zig");
+pub const clipboard = @import("clipboard.zig");
 pub const loader = @import("vips/loader.zig");
 pub const writer = @import("vips/writer.zig");
 pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
 pub const State = @import("sdl/State.zig");
-pub const clipboard = @import("clipboard.zig");
 pub const LoadError = errors.LoadError;
+pub const IShape = structs.IShape;
+pub const ISize = structs.ISize;
+pub const Point = structs.Point;
 
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
     try config.init(allocator, "./imageviewer.toml");

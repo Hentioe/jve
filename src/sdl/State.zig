@@ -3,18 +3,18 @@ const ort = @import("ort");
 const enums = @import("enums.zig");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
-const structs = @import("structs.zig");
-const config = @import("../root.zig").config;
+const root = @import("../root.zig");
+const config = root.config;
 const Api = ort.Api;
 const Allocator = std.mem.Allocator;
 const RwLock = std.Thread.RwLock;
 const Error = @import("errors.zig").Error;
-const LImage = @import("../root.zig").loader.LoadedImage;
-const Size = @import("structs.zig").Size(i32);
+const LImage = root.loader.LoadedImage;
+const IShape = root.IShape;
+const Point = root.Point(f32);
 const Window = @import("window.zig");
 const Shaders = std.ArrayList(*c.SDL_GPUShader);
 const Backend = @import("enums.zig").Backend;
-const Point = structs.Point(f32);
 const Extractor = @import("Extractor.zig");
 const ShaderScanner = @import("ShaderScanner.zig");
 const BiRefNet = @import("../models/BiRefNet.zig");
@@ -24,8 +24,7 @@ const Self = @This();
 pub const Model = enum { BiRefNet, MagicTouch };
 
 allocator: Allocator,
-size: Size,
-bands: i32,
+image_shape: IShape(i32) = undefined,
 target_angle: f64 = 0.0,
 target_scale: f64 = 1.0,
 move_offset: Point = .{},
@@ -42,11 +41,7 @@ birefnet: ?BiRefNet = null,
 magick_touch: ?MagicTouch = null,
 
 pub fn init(allocator: Allocator) Error!Self {
-    return Self{
-        .allocator = allocator,
-        .size = .{ .w = 0, .h = 0 },
-        .bands = 0,
-    };
+    return Self{ .allocator = allocator };
 }
 
 pub fn initModel(self: *Self, model: Model) Error!void {
@@ -85,11 +80,11 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error!void {
+    const image_size = image.shape.toISize(i32);
     if (backend == .sdl_renderer and self.window == null) {
         const window = try Window.create(
             self.allocator,
-            image.width,
-            image.height,
+            image_size,
             .{ .windowed = false, .backend = backend },
         );
         const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse {
@@ -106,8 +101,7 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
         // 创建窗口
         const window = try Window.create(
             self.allocator,
-            image.width,
-            image.height,
+            image_size,
             .{ .backend = .sdl_gpu },
         );
         // 创建 GPU 设备
@@ -147,15 +141,14 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
         self.gpu_window = window;
         self.gpu_device = device;
     }
-    self.size = .{ .w = image.width, .h = image.height };
-    self.bands = image.bands;
+    self.image_shape = image.shape;
     self.current_backend = backend;
 
     if (self.current_backend == .sdl_renderer) {
         if (self.window) |window| try window.show();
     } else if (self.current_backend == .sdl_gpu) {
         if (self.gpu_window) |window| {
-            window.imageSizeUpdated(image.width, image.height); // 显示前更新窗口中的图片尺寸
+            window.imageSizeUpdated(image_size); // 显示前更新窗口中的图片尺寸
             try window.show();
         }
     }
@@ -171,7 +164,7 @@ pub fn stopRendering(self: *Self) Error!void {
 
 pub fn writeTexture(self: *Self, device: *c.SDL_GPUDevice, gpu_texture: ?*c.SDL_GPUTexture) Error!void {
     // 创建提取器
-    var extracted = Extractor.init(self.allocator, device, self.size.w, self.size.h, self.bands);
+    var extracted = Extractor.init(self.allocator, device, self.image_shape);
     // 下载纹理
     try extracted.downloadTexture(gpu_texture);
     // 缓存已下载的内容
@@ -184,15 +177,15 @@ pub fn readTexture(self: *Self, renderer: *c.SDL_Renderer) Error!?*c.SDL_Texture
             extracted.deinit(); // 读取后释放下载数据
             self.extracted = null; // 清除缓存，避免 deinit 重复释放
         }
-        const pitch = self.size.w * self.bands; // 计算 pitch
+        const pitch = self.image_shape.w * self.image_shape.c; // 计算 pitch
         std.log.info("Pitch: {d}", .{pitch});
         // 创建图片纹理
         const texture = c.SDL_CreateTexture(
             renderer,
             c.SDL_PIXELFORMAT_RGBA32,
             c.SDL_TEXTUREACCESS_STATIC,
-            self.size.w,
-            self.size.h,
+            self.image_shape.w,
+            self.image_shape.h,
         );
         if (texture == null) {
             h.printError();

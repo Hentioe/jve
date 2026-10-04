@@ -1,30 +1,26 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const root = @import("../root.zig");
 const writer = @import("../root.zig").writer;
 const Error = @import("errors.zig").Error;
+const IShape = root.IShape;
 const Self = @This();
 
 allocator: std.mem.Allocator,
 device: *c.SDL_GPUDevice,
-width: u32,
-height: u32,
-bands: u32,
+shape: IShape(u32),
 buffer_size: u32,
 pixels_slice: []u8 = undefined,
 downloaded: bool = false,
 
-pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, width: i32, height: i32, bands: i32) Self {
-    const w_u32: u32 = @intCast(width);
-    const h_u32: u32 = @intCast(height);
-    const bands_u32: u32 = @intCast(bands);
+pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, shape: IShape(i32)) Self {
+    const u_shape = shape.to(u32);
     return Self{
         .allocator = allocator,
         .device = device,
-        .width = w_u32,
-        .height = h_u32,
-        .bands = bands_u32,
-        .buffer_size = w_u32 * h_u32 * bands_u32,
+        .shape = u_shape,
+        .buffer_size = u_shape.w * u_shape.h * u_shape.c,
     };
 }
 
@@ -46,15 +42,15 @@ pub fn downloadTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
     const download_pass = c.SDL_BeginGPUCopyPass(cmd_buf);
     const src_region: c.SDL_GPUTextureRegion = .{
         .texture = texture,
-        .w = self.width,
-        .h = self.height,
+        .w = self.shape.w,
+        .h = self.shape.h,
         .d = 1,
     };
     const dst_transfer: c.SDL_GPUTextureTransferInfo = .{
         .transfer_buffer = download_buffer,
         .offset = 0,
-        .pixels_per_row = self.width,
-        .rows_per_layer = self.height,
+        .pixels_per_row = self.shape.w,
+        .rows_per_layer = self.shape.h,
     };
     // 执行下载与复制
     c.SDL_DownloadFromGPUTexture(download_pass, &src_region, &dst_transfer);
@@ -77,15 +73,8 @@ pub fn downloadTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
     self.downloaded = true;
 }
 
-pub fn extract(
-    allocator: std.mem.Allocator,
-    device: *c.SDL_GPUDevice,
-    texture: ?*c.SDL_GPUTexture,
-    width: i32,
-    height: i32,
-    bands: i32,
-) Error!Self {
-    var extractor = Self.init(allocator, device, width, height, bands);
+pub fn extract(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c.SDL_GPUTexture, shape: IShape(i32)) Error!Self {
+    var extractor = Self.init(allocator, device, shape);
     // 立即下载
     try extractor.downloadTexture(texture);
     // 返回提取器

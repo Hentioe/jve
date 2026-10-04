@@ -1,31 +1,4 @@
 const c = @import("c.zig").c;
-const std = @import("std");
-const SizeError = @import("errors.zig").SizeError;
-
-pub fn Size(comptime T: type) type {
-    return struct {
-        w: T,
-        h: T,
-
-        const Self = @This();
-
-        /// 仅适用于 Size(u32)
-        pub fn fromI32(w: i32, h: i32) SizeError!Self {
-            if (T != u32) {
-                @compileError("fromI32 is only available for Size(u32), got Size(" ++ @typeName(T) ++ ")");
-            }
-            if (w < 0 or h < 0) return SizeError.Negative;
-            return .{ .w = @intCast(w), .h = @intCast(h) };
-        }
-    };
-}
-
-pub fn Point(comptime T: type) type {
-    return struct {
-        x: T = std.mem.zeroes(T),
-        y: T = std.mem.zeroes(T),
-    };
-}
 
 // 定义顶点与 UV 坐标
 pub const Vertex = struct {
@@ -54,7 +27,7 @@ pub const BaseUniforms = extern struct {
 // 锐化片段着色器 Uniforms
 pub const SharpenUniforms = extern struct {
     strength: f32,
-    textureSize: [2]f32,
+    texture_size: [2]f32,
     _padding: f32 = 0.0,
 };
 

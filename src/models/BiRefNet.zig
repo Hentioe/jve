@@ -32,11 +32,11 @@ pub fn deinit(self: *Self) void {
 
 pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
     // 打印输入的基本信息
-    std.log.info("Image size: {d}x{d}, bands: {d}", .{ input.width, input.height, input.bands });
+    std.log.info("Image shape: {f}", .{input.shape});
 
     // 前处理：强制 3 通道、缩放、归一化、NCHW 布局
     var preprocessed = try input.preprocess(allocator, .{
-        .forced_bands = 3,
+        .forced_channels = 3,
         .new_size = .{ .w = SIZE, .h = SIZE },
         .normalized = true,
         .new_layout = .NCHW,
@@ -44,9 +44,9 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
     defer preprocessed.deinit();
 
     // 确保图片符合 BiRefNet 模型的输入要求：必须是 3 通道的图像，且宽高为 1024x1024
-    std.debug.assert(preprocessed.bands == 3);
-    std.debug.assert(preprocessed.width == SIZE);
-    std.debug.assert(preprocessed.height == SIZE);
+    std.debug.assert(preprocessed.shape.c == 3);
+    std.debug.assert(preprocessed.shape.w == SIZE);
+    std.debug.assert(preprocessed.shape.h == SIZE);
 
     // 构造输入张量
     const input_shape = [_]i64{ 1, 3, SIZE, SIZE };
@@ -72,15 +72,15 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
     var image = try Output.parse(
         allocator,
         output_ptr,
-        .{ .w = SIZE, .h = SIZE },
-        1,
+        .{ .w = SIZE, .h = SIZE, .c = 1 },
         .FLOAT,
         .NCHW,
         true,
         true,
     );
 
-    try image.resize(@intCast(input.width), @intCast(input.height));
+    const original_size = input.shape.toISize(i32);
+    try image.resize(original_size.w, original_size.h);
     try image.toRgb();
     try image.addAlpha(255.0);
 

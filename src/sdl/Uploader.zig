@@ -3,14 +3,14 @@ const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
-const Size = @import("structs.zig").Size(u32);
+const ISize = @import("../structs.zig").ISize(u32);
 const Self = @This();
 
 /// 内部纹理上传任务记录
 const TextureUploadTask = struct {
     texture: *c.SDL_GPUTexture,
     pixels_ptr: *const anyopaque,
-    size: Size,
+    size: ISize,
     buffer_size: u32,
     aligned_size: u32,
 };
@@ -75,7 +75,7 @@ pub fn uploadTexture(
     self: *Self,
     create_info: *const c.SDL_GPUTextureCreateInfo,
     pixels_ptr: *const anyopaque,
-    size: Size,
+    size: ISize,
 ) Error!*c.SDL_GPUTexture {
     // 1. 创建 GPU 纹理资源
     const texture = c.SDL_CreateGPUTexture(self.device, create_info) orelse return Error.SdlCreateGPUTextureFailed;

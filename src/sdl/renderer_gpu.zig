@@ -23,8 +23,8 @@ const OnscreenPipeline = @import("onscreen_pipeline.zig");
 const Screenshot = @import("Screenshot.zig");
 const RenderNext = @import("enums.zig").RenderNext;
 const Delta = @import("Delta.zig");
-const Size = structs.Size;
-const Point = structs.Point(f32);
+const ISize = root.ISize;
+const Point = root.Point(f32);
 const Vertex = structs.Vertex;
 const BaseUniforms = structs.BaseUniforms;
 const SharpenUniforms = structs.SharpenUniforms;
@@ -69,12 +69,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     defer uploader.deinit();
 
     // --- 纹理 (Texture) ---
+    const texture_size = image.shape.toISize(u32);
     const texture_info = c.SDL_GPUTextureCreateInfo{
         .type = c.SDL_GPU_TEXTURETYPE_2D,
         .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 对应常见的 RGBA8888 像素格式
         .usage = c.SDL_GPU_TEXTUREUSAGE_SAMPLER, // 作为采样器供 Pipeline 渲染
-        .width = @intCast(image.width),
-        .height = @intCast(image.height),
+        .width = texture_size.w,
+        .height = texture_size.h,
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
@@ -82,7 +83,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     const texture = try uploader.uploadTexture(
         &texture_info,
         image.pixels_ptr,
-        try Size(u32).fromI32(image.width, image.height),
+        texture_size,
     );
 
     // --- 顶点 (Vertex) ---
@@ -169,8 +170,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .type = c.SDL_GPU_TEXTURETYPE_2D,
         .format = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 与 Swapchain 格式一致
         .usage = c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | c.SDL_GPU_TEXTUREUSAGE_SAMPLER,
-        .width = @intCast(image.width),
-        .height = @intCast(image.height),
+        .width = texture_size.w,
+        .height = texture_size.h,
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
@@ -245,8 +246,9 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var copy_screenshot = false; // 是否复制截图到剪贴板
     var is_busy = false; // 是否正在繁忙处理
     // 模糊着色器参数
-    const texel_size_w = 1.0 / @as(f32, @floatFromInt(image.width));
-    const texel_size_h = 1.0 / @as(f32, @floatFromInt(image.height));
+    const f_shape = image.shape.to(f32);
+    const texel_size_w = 1.0 / f_shape.w;
+    const texel_size_h = 1.0 / f_shape.h;
     const hor_float2 = .{ 1.0, 0.0 }; // 横方向
     const ver_float2 = .{ 0.0, 1.0 }; // 纵方向
     // 基础着色器控制变量
@@ -311,7 +313,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             .start_task => {
                 if (task == null) {
                     is_busy = true;
-                    if (Task.start(allocator, device, tex_src, state, .{ .width = image.width, .height = image.height, .bands = image.bands, .click = marker_pos })) |t| {
+                    if (Task.start(allocator, device, tex_src, state, .{ .shape = image.shape, .click = marker_pos })) |t| {
                         std.log.info("Task started successfully", .{});
                         task = t;
                     } else |err| {
@@ -404,17 +406,17 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             if (t.poll() == .done) {
                 std.log.info("Task result is reading...", .{});
                 const data_ptr = t.result.?.data_ptr; // 获取遮罩数据指针
-                const size: Size(u32) = .{ .w = t.result.?.width, .h = t.result.?.height };
-                if (gpu.createAndUploadTexture(&uploader, &offscreen_info, data_ptr, size)) |created| {
+                const size: ISize(u32) = .{ .w = t.result.?.width, .h = t.result.?.height };
+                if (gpu.createAndUploadTexture(&uploader, &offscreen_info, data_ptr, size)) |new_mask| {
                     if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex); // 释放旧遮罩纹理
-                    tex_mask = created;
+                    tex_mask = new_mask;
                     task = null;
                     is_busy = false;
                 } else |err| {
                     std.log.err("Failed to create GPU texture: {}", .{err});
                 }
-                dirty = false;
                 t.finish();
+                dirty = false;
                 std.log.info("Task result read complete", .{});
             }
         }
@@ -436,7 +438,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 // 传递锐化参数
                 const uniforms: SharpenUniforms = .{
                     .strength = slide_value,
-                    .textureSize = .{ @floatFromInt(image.width), @floatFromInt(image.height) },
+                    .texture_size = .{ @floatFromInt(image.shape.w), @floatFromInt(image.shape.h) },
                 };
                 c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &uniforms, @sizeOf(SharpenUniforms));
             } else if (pl.effect == .blur_x or pl.effect == .blur_y) {
@@ -493,7 +495,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                     // 绘制标记
                     marker_pl.bind(onscreen.render_pass);
                     // 传递标记位置
-                    const marker_loc_uniforms: MarkerVertUniforms = .fromScreen(pos.x, pos.y, image.width, image.height);
+                    const marker_loc_uniforms: MarkerVertUniforms = .fromScreen(pos.x, pos.y, image.shape.w, image.shape.h);
                     marker_pl.pushVertexUniforms(cmd_buf, 0, &marker_loc_uniforms, @sizeOf(MarkerVertUniforms));
                     // 传递标记大小
                     const marker_size_uniforms: MarkerFragUniforms = .{ .radius = marker_radius, .border_width = 2.0 };

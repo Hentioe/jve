@@ -1,9 +1,11 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const root = @import("../root.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const Backend = @import("enums.zig").Backend;
+const ISize = root.ISize;
 
 const Self = @This();
 
@@ -21,7 +23,7 @@ const Options = struct {
     backend: Backend = .sdl_renderer,
 };
 
-pub fn create(allocator: Allocator, image_width: i32, image_height: i32, options: Options) Error!*Self {
+pub fn create(allocator: Allocator, image_size: ISize(i32), options: Options) Error!*Self {
     // 获取主显示器尺寸
     const display_mode = c.SDL_GetCurrentDisplayMode(c.SDL_GetPrimaryDisplay());
     const display_width = display_mode.*.w;
@@ -38,7 +40,7 @@ pub fn create(allocator: Allocator, image_width: i32, image_height: i32, options
         flags |= c.SDL_WINDOW_BORDERLESS;
         flags |= c.SDL_WINDOW_FULLSCREEN;
     }
-    const sdl_window = c.SDL_CreateWindow("Image Viewer", image_width, image_height, flags) orelse {
+    const sdl_window = c.SDL_CreateWindow("Image Viewer", image_size.w, image_size.h, flags) orelse {
         h.printError();
         return Error.SdlCreateWindowFailed;
     };
@@ -47,8 +49,8 @@ pub fn create(allocator: Allocator, image_width: i32, image_height: i32, options
     self_ptr.* = Self{
         .allocator = allocator,
         .windowed = options.windowed,
-        .image_width = image_width,
-        .image_height = image_height,
+        .image_width = image_size.w,
+        .image_height = image_size.h,
         .display_width = display_width,
         .display_height = display_height,
         .sdl_window = sdl_window,
@@ -91,10 +93,10 @@ pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
     if (!h.check(c.SDL_SetWindowTitle(self.sdl_window, titile))) return Error.SdlSetWindowTitleFailed;
 }
 
-pub fn imageSizeUpdated(self: *Self, width: i32, height: i32) void {
-    if (width != self.image_width and height != self.image_height) {
-        self.image_width = width;
-        self.image_height = height;
+pub fn imageSizeUpdated(self: *Self, size: ISize(i32)) void {
+    if (size.w != self.image_width or size.h != self.image_height) {
+        self.image_width = size.w;
+        self.image_height = size.h;
     }
 }
 

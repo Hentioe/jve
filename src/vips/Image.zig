@@ -2,8 +2,9 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const consts = @import("consts.zig");
-const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
 const Error = @import("errors.zig").Error;
+const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
+const IShape = @import("../structs.zig").IShape;
 const Self = @This();
 
 pub const Format = enum(c_int) {
@@ -28,28 +29,25 @@ pub const Out = struct {
 
 width: i32,
 height: i32,
-bands: i32,
+channels: i32,
 format: Format,
 _in: *c.VipsImage,
 
-pub fn init(input_ptr: *const anyopaque, width: i32, height: i32, bands: i32, format: Format) Error!Self {
-    const format_bytes: usize = if (format == .FLOAT) @sizeOf(f32) else @sizeOf(u8);
-    const u_width: usize = @intCast(width);
-    const u_height: usize = @intCast(height);
-    const u_bands: usize = @intCast(bands);
+pub fn init(input_ptr: *const anyopaque, shape: IShape(i32), format: Format) Error!Self {
+    const byte_size: usize = if (format == .FLOAT) @sizeOf(f32) else @sizeOf(u8);
     const in = c.vips_image_new_from_memory_copy(
         input_ptr,
-        u_width * u_height * u_bands * format_bytes,
-        width,
-        height,
-        bands,
+        shape.calcSize(byte_size),
+        shape.w,
+        shape.h,
+        shape.c,
         @intFromEnum(format),
     ) orelse return Error.VipsImageNewFromMemoryFailed;
 
     return Self{
-        .width = width,
-        .height = height,
-        .bands = bands,
+        .width = shape.w,
+        .height = shape.h,
+        .channels = shape.c,
         .format = format,
         ._in = in,
     };
@@ -77,16 +75,16 @@ pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
     }
 
     // 获取通道数
-    const bands = c.vips_image_get_bands(in);
-    if (bands < 3) {
+    const channels = c.vips_image_get_bands(in);
+    if (channels < 3) {
         c.g_object_unref(in);
-        return Error.UnsupportedBands;
+        return Error.UnsupportedChannels;
     }
 
     var self = Self{
         .width = c.vips_image_get_width(in),
         .height = c.vips_image_get_height(in),
-        .bands = bands,
+        .channels = channels,
         .format = .UCHAR, // 占位，toSrgb 会更新为真实格式
         ._in = in,
     };
@@ -108,7 +106,7 @@ pub fn toSrgb(self: *Self) Error!void {
     self._in = out.?; // 更新为 sRGB 图像
     self.width = c.vips_image_get_width(self._in);
     self.height = c.vips_image_get_height(self._in);
-    self.bands = c.vips_image_get_bands(self._in);
+    self.channels = c.vips_image_get_bands(self._in);
     self.format = try formatFromVips(c.vips_image_get_format(self._in)); // sRGB 后格式通常为 UCHAR
 }
 
@@ -126,7 +124,7 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn removeAlpha(self: *Self) Error!void {
-    if (self.bands != 4) return;
+    if (self.channels != 4) return;
     var out: ?*c.VipsImage = null;
     const white: f64 = if (self.format == .FLOAT) 1.0 else 255.0;
     const bg = c.vips_array_double_newv(3, white, white, white, VIPS_ARGUMENT_NULL);
@@ -136,23 +134,23 @@ pub fn removeAlpha(self: *Self) Error!void {
     }
     c.g_object_unref(self._in); // 释放原始图像
     self._in = out.?; // 更新为去掉 Alpha 通道后的图像
-    self.bands = c.vips_image_get_bands(self._in);
+    self.channels = c.vips_image_get_bands(self._in);
 }
 
 pub fn addAlpha(self: *Self, alpha: f64) Error!void {
-    if (self.bands == 4) return;
+    if (self.channels == 4) return;
     var out: ?*c.VipsImage = null;
     if (!h.check(c.vips_bandjoin_const1(self._in, &out, alpha, VIPS_ARGUMENT_NULL))) {
         return Error.VipsBandJoinConst2Failed;
     }
     c.g_object_unref(self._in);
     self._in = out.?; // 更新为添加 Alpha 通道后的图像
-    self.bands = c.vips_image_get_bands(self._in);
+    self.channels = c.vips_image_get_bands(self._in);
 }
 
 // 将单通道灰度图复制为 RGB 三通道（用于把模型输出的单通道 mask 交给需要 RGBA 的渲染器）
 pub fn toRgb(self: *Self) Error!void {
-    if (self.bands >= 3) return;
+    if (self.channels >= 3) return;
     var images = [_]?*c.VipsImage{ self._in, self._in, self._in };
     var out: ?*c.VipsImage = null;
     if (!h.check(c.vips_bandjoin(@ptrCast(&images), &out, 3, VIPS_ARGUMENT_NULL))) {
@@ -160,7 +158,7 @@ pub fn toRgb(self: *Self) Error!void {
     }
     c.g_object_unref(self._in);
     self._in = out.?; // 更新为复制成 RGB 后的图像
-    self.bands = c.vips_image_get_bands(self._in);
+    self.channels = c.vips_image_get_bands(self._in);
 }
 
 pub fn resize(self: *Self, new_width: i32, new_height: i32) Error!void {
@@ -194,7 +192,7 @@ pub fn allocOutInMemory(self: *Self) Error!Out {
     var size: usize = 0;
     const data_ptr = c.vips_image_write_to_memory(self._in, &size) orelse return Error.VipsWriteToMemoryFailed;
     // 检查 size 是否和计算的一致
-    const bytes: usize = if (self.format == .FLOAT) @sizeOf(f32) else @sizeOf(u8);
-    std.debug.assert(size == @as(usize, @intCast(self.width * self.height * self.bands)) * bytes);
+    const byte_size: usize = if (self.format == .FLOAT) @sizeOf(f32) else @sizeOf(u8);
+    std.debug.assert(size == @as(usize, @intCast(self.width * self.height * self.channels)) * byte_size);
     return Out.init(data_ptr, size);
 }

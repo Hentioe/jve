@@ -1,7 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
-const structs = @import("structs.zig");
 const root = @import("../root.zig");
 const config = root.config;
 const album = root.album;
@@ -13,7 +12,8 @@ const LeaderKey = @import("LeaderKey.zig");
 const Animated = @import("Animated.zig");
 const SlideIn = @import("SlideIn.zig");
 const Delta = @import("Delta.zig");
-const Point = structs.Point(f32);
+const ISize = root.ISize;
+const Point = root.Point(f32);
 const RenderNext = @import("enums.zig").RenderNext;
 
 const EventType = @FieldType(c.union_SDL_Event, "type");
@@ -54,7 +54,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     errdefer c.SDL_DestroyTexture(texture);
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
-    calculateDstRect(&dst_rect, window, image.width, image.height, .{});
+    calculateDstRect(&dst_rect, window, image.shape.toISize(i32), .{});
     // 循环、动画和事件参数
     var event: c.SDL_Event = undefined;
     var action: EventAction = .none;
@@ -165,7 +165,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 }
                 if (slide_animation) {
                     // 从屏幕外滑入：下一张自左侧边缘（顺时针），上一张自右侧边缘（逆时针）
-                    const scaled_w: f64 = @as(f64, @floatFromInt(image.width)) * scale.current;
+                    const scaled_w: f64 = @as(f64, @floatFromInt(image.shape.w)) * scale.current;
                     const window_w: f64 = @floatFromInt(window.display_width);
                     slide.startFromEdge(window_w, scaled_w, to_next);
                     angle.reset(); // 启用切换动画时重置角度
@@ -205,11 +205,12 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 slide.nextStep(delta.value);
             }
             dirty = scale.state == .running or angle.state == .running or slide.isRunning(); // 如果没有动画了，表示渲染干净了
-            const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * scale.current);
-            const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * scale.current);
+            // 计算尺寸
+            const f_size = image.shape.toISize(f32);
+            const new_size: ISize(i32) = .{ .w = @intFromFloat(f_size.w * scale.current), .h = @intFromFloat(f_size.h * scale.current) };
             const slide_offset = Point{ .x = move_offset.x + @as(f32, @floatCast(slide.offset)), .y = move_offset.y };
-            calculateDstRect(&dst_rect, window, new_width, new_height, slide_offset);
-            window.imageSizeUpdated(new_width, new_height);
+            calculateDstRect(&dst_rect, window, new_size, slide_offset);
+            window.imageSizeUpdated(image.shape.toISize(i32));
         }
         const render_angle: f64 = if (slide.isRunning()) slide.angle else angle.current;
         const alpha: u8 = if (window.windowed) 255 else 60; // 根据边框模式设置背景透明度
@@ -335,14 +336,14 @@ fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
 }
 
 // 重新计算 rect
-fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new_height: i32, offset: Point) void {
+fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, size: ISize(i32), offset: Point) void {
     const window_width = window.display_width;
     const window_height = window.display_height;
 
-    dst_rect.w = @floatFromInt(new_width);
-    dst_rect.h = @floatFromInt(new_height);
-    const center_x: f32 = @floatFromInt(@divFloor(window_width - new_width, 2));
-    const center_y: f32 = @floatFromInt(@divFloor(window_height - new_height, 2));
+    dst_rect.w = @floatFromInt(size.w);
+    dst_rect.h = @floatFromInt(size.h);
+    const center_x: f32 = @floatFromInt(@divFloor(window_width - size.w, 2));
+    const center_y: f32 = @floatFromInt(@divFloor(window_height - size.h, 2));
 
     dst_rect.x = center_x + offset.x;
     dst_rect.y = center_y + offset.y;
@@ -350,15 +351,15 @@ fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new
 
 fn createTexture(renderer: *c.SDL_Renderer, image: *const LImage) Error!*c.SDL_Texture {
     // 计算 pitch
-    const pitch = image.width * image.bands;
+    const pitch = image.shape.w * image.shape.c;
     std.log.info("Pitch: {d}", .{pitch});
     // 创建图片纹理
     const texture = c.SDL_CreateTexture(
         renderer,
         c.SDL_PIXELFORMAT_RGBA32,
         c.SDL_TEXTUREACCESS_STATIC,
-        image.width,
-        image.height,
+        image.shape.w,
+        image.shape.h,
     );
     // 开启纹理混合模式
     if (!h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND))) return Error.SdlSetTextureBlendModeFailed;

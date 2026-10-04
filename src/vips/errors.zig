@@ -20,7 +20,7 @@ pub const VipsError = error{
 pub const CustomError = error{
     NotInitialized, // 未初始化
     UnsupportedFormat, // 不支持的格式
-    UnsupportedBands, // 不支持的通道数量
+    UnsupportedChannels, // 不支持的通道数
 };
 
 pub const MallocError = error{

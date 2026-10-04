@@ -29,19 +29,19 @@ pub fn deinit(self: *Self) void {
 
 pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
     // 打印输入的基本信息
-    std.log.info("Image size: {d}x{d}, bands: {d}", .{ input.width, input.height, input.bands });
+    std.log.info("Image shape: {f}", .{input.shape});
     // 前处理：强制 3 通道、缩放、归一化
     var preprocessed = try input.preprocess(allocator, .{
-        .forced_bands = 3,
+        .forced_channels = 3,
         .new_size = .{ .w = SIZE, .h = SIZE },
         .normalized = true,
     });
     defer preprocessed.deinit();
 
     // 确保图片符合 MagicTouch 模型的输入要求：必须是 3 通道的图像，且宽高为 512x512
-    std.debug.assert(preprocessed.bands == 3);
-    std.debug.assert(preprocessed.width == SIZE);
-    std.debug.assert(preprocessed.height == SIZE);
+    std.debug.assert(preprocessed.shape.c == 3);
+    std.debug.assert(preprocessed.shape.w == SIZE);
+    std.debug.assert(preprocessed.shape.h == SIZE);
 
     // 按官方方式生成 ROI prior map：在原始分辨率上以点击点为中心画圆，
     // 再缩放到模型输入尺寸（与图像缩放一致）。
@@ -85,14 +85,14 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
     var image = try Output.parse(
         allocator,
         output_ptr,
-        .{ .w = SIZE, .h = SIZE },
-        1,
+        .{ .w = SIZE, .h = SIZE, .c = 1 },
         .FLOAT,
         .NCHW,
         true,
         false,
     );
-    try image.resize(@intCast(input.width), @intCast(input.height));
+    const original_size = input.shape.toISize(i32);
+    try image.resize(original_size.w, original_size.h);
     try image.toRgb();
     try image.addAlpha(255.0);
 
@@ -102,14 +102,16 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
 // 生成 ROI prior map：在原始分辨率上以点击点为中心画一个半径 ROI_RADIUS 的圆，
 // 再缩放到模型输入尺寸（与图像缩放保持一致）。未提供点击坐标时退化为图像中心。
 fn buildPriorMap(allocator: Allocator, input: Input) ![]f32 {
-    const w: u32 = input.width;
-    const h: u32 = input.height;
+    const f_size = input.shape.toISize(f32);
     const point = input.click_position orelse Position{
-        .x = @as(f32, @floatFromInt(w)) / 2.0,
-        .y = @as(f32, @floatFromInt(h)) / 2.0,
+        .x = f_size.w / 2.0,
+        .y = f_size.h / 2.0,
     };
 
-    const raw = try allocator.alloc(f32, @as(usize, w) * @as(usize, h));
+    const u_shape = input.shape.to(u32);
+    const w = u_shape.w;
+    const h = u_shape.h;
+    const raw = try allocator.alloc(f32, w * h);
     defer allocator.free(raw);
     @memset(raw, 0.0);
 
@@ -125,12 +127,13 @@ fn buildPriorMap(allocator: Allocator, input: Input) ![]f32 {
             const dx = @as(f32, @floatFromInt(x)) + 0.5 - point.x;
             const dy = @as(f32, @floatFromInt(y)) + 0.5 - point.y;
             if (dx * dx + dy * dy <= radius_sq) {
-                raw[@as(usize, y) * @as(usize, w) + @as(usize, x)] = 1.0;
+                raw[y * w + x] = 1.0;
             }
         }
     }
 
-    var image = try Image.init(raw.ptr, @intCast(w), @intCast(h), 1, .FLOAT);
+    const prior_size = input.shape.toISize(i32);
+    var image = try Image.init(raw.ptr, .{ .w = prior_size.w, .h = prior_size.h, .c = 1 }, .FLOAT);
     defer image.deinit();
     try image.resize(SIZE, SIZE);
     var out = try image.allocOutInMemory();

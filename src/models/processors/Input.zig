@@ -1,30 +1,28 @@
 const std = @import("std");
 const enums = @import("../enums.zig");
+const root = @import("../../root.zig");
 const Allocator = std.mem.Allocator;
-const Size = enums.Size;
+const IShape = root.IShape;
+const ISize = root.ISize;
 const PixelLayout = enums.PixelLayout;
 const Position = @import("../Position.zig");
 const Image = @import("../../vips.zig").Image;
 const Self = @This();
 
-width: u32,
-height: u32,
-bands: u32,
+shape: IShape(u32),
 data_ptr: *const anyopaque,
 click_position: ?Position = null,
 
 const Options = struct {
-    new_size: ?Size = null,
+    new_size: ?ISize(i32) = null,
     new_layout: ?PixelLayout = null,
-    forced_bands: ?u32 = null,
+    forced_channels: ?u32 = null,
     normalized: bool = false,
 };
 
 // 已预处理的
 const Preprocessed = struct {
-    width: u32,
-    height: u32,
-    bands: u32,
+    shape: IShape(u32),
     format: Image.Format,
     data_ptr: *anyopaque,
     data_size: usize,
@@ -51,16 +49,10 @@ const Preprocessed = struct {
 // todo: 添加错误集
 // todo: 输出 vips 错误
 pub fn preprocess(input: Self, allocator: Allocator, options: Options) !Preprocessed {
-    var image = try Image.init(
-        input.data_ptr,
-        @intCast(input.width),
-        @intCast(input.height),
-        @intCast(input.bands),
-        .UCHAR,
-    );
+    var image = try Image.init(input.data_ptr, input.shape.to(i32), .UCHAR);
     defer image.deinit();
 
-    if (options.forced_bands == 3 and input.bands > 3) {
+    if (options.forced_channels == 3 and input.shape.c > 3) {
         try image.removeAlpha();
     }
 
@@ -74,16 +66,15 @@ pub fn preprocess(input: Self, allocator: Allocator, options: Options) !Preproce
 
     const out = try image.allocOutInMemory();
     var data_ptr = out.data_ptr;
+    const shape: IShape(u32) = .{ .w = @intCast(image.width), .h = @intCast(image.height), .c = @intCast(image.channels) };
     if (options.new_layout) |layout| if (layout == .NCHW and options.normalized) {
         const src = @as([*]const f32, @ptrCast(@alignCast(out.data_ptr)))[0..out.data_size];
-        const data = try buildNCHW(allocator, src, @intCast(image.width), @intCast(image.height), @intCast(image.bands));
+        const data = try buildNCHW(allocator, src, shape);
         data_ptr = data.ptr;
     };
 
     return .{
-        .width = @intCast(image.width),
-        .height = @intCast(image.height),
-        .bands = @intCast(image.bands),
+        .shape = shape,
         .format = image.format,
         .data_ptr = data_ptr,
         .data_size = out.data_size,
@@ -92,15 +83,18 @@ pub fn preprocess(input: Self, allocator: Allocator, options: Options) !Preproce
     };
 }
 
-// todo: 添加错误处理集
-pub fn buildNCHW(allocator: Allocator, src: []const f32, width: u32, height: u32, bands: u32) ![]f32 {
+// todo: 添加错误集
+pub fn buildNCHW(allocator: Allocator, src: []const f32, shape: IShape(u32)) ![]f32 {
+    const width = shape.w;
+    const height = shape.h;
+    const channels = shape.c;
     const plane_size = width * height;
-    const dst = try allocator.alloc(f32, plane_size * bands);
+    const dst = try allocator.alloc(f32, plane_size * channels);
     for (0..height) |h| {
         for (0..width) |w| {
-            const hwc_idx = (h * width + w) * bands;
+            const hwc_idx = (h * width + w) * channels;
             const hw_idx = h * width + w;
-            for (0..bands) |c| {
+            for (0..channels) |c| {
                 const idx = c * plane_size + hw_idx;
                 dst[idx] = src[hwc_idx + c];
             }

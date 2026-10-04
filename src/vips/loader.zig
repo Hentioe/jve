@@ -3,14 +3,13 @@ const c = @import("c.zig").c;
 const formats = @import("formats.zig");
 const Error = @import("errors.zig").Error;
 const Image = @import("Image.zig");
+const IShape = @import("../root.zig").IShape;
 
 pub const LoadedImage = struct {
     allocator: std.mem.Allocator,
     file_path: []const u8, // 涉及内存申请
     file_name: []const u8, // file_path 的切片
-    width: i32,
-    height: i32,
-    bands: i32,
+    shape: IShape(i32), // 宽/高/通道数
     format: i32,
     size: usize,
     pixels_ptr: [*c]c_ushort, // 像素数据的指针
@@ -46,9 +45,7 @@ pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!LoadedImage {
         .allocator = allocator,
         .file_path = file_path,
         .file_name = std.fs.path.basename(file_path),
-        .width = image.width,
-        .height = image.height,
-        .bands = image.bands,
+        .shape = .{ .w = image.width, .h = image.height, .c = image.channels },
         .format = @intFromEnum(image.format),
         .size = out.data_size,
         .pixels_ptr = @ptrCast(@alignCast(out.data_ptr)),
