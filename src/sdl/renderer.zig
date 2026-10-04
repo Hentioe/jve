@@ -73,9 +73,11 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var leader = LeaderKey.init(c.SDLK_LALT); // Leader 键
     var is_dragging: bool = false; // 是否正在拖动
     var move_offset = state.move_offset; // 移动偏移量
-    var scale = Animated.init(1.0, state.target_scale, 15); // 缩放
-    var angle = Animated.init(0.0, state.target_angle, 15); // 角度
-    var spin = Spinner.init(360, 360, 15.0); // 手动自旋（Alt+S）
+    var scale = Animated.init(1.0, 1.0, 15); // 缩放
+    scale.updateTarget(state.target_scale); // 更新为缓存的缩放目标值
+    var angle = Animated.init(0.0, 0.0, 15); // 角度
+    angle.updateTarget(state.target_angle); // 更新为缓存的角度目标值
+    var spin = Spinner.init(360, 360, 15.0); // 实验自旋（Alt+S），todo: 删除它
     var slide = SlideIn.init(1.0, 20.0, 1.0); // 切换图片时的侧滑自旋
     while (running) {
         // 计算 delta
