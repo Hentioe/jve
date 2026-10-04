@@ -38,7 +38,7 @@ pub fn extensions() ![]const []const u8 {
     return try vips.formats.get();
 }
 
-pub fn load(allocator: Allocator, file_path: []const u8) LoadError!loader.Loaded {
+pub fn load(allocator: Allocator, file_path: []const u8) LoadError!loader.LoadedImage {
     // 检查文件的可访问性
     const stat = std.fs.cwd().statFile(file_path) catch |err| return err;
     // 检查输入是否为文件

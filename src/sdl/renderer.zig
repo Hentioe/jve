@@ -8,7 +8,7 @@ const album = root.album;
 const Error = @import("errors.zig").Error;
 const State = @import("State.zig");
 const Window = @import("window.zig");
-const Loaded = root.loader.Loaded;
+const LImage = root.loader.LoadedImage;
 const LeaderKey = @import("LeaderKey.zig");
 const Animated = @import("Animated.zig");
 const SlideIn = @import("SlideIn.zig");
@@ -34,19 +34,19 @@ const EventAction = union(enum) {
 
 // 基于 sdl_renderer 渲染图片
 pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
-    var loaded = album.current() catch return Error.AlbumError;
+    var image = try album.current();
     // 更新状态
-    try state.startRendering(&loaded, .sdl_renderer);
+    try state.startRendering(&image, .sdl_renderer);
     // 创建窗口
     var window = state.window.?; // 确保在 startRendering 中完成初始化
     // 更新窗口标题
-    try window.setTitle(loaded.file_name);
+    try window.setTitle(image.file_name);
     // 创建渲染器
     const renderer = state.renderer.?;
     // 创建纹理（先尝试从缓存中读取）
     var texture = try state.readTexture(renderer);
     if (texture == null) { // 没有就创建新的纹理
-        texture = try createTexture(renderer, &loaded);
+        texture = try createTexture(renderer, &image);
     } else {
         // 复用纹理
         std.log.info("Reusing texture from state", .{});
@@ -54,7 +54,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     errdefer c.SDL_DestroyTexture(texture);
     // 创建目标矩形
     var dst_rect = c.SDL_FRect{};
-    calculateDstRect(&dst_rect, window, loaded.width, loaded.height, .{});
+    calculateDstRect(&dst_rect, window, image.width, image.height, .{});
     // 循环、动画和事件参数
     var event: c.SDL_Event = undefined;
     var action: EventAction = .none;
@@ -120,11 +120,11 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             .rotate => |payload| if (mapKeyToAngle(payload.key)) |new_angle| angle.updateTarget(new_angle),
             .delete => {
                 // 删除当前相册图片
-                std.log.info("Deleting current image: {s}", .{loaded.file_name});
-                if (album.deleteCurrentGetNext()) |next_loaded| {
-                    loaded = next_loaded;
+                std.log.info("Deleting current image: {s}", .{image.file_name});
+                if (album.deleteCurrentGetNext()) |next_image| {
+                    image = next_image;
                     c.SDL_DestroyTexture(texture);
-                    texture = try createTexture(renderer, &next_loaded);
+                    texture = try createTexture(renderer, &next_image);
                     dirty = true; // 动画触发 dst_rect 更新
                 } else |err| {
                     if (err == error.NoImageLeft) {
@@ -158,14 +158,14 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                     std.log.err("Failed to get current image: {}", .{err});
                     break :val null;
                 };
-                if (crrent) |current_loaded| {
-                    loaded = current_loaded;
+                if (crrent) |new_image| {
+                    image = new_image;
                     c.SDL_DestroyTexture(texture);
-                    texture = try createTexture(renderer, &current_loaded);
+                    texture = try createTexture(renderer, &new_image);
                 }
                 if (slide_animation) {
                     // 从屏幕外滑入：下一张自左侧边缘（顺时针），上一张自右侧边缘（逆时针）
-                    const scaled_w: f64 = @as(f64, @floatFromInt(loaded.width)) * scale.current;
+                    const scaled_w: f64 = @as(f64, @floatFromInt(image.width)) * scale.current;
                     const window_w: f64 = @floatFromInt(window.display_width);
                     slide.startFromEdge(window_w, scaled_w, to_next);
                     angle.reset(); // 启用切换动画时重置角度
@@ -205,8 +205,8 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 slide.nextStep(delta.value);
             }
             dirty = scale.state == .running or angle.state == .running or slide.isRunning(); // 如果没有动画了，表示渲染干净了
-            const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(loaded.width)) * scale.current);
-            const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(loaded.height)) * scale.current);
+            const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(image.width)) * scale.current);
+            const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(image.height)) * scale.current);
             const slide_offset = Point{ .x = move_offset.x + @as(f32, @floatCast(slide.offset)), .y = move_offset.y };
             calculateDstRect(&dst_rect, window, new_width, new_height, slide_offset);
             window.imageSizeUpdated(new_width, new_height);
@@ -348,7 +348,7 @@ fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, new_width: i32, new
     dst_rect.y = center_y + offset.y;
 }
 
-fn createTexture(renderer: *c.SDL_Renderer, image: *const Loaded) Error!*c.SDL_Texture {
+fn createTexture(renderer: *c.SDL_Renderer, image: *const LImage) Error!*c.SDL_Texture {
     // 计算 pitch
     const pitch = image.width * image.bands;
     std.log.info("Pitch: {d}", .{pitch});

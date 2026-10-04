@@ -55,7 +55,7 @@ const EventAction = union(enum) {
 // 基于 SDL_GPU 渲染图片
 pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 从相册取出当前图片
-    const image = album.current() catch return Error.AlbumError;
+    const image = try album.current();
     // 更新状态
     try state.startRendering(&image, .sdl_gpu);
     // 创建窗口
@@ -158,7 +158,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
     };
     // 基础着色器（负责图像渲染）
-    const base_pl: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse return Error.CreateGPUGraphicsPipelineFailed;
+    const base_pl: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse return Error.SdlCreateGPUGraphicsPipelineFailed;
     defer c.SDL_ReleaseGPUGraphicsPipeline(device, base_pl);
     // 构造棋盘格（透明图片的背景）
     var checkerboard = try Checkerboard.init(device, window);

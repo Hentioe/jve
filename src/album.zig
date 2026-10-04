@@ -1,23 +1,24 @@
 const std = @import("std");
 const root = @import("root.zig");
-const Loaded = root.loader.Loaded;
+const LImage = root.loader.LoadedImage;
 const Allocator = std.mem.Allocator;
 const Scanner = @import("Scanner.zig");
 
 const AlbumError = error{
-    NoImageSelected,
-    NoImageLeft,
-    CurrentFileNotFound,
-    PathJoinFailed,
+    AlbumNoImageSelected,
+    AlbumNoImageLeft,
+    AlbumCurrentFileNotFound,
 };
 
-pub const Error = AlbumError || root.LoadError || Scanner.Error || std.posix.UnlinkError;
+const PathJoinError = error{PathJoinFailed};
+
+pub const Error = AlbumError || PathJoinError || root.LoadError || Scanner.Error || std.posix.UnlinkError;
 
 // 全局缓存
 const Cache = struct {
     allocator: Allocator,
     scanner: Scanner,
-    image: Loaded,
+    image: LImage,
     dirty: bool,
     full_path: ?[]const u8 = null,
 
@@ -43,7 +44,7 @@ pub fn init(allocator: Allocator, file_path: []const u8) Error!void {
     var scanner = try Scanner.init(allocator, dir, try root.extensions());
     errdefer scanner.deinit();
     // 选择当前文件
-    if (!scanner.select(base)) return Error.CurrentFileNotFound;
+    if (!scanner.select(base)) return Error.AlbumCurrentFileNotFound;
     // 加载图片
     std.log.info("Loading image: {s}", .{file_path});
     const image = try root.load(allocator, file_path);
@@ -79,7 +80,7 @@ pub fn prev() Error!?[]const u8 {
     return cache.scanner.prev();
 }
 
-pub fn current() Error!Loaded {
+pub fn current() Error!LImage {
     if (cache.dirty) { // 如果缓存脏了，重新加载当前图片
         std.log.info("cache is dirty, reloading current image", .{});
         try reloadCurrent();
@@ -88,7 +89,7 @@ pub fn current() Error!Loaded {
 }
 
 // 删除当前图片
-pub fn deleteCurrentGetNext() Error!Loaded {
+pub fn deleteCurrentGetNext() Error!LImage {
     if (cache.scanner.current()) |file_name| {
         const dir_path = cache.scanner.dir_path;
         const full_path = std.fs.path.join(cache.allocator, &[_][]const u8{ dir_path, file_name }) catch |err| {
@@ -100,10 +101,10 @@ pub fn deleteCurrentGetNext() Error!Loaded {
         try std.fs.cwd().deleteFile(full_path);
         // 重新扫描
         try cache.scanner.rescan();
-        if (try next() == null) return Error.NoImageLeft;
+        if (try next() == null) return Error.AlbumNoImageLeft;
         return try current();
     } else {
-        return Error.NoImageSelected;
+        return Error.AlbumNoImageSelected;
     }
 }
 
@@ -129,6 +130,6 @@ fn reloadCurrent() Error!void {
         cache.dirty = false;
     } else {
         // 没有选择图片
-        return Error.NoImageSelected;
+        return Error.AlbumNoImageSelected;
     }
 }

@@ -9,7 +9,7 @@ const Api = ort.Api;
 const Allocator = std.mem.Allocator;
 const RwLock = std.Thread.RwLock;
 const Error = @import("errors.zig").Error;
-const Loaded = @import("../root.zig").loader.Loaded;
+const LImage = @import("../root.zig").loader.LoadedImage;
 const Size = @import("structs.zig").Size(i32);
 const Window = @import("window.zig");
 const Shaders = std.ArrayList(*c.SDL_GPUShader);
@@ -84,7 +84,7 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn startRendering(self: *Self, image: *const Loaded, backend: Backend) Error!void {
+pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error!void {
     if (backend == .sdl_renderer and self.window == null) {
         const window = try Window.create(
             self.allocator,

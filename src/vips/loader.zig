@@ -2,9 +2,9 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const formats = @import("formats.zig");
 const Error = @import("errors.zig").Error;
-pub const Image = @import("Image.zig");
+const Image = @import("Image.zig");
 
-pub const Loaded = struct {
+pub const LoadedImage = struct {
     allocator: std.mem.Allocator,
     file_path: []const u8, // 涉及内存申请
     file_name: []const u8, // file_path 的切片
@@ -16,14 +16,14 @@ pub const Loaded = struct {
     pixels_ptr: [*c]c_ushort, // 像素数据的指针
     _out: Image.Out, // 持有像素数据内存，负责安全回收
 
-    pub fn deinit(self: *Loaded) void {
+    pub fn deinit(self: *LoadedImage) void {
         self.allocator.free(self.file_path);
         self._out.deinit();
         self.* = undefined;
     }
 };
 
-pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!Loaded {
+pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!LoadedImage {
     // 获取扩展名
     const extension = std.fs.path.extension(path);
     if (!try formats.isSupported(extension)) return Error.UnsupportedFormat; // 主动检查格式是否支持
@@ -42,7 +42,7 @@ pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!Loaded {
     const file_path = try allocator.alloc(u8, path.len);
     @memcpy(file_path, path);
 
-    return Loaded{
+    return LoadedImage{
         .allocator = allocator,
         .file_path = file_path,
         .file_name = std.fs.path.basename(file_path),

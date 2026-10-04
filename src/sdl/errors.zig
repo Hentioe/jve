@@ -1,8 +1,7 @@
 const std = @import("std");
-const AllocatorError = std.mem.Allocator.Error;
-const SpawnError = std.Thread.SpawnError;
 const OrtError = @import("ort").Error;
-const Scanner = @import("../Scanner.zig");
+const ScannerError = @import("../Scanner.zig").Error;
+const AlbumError = @import("../album.zig").Error;
 
 pub const SdlError = error{
     SdlInitFailed,
@@ -25,7 +24,7 @@ pub const SdlError = error{
     SdlHideWindowFailed,
     SdlShowWindowFailed,
     SdlSetWindowTitleFailed,
-    CreateGPUGraphicsPipelineFailed,
+    SdlCreateGPUGraphicsPipelineFailed,
     SdlSetTextureBlendModeFailed,
     SdlUpdateTextureFailed,
     SdlMapGPUTransferBufferFailed,
@@ -33,7 +32,6 @@ pub const SdlError = error{
     SdlSetRenderVSyncFailed,
     SdlSubmitGPUCommandBufferFailed,
     SdlBeginRenderPassFailed,
-    AlbumError, // todo: 包含 Album 错误集
 };
 
 pub const CustomError = error{
@@ -44,4 +42,5 @@ pub const CustomError = error{
 
 pub const SizeError = error{Negative};
 
-pub const Error = SdlError || CustomError || SizeError || AllocatorError || OrtError || SpawnError || std.posix.AccessError || Scanner.Error;
+pub const Error = SdlError || CustomError || SizeError || OrtError || AlbumError ||
+    std.mem.Allocator.Error || std.Thread.SpawnError || std.posix.AccessError;

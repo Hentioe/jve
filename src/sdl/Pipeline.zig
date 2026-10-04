@@ -33,7 +33,7 @@ pub fn init(device: *c.SDL_GPUDevice, window: *c.SDL_Window, sharders: ShaderPai
     };
 
     const sdl_pipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse {
-        return Error.CreateGPUGraphicsPipelineFailed;
+        return Error.SdlCreateGPUGraphicsPipelineFailed;
     };
 
     return Self{ .device = device, .sdl_pipeline = sdl_pipeline };
