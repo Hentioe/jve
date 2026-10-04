@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const Image = @import("../vips.zig").Image;
 const Api = ort.Api;
 const Session = ort.Session;
+const Timer = @import("Timer.zig");
 const Input = @import("processors/Input.zig");
 const Output = @import("processors/Output.zig");
 const Self = @This();
@@ -60,8 +61,10 @@ pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
 
     // 执行推理并获取输出指针
     std.log.info("Background removal in progress...", .{});
+    var timer: Timer = try .start();
     const output_sensor = try self.session.run(input_tensor);
     defer self.api.releaseValue(output_sensor);
+    std.log.info("Background removal took {d}s", .{try timer.finish(.s)});
     std.log.info("Background removal completed", .{});
 
     // 后处理：解析输出、添加透明通道、缩放回原始尺寸
