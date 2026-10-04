@@ -358,6 +358,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 gamma = 1;
                 slide_value = 0;
                 marker_pos = null;
+                if (tex_mask) |tex| { // 移除遮罩
+                    c.SDL_ReleaseGPUTexture(device, tex);
+                    tex_mask = null;
+                }
             },
         }
 
@@ -399,10 +403,10 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         if (task) |t| {
             if (t.poll() == .done) {
                 std.log.info("Task result is reading...", .{});
-                if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex);
-                const data_ptr = t.result.?.data_ptr;
+                const data_ptr = t.result.?.data_ptr; // 获取遮罩数据指针
                 const size: Size(u32) = .{ .w = t.result.?.width, .h = t.result.?.height };
                 if (gpu.createAndUploadTexture(&uploader, &offscreen_info, data_ptr, size)) |created| {
+                    if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex); // 释放旧遮罩纹理
                     tex_mask = created;
                     task = null;
                     is_busy = false;
