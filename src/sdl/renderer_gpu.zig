@@ -494,15 +494,15 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
 
         // 处理截图保存和复制
         if (save_screenshot or copy_screenshot) {
-            // 创建下载器
+            // 创建截图器
             var screenshot = Screenshot.init(
                 allocator,
                 device,
                 tex_src,
                 &image,
-            ) catch |err| blk: {
+            ) catch |err| fallback: {
                 std.log.err("Failed to create screenshot: {}", .{err});
-                break :blk null;
+                break :fallback null;
             };
             if (screenshot) |*s| {
                 defer s.deinit();

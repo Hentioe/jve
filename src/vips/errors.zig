@@ -6,7 +6,6 @@ pub const VipsError = error{
     VipsAddAlphaFailed,
     VipsForeignGetSuffixesFailed,
     VipsImageLoadFailed,
-    VipsWriteFailed,
     VipsEncodingFailed,
     VipsResizeFailed,
     VipsLinear1Failed,
@@ -15,6 +14,7 @@ pub const VipsError = error{
     VipsBandJoinConst2Failed,
     VipsBandJoinFailed,
     VipsWriteToMemoryFailed,
+    VipsWriteToFileFailed,
 };
 
 pub const CustomError = error{

@@ -1,8 +1,9 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const root = @import("../root.zig");
-const Loaded = root.loader.Loaded;
+const config = root.config;
 const writer = root.writer;
+const Loaded = root.loader.Loaded;
 const clipboard = @import("clipboard.zig");
 const Allocator = std.mem.Allocator;
 const Extractor = @import("Extractor.zig");
@@ -10,7 +11,7 @@ const Error = @import("errors.zig").Error;
 const Self = @This();
 
 allocator: Allocator,
-extractor: Extractor,
+extracted: Extractor,
 image: *const Loaded,
 
 pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c.SDL_GPUTexture, image: *const Loaded) Error!Self {
@@ -22,54 +23,61 @@ pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c
         image.height,
         image.bands,
     );
+    errdefer extractor.deinit();
     // 下载纹理
     try extractor.downloadTexture(texture);
 
     return Self{
         .allocator = allocator,
-        .extractor = extractor,
+        .extracted = extractor,
         .image = image,
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.extractor.deinit();
+    self.extracted.deinit();
     self.* = undefined;
 }
 
 pub fn saveToFile(self: *const Self) void {
-    if (!self.extractor.downloaded) {
+    if (!self.extracted.downloaded) {
         std.log.err("Screenshot not downloaded yet", .{});
         return;
     }
-    const out_filename = createNewName(self.allocator, self.image.file_name, "png") catch |err| {
+    const out_filename = allocNewName(self.allocator, self.image.file_name, "png") catch |err| {
         std.log.err("Failed to create new filename: {}", .{err});
         return;
     };
     defer self.allocator.free(out_filename);
+    // 若配置了截图保存目录，则拼接为完整路径；否则直接使用文件名
+    const joined = joinOutputPath(self.allocator, out_filename) catch |err| {
+        std.log.err("Failed to resolve screenshot path: {}", .{err});
+        return;
+    };
+    defer if (joined) |p| self.allocator.free(p);
     // 写入到文件
     if (writer.savePixelsToFile(
-        self.extractor.pixels_slice.ptr,
+        self.extracted.pixels_slice.ptr,
         self.image.width,
         self.image.height,
         self.image.bands,
-        out_filename,
+        joined orelse out_filename,
     )) {
-        std.log.info("Screenshot saved, size: {d}", .{self.extractor.buffer_size});
+        std.log.info("Screenshot saved, size: {d}", .{self.extracted.buffer_size});
     } else |err| {
         std.log.err("Failed to save screenshot: {}", .{err});
     }
 }
 
-// 复制到剪切板
+/// 复制到剪切板
 pub fn copyToClipboard(self: *const Self) void {
-    if (!self.extractor.downloaded) {
+    if (!self.extracted.downloaded) {
         std.log.err("Screenshot not downloaded yet", .{});
         return;
     }
     // 创建编码器
     var encoder = writer.Encoder.init(
-        self.extractor.pixels_slice.ptr,
+        self.extracted.pixels_slice.ptr,
         self.image.width,
         self.image.height,
         self.image.bands,
@@ -88,7 +96,19 @@ pub fn copyToClipboard(self: *const Self) void {
     }
 }
 
-fn createNewName(allocator: Allocator, original_file_name: []const u8, format: []const u8) Error![]u8 {
+/// 将文件名与配置中的截图保存目录拼接为完整路径。
+/// 未配置目录时返回 null（无需分配）；目录不存在时尝试创建，失败则退回当前目录。
+fn joinOutputPath(allocator: Allocator, filename: []const u8) Error!?[]u8 {
+    const dir = config.get().screenshot_dir orelse return null;
+    std.fs.cwd().makePath(dir) catch |err| {
+        std.log.warn("Cannot create screenshot directory '{s}': {}, saving to current directory", .{ dir, err });
+        return null;
+    };
+    return try std.fs.path.join(allocator, &.{ dir, filename });
+}
+
+/// 分配一个新的文件名，基于原始文件名和当前时间戳。
+fn allocNewName(allocator: Allocator, original_file_name: []const u8, format: []const u8) Error![]u8 {
     // 取文件名主干：去掉目录和最后一个扩展名
     const stem = std.fs.path.stem(original_file_name);
     // 兼容 ".png" 这种带点的格式写法

@@ -14,6 +14,7 @@ pub const MainConfig = struct {
     default_mode: []const u8 = "sdl_gpu", // 默认模式
     min_scale: f32 = 0.5, // 最小缩放倍数
     max_scale: f32 = 3.0, // 最大缩放倍数
+    screenshot_dir: ?[]const u8 = null, // 截图保存目录
     shader_dir: ?[]const u8 = null, // 着色器目录
     animation: AnimationConfig = .{
         .image_switch = true,

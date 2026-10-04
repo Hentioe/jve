@@ -5,14 +5,8 @@ const consts = @import("consts.zig");
 const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
 const Error = @import("errors.zig").Error;
 
-pub fn savePixelsToFile(
-    pixels_ptr: *anyopaque,
-    width: i32,
-    height: i32,
-    bands: i32,
-    out_filename: []const u8,
-) Error!void {
-    // 假设像素数据为 8 位无符号整数 (0-255)
+/// 保存像素到图像文件，预设为 8 位无符号整数 (0-255) 的像素数据
+pub fn savePixelsToFile(pixels_ptr: *anyopaque, width: i32, height: i32, bands: i32, out_filename: []const u8) Error!void {
     const size: usize = @intCast(width * height * bands);
     // 从像素数据指针创建 VipsImage
     const in = c.vips_image_new_from_memory(
@@ -23,11 +17,12 @@ pub fn savePixelsToFile(
         bands,
         c.VIPS_FORMAT_UCHAR,
     );
+    if (in == null) return Error.VipsImageNewFromMemoryFailed;
     defer c.g_object_unref(in); // 释放图像引用
     // 写入文件（后缀决定输出格式）
     if (c.vips_image_write_to_file(in, @ptrCast(out_filename), VIPS_ARGUMENT_NULL) != 0) {
         h.printError();
-        return Error.VipsWriteFailed;
+        return Error.VipsWriteToFileFailed;
     }
 }
 
