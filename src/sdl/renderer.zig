@@ -11,7 +11,6 @@ const Window = @import("window.zig");
 const Loaded = root.loader.Loaded;
 const LeaderKey = @import("LeaderKey.zig");
 const Animated = @import("Animated.zig");
-const Spinner = @import("Spinner.zig");
 const SlideIn = @import("SlideIn.zig");
 const Delta = @import("Delta.zig");
 const Point = structs.Point(f32);
@@ -26,8 +25,6 @@ const EventAction = union(enum) {
     drag_start: struct { button_x: f32, button_y: f32 },
     drag_stop: struct { button_x: f32, button_y: f32 },
     dragging: struct { xrel: f32, yrel: f32 },
-    spin_start,
-    spin_stop,
     rotate: struct { key: c.SDL_Keycode },
     delete,
     scale: struct { wheel_y: f32 },
@@ -77,7 +74,6 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     scale.updateTarget(state.target_scale); // 更新为缓存的缩放目标值
     var angle = Animated.init(0.0, 0.0, 15); // 角度
     angle.updateTarget(state.target_angle); // 更新为缓存的角度目标值
-    var spin = Spinner.init(360, 360, 15.0); // 实验自旋（Alt+S），todo: 删除它
     var slide = SlideIn.init(1.0, 20.0, 1.0); // 切换图片时的侧滑自旋
     while (running) {
         // 计算 delta
@@ -89,7 +85,6 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             .leader = &leader,
             .dst_rect = &dst_rect,
             .is_dragging = is_dragging,
-            .is_spinning = spin.isSpinning(),
         };
         if (!dirty) {
             var wait_event: c.SDL_Event = undefined;
@@ -121,14 +116,6 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 move_offset.x += payload.xrel;
                 move_offset.y += payload.yrel;
                 dirty = true;
-            },
-            .spin_start => {
-                spin.start();
-                std.log.debug("Spin started", .{});
-            },
-            .spin_stop => {
-                spin.stop();
-                std.log.debug("Spin stopped", .{});
             },
             .rotate => |payload| if (mapKeyToAngle(payload.key)) |new_angle| angle.updateTarget(new_angle),
             .delete => {
@@ -181,8 +168,8 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                     const scaled_w: f64 = @as(f64, @floatFromInt(loaded.width)) * scale.current;
                     const window_w: f64 = @floatFromInt(window.display_width);
                     slide.startFromEdge(window_w, scaled_w, to_next);
+                    angle.reset(); // 启用切换动画时重置角度
                 }
-                spin.reset(); // 交接触发/禁用动画时都取消手动自旋
                 dirty = true; // 触发 dst_rect 更新（禁用动画时也需要重绘新图片）
             },
             .reset => {
@@ -196,7 +183,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
         }
 
         // 根据状态执行渲染
-        if (dirty or scale.state == .running or angle.state == .running or !spin.isStopped() or slide.isRunning()) {
+        if (dirty or scale.state == .running or angle.state == .running or slide.isRunning()) {
             if (scale.state == .running) {
                 if (scale.isNearFinished()) {
                     std.log.debug("Scale is near finished, diff: {d}", .{scale.target - scale.current});
@@ -217,18 +204,14 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             if (slide.isRunning()) {
                 slide.nextStep(delta.value);
             }
-            if (!spin.isStopped()) {
-                spin.nextStep(delta.value);
-                std.log.debug("Spin current: {d}", .{spin.current});
-            }
-            dirty = scale.state == .running or angle.state == .running or !spin.isStopped() or slide.isRunning(); // 如果没有动画了，停止运动
+            dirty = scale.state == .running or angle.state == .running or slide.isRunning(); // 如果没有动画了，表示渲染干净了
             const new_width: i32 = @intFromFloat(@as(f32, @floatFromInt(loaded.width)) * scale.current);
             const new_height: i32 = @intFromFloat(@as(f32, @floatFromInt(loaded.height)) * scale.current);
             const slide_offset = Point{ .x = move_offset.x + @as(f32, @floatCast(slide.offset)), .y = move_offset.y };
             calculateDstRect(&dst_rect, window, new_width, new_height, slide_offset);
             window.imageSizeUpdated(new_width, new_height);
         }
-        const render_angle: f64 = if (slide.isRunning()) slide.angle else spin.current;
+        const render_angle: f64 = if (slide.isRunning()) slide.angle else angle.current;
         const alpha: u8 = if (window.windowed) 255 else 60; // 根据边框模式设置背景透明度
         check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
         check(c.SDL_RenderClear(renderer));
@@ -249,7 +232,6 @@ const ActionDeps = struct {
     leader: *LeaderKey,
     dst_rect: *c.SDL_FRect,
     is_dragging: bool,
-    is_spinning: bool,
 };
 
 fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionDeps) void {
@@ -265,8 +247,6 @@ fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionD
         action.* = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
     } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and deps.is_dragging) {
         handleDragingEvent(event, action);
-    } else if (deps.leader.pressedAndKeyDown(event, c.SDLK_S)) {
-        action.* = if (deps.is_spinning) .spin_stop else .spin_start;
     } else if (isRotateEvent(event)) {
         action.* = .{ .rotate = .{ .key = event.key.key } };
     } else if (deps.leader.pressedAndKeyDown(event, c.SDLK_D)) {
