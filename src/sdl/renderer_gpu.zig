@@ -30,7 +30,8 @@ const BaseUniforms = structs.BaseUniforms;
 const SharpenUniforms = structs.SharpenUniforms;
 const FogUniforms = structs.FogUniforms;
 const BlurUniforms = structs.BlurUniforms;
-const MarkerUniforms = structs.MarkerUniforms;
+const MarkerVertUniforms = structs.MarkerVertUniforms;
+const MarkerFragUniforms = structs.MarkerFragUniforms;
 
 const EventType = @FieldType(c.union_SDL_Event, "type");
 const EventAction = union(enum) {
@@ -200,7 +201,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 构造标记管线
     const marker_vert_shader = try shader_loader.load(device, @embedFile("marker.vert.spv"), "main", .vertex, 0, 1);
     defer c.SDL_ReleaseGPUShader(device, marker_vert_shader);
-    const marker_frag_shader = try shader_loader.load(device, @embedFile("marker.frag.spv"), "main", .fragment, 1, 0);
+    const marker_frag_shader = try shader_loader.load(device, @embedFile("marker.frag.spv"), "main", .fragment, 0, 1);
     defer c.SDL_ReleaseGPUShader(device, marker_frag_shader);
     var marker_pl = try Pipeline.init(device, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader });
     defer marker_pl.deinit();
@@ -257,7 +258,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 其它开关
     var leader = LeaderKey.init(c.SDLK_LALT); // Leader 键
     var custom_shader_enabled = false; // 是否启用自定义着色器
-    // 标记位置
+    // 标记
+    const marker_radius: f32 = 18.0; // 标记半径（像素），同时作为二次点击移除的判定范围
     var marker_pos: ?Point = null; // 标记位置
     // 横向滑动控制变量
     var is_sliding = false; // 是否正在横向滑动
@@ -332,8 +334,21 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 std.log.debug("Horizontal value updated: {}", .{slide_value});
             },
             .marker => |payload| {
-                marker_pos = Point{ .x = payload.x, .y = payload.y };
-                std.log.debug("Marker position updated: ({}, {})", .{ payload.x, payload.y });
+                var removed = false;
+                if (marker_pos) |prev| {
+                    const dx = payload.x - prev.x;
+                    const dy = payload.y - prev.y;
+                    // 二次点击落在标记范围内，则移除标记
+                    if (dx * dx + dy * dy <= marker_radius * marker_radius) {
+                        marker_pos = null;
+                        removed = true;
+                        std.log.debug("Marker removed", .{});
+                    }
+                }
+                if (!removed) {
+                    marker_pos = Point{ .x = payload.x, .y = payload.y };
+                    std.log.debug("Marker position updated: ({}, {})", .{ payload.x, payload.y });
+                }
             },
             .reset => {
                 is_inverted = false;
@@ -474,8 +489,11 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                     // 绘制标记
                     marker_pl.bind(onscreen.render_pass);
                     // 传递标记位置
-                    const marker_uniforms: MarkerUniforms = .fromScreen(pos.x, pos.y, image.width, image.height);
-                    marker_pl.pushVertexUniforms(cmd_buf, 0, &marker_uniforms, @sizeOf(MarkerUniforms));
+                    const marker_loc_uniforms: MarkerVertUniforms = .fromScreen(pos.x, pos.y, image.width, image.height);
+                    marker_pl.pushVertexUniforms(cmd_buf, 0, &marker_loc_uniforms, @sizeOf(MarkerVertUniforms));
+                    // 传递标记大小
+                    const marker_size_uniforms: MarkerFragUniforms = .{ .radius = marker_radius, .border_width = 2.0 };
+                    marker_pl.pushFragmentUniforms(cmd_buf, 0, &marker_size_uniforms, @sizeOf(MarkerFragUniforms));
                     // 绘制标记
                     marker_pl.draw();
                 }

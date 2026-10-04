@@ -73,16 +73,22 @@ pub const FogUniforms = extern struct {
 };
 
 // 标记顶点着色器 Uniforms
-pub const MarkerUniforms = extern struct {
+pub const MarkerVertUniforms = extern struct {
     ndc_x: f32,
     ndc_y: f32,
     _padding: [2]f32 = .{ 0.0, 0.0 }, // 8 字节：仅用于凑齐 16 字节
 
-    pub fn fromScreen(x: f32, y: f32, screenWidth: i32, screenHeight: i32) MarkerUniforms {
+    pub fn fromScreen(x: f32, y: f32, screenWidth: i32, screenHeight: i32) MarkerVertUniforms {
         const f_width: f32 = @floatFromInt(screenWidth);
         const f_height: f32 = @floatFromInt(screenHeight);
         const ndc_x = (x / f_width) * 2.0 - 1.0;
         const ndc_y = 1.0 - (y / f_height) * 2.0; // 注意 Y 轴翻转
-        return MarkerUniforms{ .ndc_x = ndc_x, .ndc_y = ndc_y };
+        return MarkerVertUniforms{ .ndc_x = ndc_x, .ndc_y = ndc_y };
     }
+};
+
+pub const MarkerFragUniforms = extern struct {
+    radius: f32, // 整体圆外径 (像素)
+    border_width: f32, // 白色外边框厚度 (像素)
+    _padding: [2]f32 = .{ 0.0, 0.0 }, // 8 字节：仅用于凑齐 16 字节
 };

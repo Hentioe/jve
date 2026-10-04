@@ -1,5 +1,5 @@
 tasks {
-  run "zig build run -- -b sdl_renderer {*}"
+  run "zig build run -- -b sdl_gpu {*}"
   format "zig fmt ."
   release "zig build --release=fast"
   clean "rm -rf .zig-cache/ zig-out/"

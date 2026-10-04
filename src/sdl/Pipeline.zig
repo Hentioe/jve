@@ -48,8 +48,12 @@ pub fn bind(self: *Self, render_pass: *c.SDL_GPURenderPass) void {
     self.render_pass = render_pass;
 }
 
-pub fn pushVertexUniforms(_: *const Self, cmd_buf: ?*c.SDL_GPUCommandBuffer, slot_index: u32, data: ?*const anyopaque, length: u32) void {
+pub fn pushVertexUniforms(_: *const Self, cmd_buf: *c.SDL_GPUCommandBuffer, slot_index: u32, data: *const anyopaque, length: u32) void {
     c.SDL_PushGPUVertexUniformData(cmd_buf, slot_index, data, length);
+}
+
+pub fn pushFragmentUniforms(_: *const Self, cmd_buf: *c.SDL_GPUCommandBuffer, slot_index: u32, data: *const anyopaque, length: u32) void {
+    c.SDL_PushGPUFragmentUniformData(cmd_buf, slot_index, data, length);
 }
 
 pub fn draw(self: *Self) void {
