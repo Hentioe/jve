@@ -180,7 +180,10 @@ pub fn writeTexture(self: *Self, device: *c.SDL_GPUDevice, gpu_texture: ?*c.SDL_
 
 pub fn readTexture(self: *Self, renderer: *c.SDL_Renderer) Error!?*c.SDL_Texture {
     if (self.extracted) |*extracted| {
-        defer extracted.deinit(); // 读取后释放下载数据
+        defer {
+            extracted.deinit(); // 读取后释放下载数据
+            self.extracted = null; // 清除缓存，避免 deinit 重复释放
+        }
         const pitch = self.size.w * self.bands; // 计算 pitch
         std.log.info("Pitch: {d}", .{pitch});
         // 创建图片纹理
