@@ -44,12 +44,29 @@ pub const ModKey = enum {
     }
 };
 
+// 可配置的文件排序方式（与配置字符串一一对应）
+pub const Sort = enum {
+    name,
+    created_desc,
+    created_asc,
+    modified_desc,
+    modified_asc,
+
+    pub const default: Sort = .name;
+
+    // 将配置字符串映射为排序方式，无法识别时返回 null
+    pub fn parse(name: []const u8) ?Sort {
+        return std.meta.stringToEnum(Sort, name);
+    }
+};
+
 pub const MainConfig = struct {
     base_dir: ?[]const u8 = null, // 基础目录（自动设置）
     default_mode: []const u8 = "sdl_gpu", // 默认模式
     min_scale: f32 = 0.5, // 最小缩放倍数
     max_scale: f32 = 3.0, // 最大缩放倍数
     mod_key: []const u8 = "left_alt", // 组合键的 Mod 键
+    sort: []const u8 = "name", // 文件排序方式
     screenshot_dir: ?[]const u8 = null, // 截图保存目录
     shader_dir: ?[]const u8 = null, // 着色器目录
     animation: AnimationConfig = .{
@@ -77,6 +94,7 @@ pub const Loaded = struct {
     allocator: Allocator,
     config: FromVariant,
     mod_key: ModKey, // 加载后解析出的 Mod 键（保证有效）
+    sort: Sort, // 加载后解析出的排序方式（保证有效）
 
     pub fn get(self: *const Loaded) *const MainConfig {
         return self.config.get();
@@ -124,6 +142,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
             .allocator = allocator,
             .config = .{ .parsed = parsed },
             .mod_key = parseModKey(parsed.value.mod_key),
+            .sort = parseSort(parsed.value.sort),
         };
     } else {
         const default = MainConfig{};
@@ -131,6 +150,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
             .allocator = allocator,
             .config = .{ .owned = default },
             .mod_key = parseModKey(default.mod_key),
+            .sort = parseSort(default.sort),
         };
     }
 }
@@ -140,5 +160,13 @@ fn parseModKey(name: []const u8) ModKey {
     return ModKey.parse(name) orelse {
         std.log.warn("Invalid mod_key \"{s}\", falling back to default \"{s}\"", .{ name, @tagName(ModKey.default) });
         return ModKey.default;
+    };
+}
+
+// 校验配置中的排序方式，配置错误时输出警告并回退到默认值
+fn parseSort(name: []const u8) Sort {
+    return Sort.parse(name) orelse {
+        std.log.warn("Invalid sort \"{s}\", falling back to default \"{s}\"", .{ name, @tagName(Sort.default) });
+        return Sort.default;
     };
 }

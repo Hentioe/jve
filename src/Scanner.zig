@@ -1,9 +1,13 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const config = @import("config");
 const Allocator = std.mem.Allocator;
 const Self = @This();
 
-pub const ScanError = error{};
+pub const ScanError = std.fs.Dir.StatFileError;
 pub const Error = ScanError || std.fs.Dir.OpenError || std.mem.Allocator.Error;
+
+pub const Sort = config.Sort;
 
 gpa: Allocator,
 arena: std.heap.ArenaAllocator,
@@ -12,14 +16,16 @@ extensions: []const []const u8,
 names: std.ArrayList([]const u8),
 index: usize,
 wrap: bool,
+sort: Sort,
 
 pub const Options = struct {
     /// next/prev 到头时是否回绕；false 时返回 null 且位置不变。
     wrap: bool = true, // todo: 配置化
-    // todo: 配置化更多，如：排序方式
+    /// 文件排序方式。
+    sort: Sort = .name,
 };
 
-pub fn init(gap: Allocator, dir_path: []const u8, extensions: []const []const u8) Error!Self {
+pub fn init(gap: Allocator, dir_path: []const u8, extensions: []const []const u8, options: Options) Error!Self {
     var self = Self{
         .gpa = gap,
         .arena = .init(gap),
@@ -27,11 +33,22 @@ pub fn init(gap: Allocator, dir_path: []const u8, extensions: []const []const u8
         .extensions = extensions,
         .names = .empty,
         .index = 0,
-        .wrap = true,
+        .wrap = options.wrap,
+        .sort = options.sort,
     };
     errdefer self.deinit();
     // 初始化时立即扫描
     try self.scan();
+    return self;
+}
+
+/// 扫描文件所在目录并定位到该文件；未命中时停在第一个。
+pub fn initFromFile(gap: Allocator, file_path: []const u8, extensions: []const []const u8, options: Options) Error!Self {
+    const dir_path = std.fs.path.dirname(file_path) orelse ".";
+    const base = std.fs.path.basename(file_path);
+    var self = try Self.init(gap, dir_path, extensions, options);
+    errdefer self.deinit();
+    _ = self.select(base);
     return self;
 }
 
@@ -49,6 +66,10 @@ pub fn scan(self: *Self) Error!void {
     var dir = try std.fs.cwd().openDir(self.dir_path, .{ .iterate = true });
     defer dir.close();
 
+    const needs_time = self.sort != .name;
+    var entries: std.ArrayList(Entry) = .empty;
+    defer entries.deinit(self.gpa);
+
     var it = dir.iterate();
     while (try it.next()) |entry| {
         switch (entry.kind) {
@@ -58,13 +79,71 @@ pub fn scan(self: *Self) Error!void {
         if (!matchExt(entry.name, self.extensions)) continue;
 
         const owned = try self.arena.allocator().dupe(u8, entry.name);
-        try self.names.append(self.gpa, owned);
+        var item = Entry{ .name = owned };
+        if (needs_time) {
+            const times = try statTimes(dir, entry.name);
+            item.created = times.created;
+            item.modified = times.modified;
+        }
+        try entries.append(self.gpa, item);
     }
+
+    std.mem.sort(Entry, entries.items, self.sort, entryLessThan);
+    for (entries.items) |item| try self.names.append(self.gpa, item.name);
 
     // 输出文件数量
     std.log.info("Found {d} supported file(s)", .{self.names.items.len});
-    // 按自然顺序排序文件名
-    std.mem.sort([]const u8, self.names.items, {}, naturalLessThan);
+}
+
+const Entry = struct {
+    name: []const u8,
+    created: i128 = 0,
+    modified: i128 = 0,
+};
+
+const Times = struct {
+    created: i128,
+    modified: i128,
+};
+
+fn entryLessThan(sort: Sort, a: Entry, b: Entry) bool {
+    switch (sort) {
+        .name => return naturalOrder(a.name, b.name) == .lt,
+        .created_asc => return timeOrder(a.created, b.created, a.name, b.name, true),
+        .created_desc => return timeOrder(a.created, b.created, a.name, b.name, false),
+        .modified_asc => return timeOrder(a.modified, b.modified, a.name, b.name, true),
+        .modified_desc => return timeOrder(a.modified, b.modified, a.name, b.name, false),
+    }
+}
+
+/// 时间相同时以自然顺序兜底，保证排序稳定且全序。
+fn timeOrder(ta: i128, tb: i128, na: []const u8, nb: []const u8, asc: bool) bool {
+    if (ta != tb) return if (asc) ta < tb else ta > tb;
+    return naturalOrder(na, nb) == .lt;
+}
+
+/// 获取文件的创建与修改时间；优先使用 Linux 的 birth time，不可用时回退到 ctime。
+fn statTimes(dir: std.fs.Dir, name: []const u8) std.fs.Dir.StatFileError!Times {
+    if (builtin.os.tag == .linux) {
+        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+        if (std.fmt.bufPrintZ(&path_buf, "{s}", .{name})) |path| {
+            var stx: std.os.linux.Statx = std.mem.zeroes(std.os.linux.Statx);
+            const mask = std.os.linux.STATX_MTIME | std.os.linux.STATX_BTIME;
+            const rc = std.os.linux.statx(dir.fd, path.ptr, std.os.linux.AT.NO_AUTOMOUNT, mask, &stx);
+            if (std.os.linux.E.init(rc) == .SUCCESS and stx.mask & std.os.linux.STATX_BTIME != 0) {
+                return .{
+                    .created = timestampToNs(stx.btime),
+                    .modified = timestampToNs(stx.mtime),
+                };
+            }
+        } else |_| {}
+    }
+    const st = try dir.statFile(name);
+    return .{ .created = st.ctime, .modified = st.mtime };
+}
+
+fn timestampToNs(ts: std.os.linux.statx_timestamp) i128 {
+    return @as(i128, ts.sec) * std.time.ns_per_s + @as(i128, ts.nsec);
 }
 
 pub fn next(self: *Self) ?[]const u8 {
@@ -158,10 +237,6 @@ fn matchExt(name: []const u8, exts: []const []const u8) bool {
     return false;
 }
 
-fn naturalLessThan(_: void, a: []const u8, b: []const u8) bool {
-    return naturalOrder(a, b) == .lt;
-}
-
 /// 自然排序：忽略大小写，数字段按数值比较（img2 < img10），最后以字节序兜底保证全序。
 fn naturalOrder(a: []const u8, b: []const u8) std.math.Order {
     var i: usize = 0;
@@ -205,6 +280,12 @@ const testing = std.testing;
 fn touch(dir: std.fs.Dir, name: []const u8) !void {
     const f = try dir.createFile(name, .{});
     f.close();
+}
+
+fn setMtime(dir: std.fs.Dir, name: []const u8, mtime: i128) !void {
+    const f = try dir.openFile(name, .{});
+    defer f.close();
+    try f.updateTimes(mtime, mtime);
 }
 
 test "matchExt" {
@@ -275,6 +356,34 @@ test "no wrap" {
     try testing.expectEqualStrings("b.png", s.next().?);
     try testing.expect(s.next() == null);
     try testing.expectEqualStrings("b.png", s.current().?);
+}
+
+test "sort by modified time" {
+    var tmp = testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+    try touch(tmp.dir, "old.png");
+    try touch(tmp.dir, "new.png");
+    try touch(tmp.dir, "mid.png");
+
+    const base: i128 = 1_600_000_000 * std.time.ns_per_s;
+    try setMtime(tmp.dir, "old.png", base + 1 * std.time.ns_per_s);
+    try setMtime(tmp.dir, "mid.png", base + 2 * std.time.ns_per_s);
+    try setMtime(tmp.dir, "new.png", base + 3 * std.time.ns_per_s);
+
+    const path = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(path);
+
+    var asc = try Self.init(testing.allocator, path, &.{"png"}, .{ .sort = .modified_asc });
+    defer asc.deinit();
+    try testing.expectEqualStrings("old.png", asc.items()[0]);
+    try testing.expectEqualStrings("mid.png", asc.items()[1]);
+    try testing.expectEqualStrings("new.png", asc.items()[2]);
+
+    var desc = try Self.init(testing.allocator, path, &.{"png"}, .{ .sort = .modified_desc });
+    defer desc.deinit();
+    try testing.expectEqualStrings("new.png", desc.items()[0]);
+    try testing.expectEqualStrings("mid.png", desc.items()[1]);
+    try testing.expectEqualStrings("old.png", desc.items()[2]);
 }
 
 test "initFromFile + rescan keeps current" {

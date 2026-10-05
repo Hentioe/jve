@@ -13,7 +13,7 @@ allocator: Allocator,
 scanner: Scanner,
 
 pub fn init(allocator: Allocator, sharder_dir: []const u8) Error!Self {
-    const scanner = try Scanner.init(allocator, sharder_dir, &[_][]const u8{".hlsl"});
+    const scanner = try Scanner.init(allocator, sharder_dir, &[_][]const u8{".hlsl"}, .{});
 
     return Self{ .allocator = allocator, .scanner = scanner };
 }

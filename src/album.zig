@@ -41,7 +41,7 @@ var cache: Cache = undefined;
 pub fn init(allocator: Allocator, file_path: []const u8) Error!void {
     const dir = std.fs.path.dirname(file_path) orelse ".";
     const base = std.fs.path.basename(file_path);
-    var scanner = try Scanner.init(allocator, dir, try root.extensions());
+    var scanner = try Scanner.init(allocator, dir, try root.extensions(), .{ .sort = root.config.sort() });
     errdefer scanner.deinit();
     // 选择当前文件
     if (!scanner.select(base)) return Error.AlbumCurrentFileNotFound;

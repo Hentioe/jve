@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 pub const paths = @import("config/paths.zig");
 pub const loader = @import("config/loader.zig");
 pub const Error = @import("config/errors.zig").Error;
+pub const Sort = loader.Sort;
 
 var initialized: bool = false;
 var cache: loader.Loaded = undefined;
@@ -27,6 +28,11 @@ pub inline fn get() *const loader.MainConfig {
 /// 已解析且保证有效的 Mod 键，外部无需再做错误或空值处理
 pub inline fn modKey() loader.ModKey {
     return cache.mod_key;
+}
+
+/// 已解析且保证有效的排序方式，外部无需再做错误或空值处理
+pub inline fn sort() loader.Sort {
+    return cache.sort;
 }
 
 /// 基于配置主目录和相对路径，创建完整路径

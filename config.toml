@@ -2,6 +2,8 @@ default_mode = "sdl_gpu"
 min_scale = 0.5
 max_scale = 3.0
 mod_key = "left_ctrl"
+# 排序方式: name | created_desc | created_asc | modified_desc | modified_asc
+sort = "name"
 screenshot_dir = "screenshots"
 shader_dir = "shaders"
 
