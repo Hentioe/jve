@@ -3,17 +3,15 @@ const errors = @import("errors.zig");
 const Backend = @import("sdl/enums.zig").Backend;
 const Allocator = std.mem.Allocator;
 
-pub const config = @import("config.zig");
-pub const vips = @import("vips.zig");
+pub const config = @import("config");
+pub const vips = @import("vips");
 pub const sdl = @import("sdl.zig");
 pub const album = @import("album.zig");
 pub const clipboard = @import("clipboard.zig");
-pub const loader = @import("vips/loader.zig");
-pub const writer = @import("vips/writer.zig");
 pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
 pub const State = @import("sdl/State.zig");
-pub const remover = @import("ai/remover.zig");
+pub const remover = @import("ai").remover;
 pub const LoadError = errors.LoadError;
 
 // glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
@@ -48,12 +46,12 @@ pub fn extensions() ![]const []const u8 {
     return try vips.formats.get();
 }
 
-pub fn load(allocator: Allocator, file_path: []const u8) LoadError!loader.LoadedImage {
+pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
     // 检查文件的可访问性
     const stat = std.fs.cwd().statFile(file_path) catch |err| return err;
     // 检查输入是否为文件
     if (stat.kind != .file) return LoadError.NotAFile;
-    return try loader.load(allocator, file_path);
+    return try vips.loader.load(allocator, file_path);
 }
 
 pub fn render(allocator: Allocator, backend: []const u8) !void {

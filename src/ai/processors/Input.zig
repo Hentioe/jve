@@ -6,7 +6,7 @@ const IShape = shared.IShape;
 const ISize = shared.ISize;
 const Point = shared.Point(f32);
 const PixelLayout = enums.PixelLayout;
-const Image = @import("../../vips.zig").Image;
+const Image = @import("vips").Image;
 const Self = @This();
 
 shape: IShape(u32),

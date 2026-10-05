@@ -1,6 +1,6 @@
 const OrtError = @import("ort").Error;
-const ConfigError = @import("../config.zig").Error;
-const VipsError = @import("../vips.zig").Error;
+const ConfigError = @import("config").Error;
+const VipsError = @import("vips").Error;
 
 pub const CustomError = error{
     ModelNotConfigured,

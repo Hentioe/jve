@@ -3,7 +3,7 @@ const OrtError = @import("ort").Error;
 const ScannerError = @import("../Scanner.zig").Error;
 const SizeError = @import("shared").SizeError;
 const AlbumError = @import("../album.zig").Error;
-const AiError = @import("../ai/errors.zig").Error;
+const AiError = @import("ai").Error;
 
 pub const SdlError = error{
     SdlInitFailed,

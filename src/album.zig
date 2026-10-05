@@ -1,6 +1,6 @@
 const std = @import("std");
 const root = @import("root.zig");
-const LImage = root.loader.LoadedImage;
+const LImage = @import("vips").LImage;
 const Allocator = std.mem.Allocator;
 const Scanner = @import("Scanner.zig");
 

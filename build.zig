@@ -12,14 +12,39 @@ pub fn build(b: *std.Build) void {
     });
     const shared_import: Import = .{ .name = "shared", .module = shared_mod };
 
+    // TOML 依赖
     const toml_dep = b.dependency("toml", .{});
     const toml_import: Import = .{ .name = "toml", .module = toml_dep.module("toml") };
+
+    // 配置模块
+    const config_mod = b.addModule("config", .{
+        .root_source_file = b.path("src/config.zig"),
+        .target = target,
+        .imports = &.{toml_import},
+    });
+    const config_import: Import = .{ .name = "config", .module = config_mod };
+
+    // vips 模块
+    const vips_mod = b.addModule("vips", .{
+        .root_source_file = b.path("src/vips.zig"),
+        .target = target,
+        .imports = &.{shared_import},
+    });
+    const vips_import: Import = .{ .name = "vips", .module = vips_mod };
 
     const ort_mod = b.addModule("ort", .{
         .root_source_file = b.path("src/ort.zig"),
         .target = target,
     });
     const ort_import: Import = .{ .name = "ort", .module = ort_mod };
+
+    // AI 模块
+    const ai_mod = b.addModule("ai", .{
+        .root_source_file = b.path("src/ai.zig"),
+        .target = target,
+        .imports = &.{ shared_import, config_import, ort_import, vips_import },
+    });
+    const ai_import: Import = .{ .name = "ai", .module = ai_mod };
 
     const clap_dep = b.dependency("clap", .{});
     const clap_import: Import = .{ .name = "clap", .module = clap_dep.module("clap") };
@@ -42,16 +67,24 @@ pub fn build(b: *std.Build) void {
     const root_mod = b.addModule("jve", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
-        .imports = &.{ toml_import, ort_import, shared_import },
+        .imports = &.{
+            shared_import,
+            config_import,
+            ort_import,
+            ai_import,
+            vips_import,
+            toml_import,
+        },
     });
     const root_import: Import = .{ .name = "jve", .module = root_mod };
+
+    // 链接系统 vips 库
+    vips_mod.linkSystemLibrary("vips", .{});
+    // 链接 glib（vips 依赖）
+    vips_mod.linkSystemLibrary("glib-2.0", .{});
     // 链接 sdl
     root_mod.linkLibrary(sdl_lib);
     root_mod.linkLibrary(sdl_test_lib);
-    // 链接 vips
-    root_mod.linkSystemLibrary("vips", .{});
-    // 链接 glib（vips 依赖）
-    root_mod.linkSystemLibrary("glib-2.0", .{});
     // 链接 SDL3_shadercross
     root_mod.linkSystemLibrary("SDL3_shadercross", .{});
     // 链接 onnxruntime

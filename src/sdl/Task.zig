@@ -2,19 +2,20 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const root = @import("../root.zig");
 const shared = @import("shared");
+const vips = @import("vips");
+const ai = @import("ai");
 const atomic = std.atomic;
 const gpu = @import("gpu.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
-const loader = @import("../vips/loader.zig");
+const loader = vips.loader;
 const IShape = shared.IShape;
 const ISize = shared.ISize(u32);
 const Point = shared.Point(f32);
-const Image = @import("../vips.zig").Image;
+const Image = vips.Image;
 const Extractor = @import("Extractor.zig");
-const RunnerInput = @import("../ai/processors/Input.zig");
-const OrtRunner = @import("../ai/OrtRunner.zig");
-const remover = @import("../ai/remover.zig");
+const OrtRunner = ai.OrtRunner;
+const remover = ai.remover;
 const Self = @This();
 
 const Input = struct { shape: IShape(i32), click: ?Point = null };
@@ -92,14 +93,14 @@ fn execute(
     const data_ptr = self.extracted.?.pixels_slice.ptr;
     const u_shape = input.shape.to(u32);
     const click_position: ?Point = if (input.click) |click| .{ .x = click.x, .y = click.y } else null;
-    const runner_input: RunnerInput = .{
+    const model_input: ai.Input = .{
         .data_ptr = data_ptr,
         .shape = u_shape,
         .click_position = click_position,
     };
     // 运行模型推理
     try remover.init(self.allocator);
-    var image = try remover.remove(model, runner_input);
+    var image = try remover.remove(model, model_input);
     defer image.deinit();
     const out = try image.allocOutInMemory();
     self.result = .{ .success = .{
