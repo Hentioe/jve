@@ -5,10 +5,12 @@ mod_key = "left_ctrl"
 # 排序方式: name | created_desc | created_asc | modified_desc | modified_asc
 sort = "name"
 screenshot_dir = "screenshots"
-shader_dir = "shaders"
 
 [animation]
 image_switch = true
+
+[shaders]
+dir = "shaders"
 
 [models]
 dir = "models"

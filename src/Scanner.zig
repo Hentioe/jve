@@ -36,6 +36,7 @@ pub fn init(gap: Allocator, dir_path: []const u8, extensions: []const []const u8
         .wrap = options.wrap,
         .sort = options.sort,
     };
+    // todo: 检查 dir_path 是否存在，是否可访问
     errdefer self.deinit();
     // 初始化时立即扫描
     try self.scan();

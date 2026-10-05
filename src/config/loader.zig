@@ -9,6 +9,10 @@ pub const AnimationConfig = struct {
     image_switch: bool, // 是否启用图片切换动画
 };
 
+pub const ShadersConfig = struct {
+    dir: []const u8, // 着色器目录
+};
+
 pub const ModelsConfig = struct {
     dir: []const u8, // 模型目录
     birefnet: ?BiRefNet = null, // BiRefNet 模型配置
@@ -68,9 +72,11 @@ pub const MainConfig = struct {
     mod_key: []const u8 = "left_alt", // 组合键的 Mod 键
     sort: []const u8 = "name", // 文件排序方式
     screenshot_dir: ?[]const u8 = null, // 截图保存目录
-    shader_dir: ?[]const u8 = null, // 着色器目录
     animation: AnimationConfig = .{
         .image_switch = true,
+    },
+    shaders: ShadersConfig = .{
+        .dir = "shaders",
     },
     models: ModelsConfig = .{
         .dir = "models",

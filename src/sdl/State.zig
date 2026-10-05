@@ -59,6 +59,7 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
             h.printError();
             return Error.SdlCreateRendererFailed;
         };
+        errdefer window.destroy();
         // 开启垂直同步
         if (!h.check(c.SDL_SetRenderVSync(renderer, 1))) return Error.SdlSetRenderVSyncFailed;
         self.window = window;
@@ -72,6 +73,7 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
             image_size,
             .{ .backend = .sdl_gpu },
         );
+        errdefer window.destroy();
         // 创建 GPU 设备
         const device = c.SDL_CreateGPUDevice(
             c.SDL_GPU_SHADERFORMAT_SPIRV | c.SDL_GPU_SHADERFORMAT_DXIL | c.SDL_GPU_SHADERFORMAT_MSL,
@@ -98,10 +100,16 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
         // }
 
         // 扫描和编译着色器
-        if (config.get().shader_dir) |dir| {
-            var shader_scanner = try ShaderScanner.init(self.allocator, dir);
+        if (config.get().base_dir) |base_dir| {
+            // todo: base_dir 是否存在
+            _ = base_dir;
+            var sf = std.heap.stackFallback(256, self.allocator);
+            const sfa = sf.get();
+            const full_path = try config.allocFullPath(sfa, config.get().shaders.dir);
+            defer sfa.free(full_path);
+            var shader_scanner = try ShaderScanner.init(self.allocator, full_path);
             defer shader_scanner.deinit();
-            std.log.info("Scanning shaders in directory: {s}", .{dir});
+            std.log.info("Scanning shaders in directory: {s}", .{full_path});
             try shader_scanner.scan();
             self.shaders = try shader_scanner.compileShaders(self.allocator, device);
         }
