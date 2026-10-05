@@ -2,9 +2,10 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const root = @import("../root.zig");
-const writer = @import("../root.zig").writer;
+const shared = @import("shared");
+const writer = root.writer;
 const Error = @import("errors.zig").Error;
-const IShape = root.IShape;
+const IShape = shared.IShape;
 const Self = @This();
 
 allocator: std.mem.Allocator,

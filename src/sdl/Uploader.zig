@@ -1,9 +1,10 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
-const ISize = @import("../structs.zig").ISize(u32);
+const ISize = shared.ISize(u32);
 const Self = @This();
 
 /// 内部纹理上传任务记录

@@ -1,6 +1,6 @@
 const std = @import("std");
 const ort = @import("ort");
-const heap = @import("../heap.zig");
+const shared = @import("shared");
 const config = @import("../root.zig").config;
 const checker = @import("checker.zig");
 const Allocator = std.mem.Allocator;
@@ -54,7 +54,7 @@ pub fn deinit(self: *Self) void {
 
 pub fn run(self: *const Self, input: Input) !Image {
     const allocator = self.api.gpa;
-    defer heap.mallocTrim(); // 立即归还空闲堆给操作系统
+    defer shared.heap.mallocTrim(); // 立即归还空闲堆给操作系统
     // 打印输入的基本信息
     std.log.info("Image shape: {f}", .{input.shape});
 

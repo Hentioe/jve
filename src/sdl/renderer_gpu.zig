@@ -1,9 +1,10 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const root = @import("../root.zig");
+const shared = @import("shared");
 const shader_loader = @import("shader_loader.zig");
 const post_util = @import("post_util.zig");
-const root = @import("../root.zig");
 const gpu = @import("gpu.zig");
 const structs = @import("structs.zig");
 const clipboard = @import("clipboard.zig");
@@ -23,8 +24,8 @@ const OnscreenPipeline = @import("onscreen_pipeline.zig");
 const Screenshot = @import("Screenshot.zig");
 const RenderNext = @import("enums.zig").RenderNext;
 const Delta = @import("Delta.zig");
-const ISize = root.ISize;
-const Point = root.Point(f32);
+const ISize = shared.ISize;
+const Point = shared.Point(f32);
 const Vertex = structs.Vertex;
 const BaseUniforms = structs.BaseUniforms;
 const SharpenUniforms = structs.SharpenUniforms;
@@ -62,7 +63,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     const window = state.gpu_window.?; // 确保在 startRendering 中完成初始化
     // 更新窗口标题
     try window.setTitle(image.file_name);
-    if (state.window != null) root.heap.mallocTrim(); // 当来自于模式切换，立即释放内存
+    if (state.window != null) shared.heap.mallocTrim(); // 当来自于模式切换，立即释放内存
     // 创建 GPU 设备
     const device = state.gpu_device.?;
     // 创建上传器

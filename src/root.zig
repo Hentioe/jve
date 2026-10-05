@@ -3,9 +3,7 @@ const errors = @import("errors.zig");
 const Backend = @import("sdl/enums.zig").Backend;
 const Allocator = std.mem.Allocator;
 
-pub const structs = @import("structs.zig");
 pub const config = @import("config.zig");
-pub const heap = @import("heap.zig");
 pub const vips = @import("vips.zig");
 pub const sdl = @import("sdl.zig");
 pub const album = @import("album.zig");
@@ -16,9 +14,6 @@ pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
 pub const State = @import("sdl/State.zig");
 pub const LoadError = errors.LoadError;
-pub const IShape = structs.IShape;
-pub const ISize = structs.ISize;
-pub const Point = structs.Point;
 
 // glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
 // 内存会滞留在各自的 arena 中不归还操作系统，导致轮换图片时 RSS 持续上涨。

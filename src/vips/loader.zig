@@ -1,9 +1,10 @@
 const std = @import("std");
 const c = @import("c.zig").c;
+const shared = @import("shared");
 const formats = @import("formats.zig");
 const Error = @import("errors.zig").Error;
 const Image = @import("Image.zig");
-const IShape = @import("../root.zig").IShape;
+const IShape = shared.IShape;
 
 pub const LoadedImage = struct {
     allocator: std.mem.Allocator,

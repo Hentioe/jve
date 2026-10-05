@@ -1,11 +1,11 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
-const root = @import("../root.zig");
+const shared = @import("shared");
 const consts = @import("consts.zig");
 const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
 const Error = @import("errors.zig").Error;
-const IShape = root.IShape;
+const IShape = shared.IShape;
 
 /// 保存像素到图像文件，预设为 8 位无符号整数 (0-255) 的像素数据
 pub fn savePixelsToFile(pixels_ptr: *anyopaque, shape: IShape(i32), out_filename: []const u8) Error!void {

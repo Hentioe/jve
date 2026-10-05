@@ -1,7 +1,7 @@
 const std = @import("std");
 const OrtError = @import("ort").Error;
 const ScannerError = @import("../Scanner.zig").Error;
-const SizeError = @import("../errors.zig").SizeError;
+const SizeError = @import("shared").SizeError;
 const AlbumError = @import("../album.zig").Error;
 const ModelsError = @import("../models/errors.zig").Error;
 

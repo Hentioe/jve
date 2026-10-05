@@ -5,6 +5,13 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // 共享使用的基础模块
+    const shared_mod = b.addModule("shared", .{
+        .root_source_file = b.path("src/shared.zig"),
+        .target = target,
+    });
+    const shared_import: Import = .{ .name = "shared", .module = shared_mod };
+
     const toml_dep = b.dependency("toml", .{});
     const toml_import: Import = .{ .name = "toml", .module = toml_dep.module("toml") };
 
@@ -35,7 +42,7 @@ pub fn build(b: *std.Build) void {
     const root_mod = b.addModule("jve", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
-        .imports = &.{ toml_import, ort_import },
+        .imports = &.{ toml_import, ort_import, shared_import },
     });
     const root_import: Import = .{ .name = "jve", .module = root_mod };
     // 链接 sdl

@@ -1,10 +1,11 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
+const shared = @import("shared");
 const consts = @import("consts.zig");
 const Error = @import("errors.zig").Error;
 const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
-const IShape = @import("../structs.zig").IShape;
+const IShape = shared.IShape;
 const Self = @This();
 
 pub const Format = enum(c_int) {
