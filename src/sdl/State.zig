@@ -46,6 +46,7 @@ pub fn init(allocator: Allocator) Error!Self {
 
 pub fn initModel(self: *Self, model: Model) Error!void {
     self.ort_lock.lock();
+    defer self.ort_lock.unlock();
     if (self.ort_api == null) {
         self.ort_api = try Api.init(self.allocator, "jve");
     }
@@ -61,7 +62,6 @@ pub fn initModel(self: *Self, model: Model) Error!void {
             }
         },
     }
-    self.ort_lock.unlock();
 }
 
 pub fn deinit(self: *Self) void {

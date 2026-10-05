@@ -16,15 +16,27 @@ const ModelInput = @import("../models/processors/Input.zig");
 const Self = @This();
 
 const Input = struct { shape: IShape(i32), click: ?Point = null };
-const State = enum(u8) { running, done, failed };
-const Result = struct {
-    width: u32,
-    height: u32,
-    data_ptr: *anyopaque,
-    _out: Image.Out,
+const State = enum(u8) { running, done };
+const Result = union(enum) {
+    success: Success,
+    failure: anyerror,
+
+    const Success = struct {
+        width: u32,
+        height: u32,
+        data_ptr: *anyopaque,
+        _out: Image.Out,
+
+        pub fn deinit(self: *Success) void {
+            self._out.deinit();
+        }
+    };
 
     pub fn deinit(self: *Result) void {
-        self._out.deinit();
+        switch (self.*) {
+            .success => |*s| s.deinit(),
+            .failure => {},
+        }
     }
 };
 
@@ -41,6 +53,7 @@ pub fn start(
     render_state: *RenderState,
     input: Input,
 ) Error!*Self {
+    // 申请内存分配自身
     const self_ptr = try allocator.create(Self);
     errdefer allocator.destroy(self_ptr);
 
@@ -48,10 +61,24 @@ pub fn start(
         .allocator = allocator,
         .thread = try std.Thread.spawn(.{}, run, .{ self_ptr, device, texture, render_state, input }),
     };
+    // 返回自身指针
     return self_ptr;
 }
 
 fn run(
+    self: *Self,
+    device: *c.SDL_GPUDevice,
+    texture: ?*c.SDL_GPUTexture,
+    render_state: *RenderState,
+    input: Input,
+) void {
+    self.execute(device, texture, render_state, input) catch |err| {
+        self.result = .{ .failure = err };
+    };
+    self.state.store(.done, .release);
+}
+
+fn execute(
     self: *Self,
     device: *c.SDL_GPUDevice,
     texture: ?*c.SDL_GPUTexture,
@@ -86,13 +113,12 @@ fn run(
 
     defer image.deinit();
     const out = try image.allocOutInMemory();
-    self.result = Result{
+    self.result = .{ .success = .{
         .width = @intCast(image.width),
         .height = @intCast(image.height),
         .data_ptr = out.data_ptr,
         ._out = out,
-    };
-    self.state.store(.done, .release);
+    } };
 }
 
 pub fn poll(self: *Self) State {

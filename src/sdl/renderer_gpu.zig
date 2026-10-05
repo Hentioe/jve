@@ -405,20 +405,25 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         // 检查任务
         if (task) |t| {
             if (t.poll() == .done) {
-                std.log.info("Task result is reading...", .{});
-                const data_ptr = t.result.?.data_ptr; // 获取遮罩数据指针
-                const size: ISize(u32) = .{ .w = t.result.?.width, .h = t.result.?.height };
-                if (gpu.createAndUploadTexture(&uploader, &offscreen_info, data_ptr, size)) |new_mask| {
-                    if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex); // 释放旧遮罩纹理
-                    tex_mask = new_mask;
-                    task = null;
-                    is_busy = false;
-                } else |err| {
-                    std.log.err("Failed to create GPU texture: {}", .{err});
-                }
+                if (t.result) |*res| switch (res.*) {
+                    .success => |s| {
+                        std.log.info("Task result is reading...", .{});
+                        const data_ptr = s.data_ptr; // 获取遮罩数据指针
+                        const size: ISize(u32) = .{ .w = s.width, .h = s.height };
+                        if (gpu.createAndUploadTexture(&uploader, &offscreen_info, data_ptr, size)) |new_mask| {
+                            if (tex_mask) |tex| c.SDL_ReleaseGPUTexture(device, tex); // 释放旧遮罩纹理
+                            tex_mask = new_mask;
+                        } else |err| {
+                            std.log.err("Failed to create GPU texture: {}", .{err});
+                        }
+                        std.log.info("Task result read complete", .{});
+                    },
+                    .failure => |err| std.log.err("Task failed: {}", .{err}),
+                };
                 t.finish();
+                task = null;
+                is_busy = false;
                 dirty = false;
-                std.log.info("Task result read complete", .{});
             }
         }
 
