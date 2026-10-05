@@ -30,7 +30,7 @@ pub fn init(allocator: Allocator, api: *const Api) Error!Self {
     const model_path = try std.fs.path.join(allocator, &.{ model_dir, model });
     defer allocator.free(model_path);
 
-    const session = try api.createSession(model_path.ptr, .{ .disable_gpu = true });
+    const session = try api.createSession(model_path, .{ .disable_gpu = true });
 
     return .{ .allocator = allocator, .api = api, .session = session };
 }
@@ -42,8 +42,7 @@ pub fn deinit(self: *Self) void {
 
 pub fn run(self: *const Self, input: Input) !Image {
     const allocator = self.allocator;
-    // 所有张量释放后归还空闲堆给操作系统
-    defer heap.trimHeap();
+    defer heap.mallocTrim(); // 立即归还空闲堆给操作系统
     // 打印输入的基本信息
     std.log.info("Image shape: {f}", .{input.shape});
     // 前处理：强制 3 通道、缩放、归一化

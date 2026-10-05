@@ -17,9 +17,11 @@ pub const InitOptions = struct {
 pub fn init(
     api: *const Api,
     provider_options_list: *const std.ArrayList(ProviderOptions),
-    model_path: [*]const u8,
+    model_path: []const u8,
     init_options: InitOptions,
 ) Error!Self {
+    var sf = std.heap.stackFallback(std.fs.max_path_bytes, api.gpa);
+    const sfa = sf.get();
     const ort_api = api.ort_api;
     // 创建 SessionOptions
     var session_options: ?*c.OrtSessionOptions = null;
@@ -54,8 +56,10 @@ pub fn init(
         }
     }
     // 创建会话
+    const model_path_z = try sfa.dupeZ(u8, model_path);
+    defer sfa.free(model_path_z);
     var session: ?*c.OrtSession = null;
-    if (!h.check(ort_api, ort_api.*.CreateSession.?(api.env, model_path, session_options, &session))) {
+    if (!h.check(ort_api, ort_api.*.CreateSession.?(api.env, model_path_z, session_options, &session))) {
         return Error.OrtCreateSessionFailed;
     }
 

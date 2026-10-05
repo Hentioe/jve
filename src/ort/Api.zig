@@ -8,21 +8,26 @@ const ProviderOptions = @import("enums.zig").ProviderOptions;
 const Session = @import("Session.zig");
 const Self = @This();
 
-allocator: Allocator,
+gpa: Allocator,
 ort_api: *const c.struct_OrtApi,
 env: *c.OrtEnv,
 memory_info: ?*c.OrtMemoryInfo,
 provider_list: std.ArrayList([]const u8),
 provider_options_list: std.ArrayList(ProviderOptions),
 
-pub fn init(allocator: Allocator, logid: [*]const u8) Error!Self {
+pub fn init(gpa: Allocator, logid: []const u8) Error!Self {
+    var sf = std.heap.stackFallback(512, gpa);
+    const sfa = sf.get();
+
     // 获取 ONNX Runtime API 句柄
     const base = c.OrtGetApiBase();
     const ort_api = base.*.GetApi.?(c.ORT_API_VERSION);
 
     // 创建 Env
+    const logid_z = try sfa.dupeZ(u8, logid);
+    defer sfa.free(logid_z);
     var env: ?*c.OrtEnv = null;
-    if (!h.check(ort_api, ort_api.*.CreateEnv.?(c.ORT_LOGGING_LEVEL_WARNING, logid, &env))) {
+    if (!h.check(ort_api, ort_api.*.CreateEnv.?(c.ORT_LOGGING_LEVEL_WARNING, logid_z, &env))) {
         return Error.OrtCreateEnvFailed;
     }
 
@@ -41,23 +46,23 @@ pub fn init(allocator: Allocator, logid: [*]const u8) Error!Self {
     }
     defer _ = ort_api.*.ReleaseAvailableProviders.?(providers, provider_len);
     const provider_count: u32 = @intCast(provider_len);
-    var provider_list = try std.ArrayList([]const u8).initCapacity(allocator, provider_count);
+    var provider_list = try std.ArrayList([]const u8).initCapacity(gpa, provider_count);
     for (0..provider_count) |i| {
         const s = std.mem.span(providers[i]);
-        const owned_s = try allocator.dupe(u8, s); // 复制一份
+        const owned_s = try gpa.dupe(u8, s); // 复制一份
         // 用日志把可用的 EP 列表打印出来
-        try provider_list.append(allocator, owned_s);
+        try provider_list.append(gpa, owned_s);
         std.log.info("Available: {s}", .{owned_s});
     }
     // 遍历 EP 列表，创建加速配置
-    var provider_options_list = try std.ArrayList(ProviderOptions).initCapacity(allocator, provider_count);
+    var provider_options_list = try std.ArrayList(ProviderOptions).initCapacity(gpa, provider_count);
     for (provider_list.items) |item| {
         const options = try accelerator.buidlOptions(item);
-        if (options) |o| try provider_options_list.append(allocator, o);
+        if (options) |o| try provider_options_list.append(gpa, o);
     }
 
     return .{
-        .allocator = allocator,
+        .gpa = gpa,
         .ort_api = ort_api,
         .env = env.?,
         .memory_info = memory_info.?,
@@ -70,14 +75,14 @@ pub fn deinit(self: *Self) void {
     self.ort_api.*.ReleaseEnv.?(self.env);
     self.ort_api.*.ReleaseMemoryInfo.?(self.memory_info);
     for (self.provider_list.items) |item| {
-        self.allocator.free(item);
+        self.gpa.free(item);
     }
-    self.provider_list.deinit(self.allocator);
-    self.provider_options_list.deinit(self.allocator);
+    self.provider_list.deinit(self.gpa);
+    self.provider_options_list.deinit(self.gpa);
     self.* = undefined;
 }
 
-pub fn createSession(self: *const Self, model_path: [*]const u8, init_options: Session.InitOptions) Error!Session {
+pub fn createSession(self: *const Self, model_path: []const u8, init_options: Session.InitOptions) Error!Session {
     return try Session.init(
         self,
         &self.provider_options_list,

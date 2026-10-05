@@ -37,8 +37,8 @@ pub fn init(allocator: Allocator, api: *const Api) Error!Self {
     std.log.info("Using BiRefNet variant: {s}", .{@tagName(variant)});
 
     const session = try switch (variant) {
-        .lite => api.createSession(lite_model_path.ptr, .{ .disable_gpu = true }),
-        .standard => api.createSession(standard_model_path.ptr, .{ .disable_gpu = true }),
+        .lite => api.createSession(lite_model_path, .{ .disable_gpu = true }),
+        .standard => api.createSession(standard_model_path, .{ .disable_gpu = true }),
     };
 
     return .{
@@ -57,8 +57,7 @@ pub fn deinit(self: *Self) void {
 // todo: 移除 allocator 参数
 pub fn run(self: *const Self, input: Input) !Image {
     const allocator = self.allocator;
-    // 所有张量释放后归还空闲堆给操作系统
-    defer heap.trimHeap();
+    defer heap.mallocTrim(); // 立即归还空闲堆给操作系统
     // 打印输入的基本信息
     std.log.info("Image shape: {f}", .{input.shape});
 

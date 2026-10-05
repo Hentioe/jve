@@ -62,6 +62,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     const window = state.gpu_window.?; // 确保在 startRendering 中完成初始化
     // 更新窗口标题
     try window.setTitle(image.file_name);
+    if (state.window != null) root.heap.mallocTrim(); // 当来自于模式切换，立即释放内存
     // 创建 GPU 设备
     const device = state.gpu_device.?;
     // 创建上传器
