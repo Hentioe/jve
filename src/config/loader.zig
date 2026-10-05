@@ -6,11 +6,27 @@ const Allocator = std.mem.Allocator;
 const Error = errors.Error;
 
 pub const AnimationConfig = struct {
-    image_switch: bool = true, // 是否启用图片切换动画
+    image_switch: bool, // 是否启用图片切换动画
+};
+
+pub const ModelsConfig = struct {
+    dir: []const u8, // 模型目录
+    birefnet: ?BiRefNet = null, // BiRefNet 模型配置
+    magic_touch: ?MagicTouch = null, // MagicTouch 模型配置
+};
+
+pub const BiRefNet = struct {
+    standard_model: []const u8, // 标准模型文件
+    lite_model: []const u8, // 轻量模型文件
+    used_variant: []const u8 = "lite", // 使用的变体
+};
+
+pub const MagicTouch = struct {
+    model: []const u8, // MagicTouch 模型文件
 };
 
 pub const MainConfig = struct {
-    _base_dir: ?[]const u8 = null, // 基础目录（不可配置，自动设置）
+    base_dir: ?[]const u8 = null, // 基础目录（自动设置）
     default_mode: []const u8 = "sdl_gpu", // 默认模式
     min_scale: f32 = 0.5, // 最小缩放倍数
     max_scale: f32 = 3.0, // 最大缩放倍数
@@ -18,6 +34,9 @@ pub const MainConfig = struct {
     shader_dir: ?[]const u8 = null, // 着色器目录
     animation: AnimationConfig = .{
         .image_switch = true,
+    },
+    models: ModelsConfig = .{
+        .dir = "models",
     },
 };
 
@@ -45,11 +64,11 @@ pub const Loaded = struct {
     pub fn deinit(self: *Loaded) void {
         switch (self.config) {
             .parsed => |*parsed| {
-                if (parsed.value._base_dir) |base_dir| self.allocator.free(base_dir);
+                if (parsed.value.base_dir) |s| self.allocator.free(s);
                 parsed.deinit();
             },
             .owned => |*owned| {
-                if (owned._base_dir) |base_dir| self.allocator.free(base_dir);
+                if (owned.base_dir) |s| self.allocator.free(s);
             },
         }
         self.* = undefined;
@@ -78,7 +97,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
         };
         // 附加基础目录路径
         const base_dir = std.fs.path.dirname(p) orelse ".";
-        parsed.value._base_dir = try allocator.dupe(u8, base_dir);
+        parsed.value.base_dir = try allocator.dupe(u8, base_dir);
 
         return Loaded{ .allocator = allocator, .config = .{ .parsed = parsed } };
     } else {

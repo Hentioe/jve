@@ -78,10 +78,10 @@ fn run(
     };
     switch (model) {
         .BiRefNet => {
-            image = try render_state.birefnet.?.run(self.allocator, model_input);
+            image = try render_state.birefnet.?.run(model_input);
         },
         .MagicTouch => {
-            image = try render_state.magick_touch.?.run(self.allocator, model_input);
+            image = try render_state.magick_touch.?.run(model_input);
         },
     }
 

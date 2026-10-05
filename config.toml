@@ -6,3 +6,14 @@ shader_dir = "shaders"
 
 [animation]
 image_switch = true
+
+[models]
+dir = "models"
+
+[models.birefnet]
+standard_model = "BiRefNet.onnx"
+lite_model = "BiRefNet_lite.onnx"
+used_variant = "lite"
+
+[models.magic_touch]
+model = "magic_touch.onnx"

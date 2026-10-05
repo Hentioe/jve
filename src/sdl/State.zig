@@ -52,12 +52,12 @@ pub fn initModel(self: *Self, model: Model) Error!void {
     switch (model) {
         .BiRefNet => {
             if (self.birefnet == null) {
-                self.birefnet = try BiRefNet.init(&self.ort_api.?, .lite);
+                self.birefnet = try BiRefNet.init(self.allocator, &self.ort_api.?);
             }
         },
         .MagicTouch => {
             if (self.magick_touch == null) {
-                self.magick_touch = try MagicTouch.init(&self.ort_api.?);
+                self.magick_touch = try MagicTouch.init(self.allocator, &self.ort_api.?);
             }
         },
     }

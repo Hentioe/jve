@@ -1,7 +1,9 @@
 const std = @import("std");
 const ort = @import("ort");
 const heap = @import("../heap.zig");
+const config = @import("../root.zig").config;
 const Allocator = std.mem.Allocator;
+const Error = @import("errors.zig").Error;
 const Image = @import("../vips.zig").Image;
 const Api = ort.Api;
 const Session = ort.Session;
@@ -14,13 +16,23 @@ const Self = @This();
 const SIZE = 512;
 const ROI_RADIUS: f32 = 5.0;
 
+allocator: Allocator,
 api: *const Api,
 session: Session,
 
-pub fn init(api: *const Api) !Self {
-    const session = try api.createSession("models/magic_touch.onnx", .{ .disable_gpu = true });
+pub fn init(allocator: Allocator, api: *const Api) Error!Self {
+    const model_config = config.get().models.magic_touch;
+    if (model_config == null) return Error.ModelNotConfigured;
 
-    return .{ .api = api, .session = session };
+    const model_dir = config.get().models.dir;
+    const model = model_config.?.model;
+    // 组合成路径
+    const model_path = try std.fs.path.join(allocator, &.{ model_dir, model });
+    defer allocator.free(model_path);
+
+    const session = try api.createSession(model_path.ptr, .{ .disable_gpu = true });
+
+    return .{ .allocator = allocator, .api = api, .session = session };
 }
 
 pub fn deinit(self: *Self) void {
@@ -28,7 +40,8 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
+pub fn run(self: *const Self, input: Input) !Image {
+    const allocator = self.allocator;
     // 所有张量释放后归还空闲堆给操作系统
     defer heap.trimHeap();
     // 打印输入的基本信息

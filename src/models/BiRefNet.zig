@@ -1,7 +1,9 @@
 const std = @import("std");
 const ort = @import("ort");
 const heap = @import("../heap.zig");
+const config = @import("../root.zig").config;
 const Allocator = std.mem.Allocator;
+const Error = @import("errors.zig").Error;
 const Image = @import("../vips.zig").Image;
 const Api = ort.Api;
 const Session = ort.Session;
@@ -10,20 +12,41 @@ const Input = @import("processors/Input.zig");
 const Output = @import("processors/Output.zig");
 const Self = @This();
 
-const Variant = enum { lite, normal };
+const Variant = enum { lite, standard };
 const SIZE = 1024;
 
+allocator: Allocator,
 api: *const Api,
 session: Session,
 variant: Variant,
 
-pub fn init(api: *const Api, variant: Variant) !Self {
+pub fn init(allocator: Allocator, api: *const Api) Error!Self {
+    const model_config = config.get().models.birefnet;
+    if (model_config == null) return Error.ModelNotConfigured;
+
+    const model_dir = config.get().models.dir;
+    const lite_model = model_config.?.lite_model;
+    // 组合成路径
+    const lite_model_path = try std.fs.path.join(allocator, &.{ model_dir, lite_model });
+    defer allocator.free(lite_model_path);
+    const standard_model = model_config.?.standard_model;
+    const standard_model_path = try std.fs.path.join(allocator, &.{ model_dir, standard_model });
+    defer allocator.free(standard_model_path);
+
+    const variant: Variant = if (std.mem.eql(u8, model_config.?.used_variant, "standard")) .standard else .lite;
+    std.log.info("Using BiRefNet variant: {s}", .{@tagName(variant)});
+
     const session = try switch (variant) {
-        .lite => api.createSession("models/BiRefNet_lite.onnx", .{ .disable_gpu = true }),
-        .normal => api.createSession("models/BiRefNet.onnx", .{ .disable_gpu = true }),
+        .lite => api.createSession(lite_model_path.ptr, .{ .disable_gpu = true }),
+        .standard => api.createSession(standard_model_path.ptr, .{ .disable_gpu = true }),
     };
 
-    return .{ .api = api, .session = session, .variant = variant };
+    return .{
+        .allocator = allocator,
+        .api = api,
+        .session = session,
+        .variant = variant,
+    };
 }
 
 pub fn deinit(self: *Self) void {
@@ -31,7 +54,9 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
+// todo: 移除 allocator 参数
+pub fn run(self: *const Self, input: Input) !Image {
+    const allocator = self.allocator;
     // 所有张量释放后归还空闲堆给操作系统
     defer heap.trimHeap();
     // 打印输入的基本信息
