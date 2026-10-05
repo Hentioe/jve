@@ -80,8 +80,6 @@ pub fn build(b: *std.Build) void {
 
     // 链接系统 vips 库
     vips_mod.linkSystemLibrary("vips", .{});
-    // 链接 glib（vips 依赖）
-    vips_mod.linkSystemLibrary("glib-2.0", .{});
     // 链接 onnxruntime
     ort_mod.linkSystemLibrary("onnxruntime", .{});
     // 链接 sdl
@@ -89,6 +87,8 @@ pub fn build(b: *std.Build) void {
     root_mod.linkLibrary(sdl_test_lib);
     // 链接 SDL3_shadercross
     root_mod.linkSystemLibrary("SDL3_shadercross", .{});
+    // 链接 glib（vips 依赖）
+    root_mod.linkSystemLibrary("glib-2.0", .{});
 
     const exe = b.addExecutable(.{
         .name = "jve",
