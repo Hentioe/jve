@@ -1,14 +1,11 @@
 const std = @import("std");
-const ort = @import("ort");
 const enums = @import("enums.zig");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const root = @import("../root.zig");
 const shared = @import("shared");
 const config = root.config;
-const Api = ort.Api;
 const Allocator = std.mem.Allocator;
-const RwLock = std.Thread.RwLock;
 const Error = @import("errors.zig").Error;
 const LImage = root.loader.LoadedImage;
 const IShape = shared.IShape;
@@ -18,11 +15,7 @@ const Shaders = std.ArrayList(*c.SDL_GPUShader);
 const Backend = @import("enums.zig").Backend;
 const Extractor = @import("Extractor.zig");
 const ShaderScanner = @import("ShaderScanner.zig");
-const BiRefNet = @import("../models/BiRefNet.zig");
-const MagicTouch = @import("../models/MagicTouch.zig");
 const Self = @This();
-
-pub const Model = enum { BiRefNet, MagicTouch };
 
 allocator: Allocator,
 image_shape: IShape(i32) = undefined,
@@ -36,33 +29,9 @@ gpu_window: ?*Window = null,
 gpu_device: ?*c.SDL_GPUDevice = null,
 shaders: ?Shaders = null,
 extracted: ?Extractor = null,
-ort_lock: RwLock = .{},
-ort_api: ?ort.Api = null,
-birefnet: ?BiRefNet = null,
-magick_touch: ?MagicTouch = null,
 
 pub fn init(allocator: Allocator) Error!Self {
     return Self{ .allocator = allocator };
-}
-
-pub fn initModel(self: *Self, model: Model) Error!void {
-    self.ort_lock.lock();
-    defer self.ort_lock.unlock();
-    if (self.ort_api == null) {
-        self.ort_api = try Api.init(self.allocator, "jve");
-    }
-    switch (model) {
-        .BiRefNet => {
-            if (self.birefnet == null) {
-                self.birefnet = try BiRefNet.init(&self.ort_api.?);
-            }
-        },
-        .MagicTouch => {
-            if (self.magick_touch == null) {
-                self.magick_touch = try MagicTouch.init(&self.ort_api.?);
-            }
-        },
-    }
 }
 
 pub fn deinit(self: *Self) void {
@@ -75,8 +44,6 @@ pub fn deinit(self: *Self) void {
     if (self.gpu_device) |device| c.SDL_DestroyGPUDevice(device);
     if (self.gpu_window) |window| window.destroy();
     if (self.extracted) |*extractor| extractor.deinit();
-    if (self.birefnet) |*birefnet| birefnet.deinit();
-    if (self.ort_api) |*ort_api| ort_api.deinit();
     self.* = undefined;
 }
 

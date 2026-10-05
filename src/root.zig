@@ -13,6 +13,7 @@ pub const writer = @import("vips/writer.zig");
 pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
 pub const State = @import("sdl/State.zig");
+pub const remover = @import("ai/remover.zig");
 pub const LoadError = errors.LoadError;
 
 // glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
@@ -32,6 +33,7 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
 
 pub fn deinit() void {
     // 和 init 的顺序相反，先 deinit 后初始化的组件
+    remover.deinit(); // remover 是按需延迟初始化的，无需在此处初始化
     sdl.deinit();
     album.deinit();
     vips.deinit();

@@ -1,18 +1,19 @@
 const std = @import("std");
 const ort = @import("ort");
-const jve = @import("../root.zig");
+const jve = @import("../../root.zig");
 const shared = @import("shared");
 const config = jve.config;
-const checker = @import("checker.zig");
+const checker = @import("../checker.zig");
 const Allocator = std.mem.Allocator;
-const Error = @import("errors.zig").Error;
-const Image = @import("../vips.zig").Image;
+const Error = @import("../errors.zig").Error;
+const Image = @import("../../vips.zig").Image;
 const Api = ort.Api;
 const Session = ort.Session;
-const Timer = @import("Timer.zig");
+const Timer = @import("../Timer.zig");
 const Point = shared.Point(f32);
-const Input = @import("processors/Input.zig");
-const Output = @import("processors/Output.zig");
+const Input = @import("../processors/Input.zig");
+const Output = @import("../processors/Output.zig");
+const VTable = @import("../OrtRunner.zig").VTable;
 const Self = @This();
 
 const SIZE = 512;
@@ -21,7 +22,7 @@ const ROI_RADIUS: f32 = 5.0;
 api: *const Api,
 session: Session,
 
-pub fn init(api: *const Api) Error!Self {
+pub fn init(api: *const Api) Error!*Self {
     // 初始化过程涉及大量路径分配，使用 sfa 应付
     var sf = std.heap.stackFallback(std.fs.max_path_bytes, api.gpa);
     const sfa = sf.get();
@@ -40,15 +41,21 @@ pub fn init(api: *const Api) Error!Self {
         .{ .disable_gpu = true },
     );
 
-    return .{ .api = api, .session = session };
+    const self_ptr = try api.gpa.create(Self);
+    self_ptr.* = Self{
+        .api = api,
+        .session = session,
+    };
+
+    return self_ptr;
 }
 
 pub fn deinit(self: *Self) void {
     self.session.deinit();
-    self.* = undefined;
+    self.api.gpa.destroy(self);
 }
 
-pub fn run(self: *const Self, input: Input) !Image {
+pub fn run(self: *const Self, input: Input) Error!Image {
     const allocator = self.api.gpa;
     defer shared.heap.mallocTrim(); // 立即归还空闲堆给操作系统
     // 打印输入的基本信息
@@ -167,3 +174,5 @@ fn buildPriorMap(allocator: Allocator, input: Input) ![]f32 {
     for (resized, 0..) |v, i| prior[i] = std.math.clamp(v, 0.0, 1.0);
     return prior;
 }
+
+pub const vtable = VTable.of(Self);

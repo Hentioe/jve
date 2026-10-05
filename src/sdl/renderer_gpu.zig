@@ -315,7 +315,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             .start_task => {
                 if (task == null) {
                     is_busy = true;
-                    if (Task.start(allocator, device, tex_src, state, .{ .shape = image.shape, .click = marker_pos })) |t| {
+                    if (Task.start(allocator, device, tex_src, .{ .shape = image.shape, .click = marker_pos })) |t| {
                         std.log.info("Task started successfully", .{});
                         task = t;
                     } else |err| {

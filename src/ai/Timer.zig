@@ -1,9 +1,8 @@
 const std = @import("std");
 const Instant = std.time.Instant;
+const Error = @import("errors.zig").TimerError;
 const Self = @This();
 
-/// Timer 的错误集
-pub const Error = error{ TimerNotStarted, TimerUnsupported };
 /// 时间单位
 pub const Unit = enum { ns, ms, s };
 

@@ -3,7 +3,7 @@ const OrtError = @import("ort").Error;
 const ScannerError = @import("../Scanner.zig").Error;
 const SizeError = @import("shared").SizeError;
 const AlbumError = @import("../album.zig").Error;
-const ModelsError = @import("../models/errors.zig").Error;
+const AiError = @import("../ai/errors.zig").Error;
 
 pub const SdlError = error{
     SdlInitFailed,
@@ -42,5 +42,5 @@ pub const CustomError = error{
     ModelNotInitialized,
 };
 
-pub const Error = SdlError || CustomError || SizeError || OrtError || AlbumError || ModelsError ||
+pub const Error = SdlError || CustomError || SizeError || OrtError || AlbumError || AiError ||
     std.mem.Allocator.Error || std.Thread.SpawnError || std.posix.AccessError;
