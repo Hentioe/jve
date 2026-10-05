@@ -1,6 +1,4 @@
-const std = @import("std");
 const c = @import("c.zig").c;
-const h = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();

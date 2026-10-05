@@ -1,12 +1,8 @@
-const std = @import("std");
 const c = @import("c.zig").c;
-const h = @import("helper.zig");
 const shared = @import("shared");
 const Error = @import("errors.zig").Error;
 const ISize = shared.ISize(u32);
-const Image = @import("../root.zig").loader.Image;
 const Uploader = @import("Uploader.zig");
-const Self = @This();
 
 /// 创建纹理后，上传并提交到 GPU
 pub fn createAndUploadTexture(

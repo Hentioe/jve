@@ -1,6 +1,5 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const root = @import("../root.zig");
 const config = @import("config");
 const vips = @import("vips");
 const writer = vips.writer;

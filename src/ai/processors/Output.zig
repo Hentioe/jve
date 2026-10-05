@@ -6,7 +6,6 @@ const IShape = shared.IShape;
 const Image = @import("vips").Image;
 const PixelLayout = enums.PixelLayout;
 const Format = Image.Format;
-const Self = @This();
 
 pub fn parse(allocator: Allocator, output_ptr: *anyopaque, shape: IShape(i32), format: Format, layout: PixelLayout, normalized: bool, apply_sigmoid: bool) !Image {
     var image: Image = undefined;

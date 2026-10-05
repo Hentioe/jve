@@ -1,5 +1,4 @@
 const std = @import("std");
-const c = @import("c.zig").c;
 const shared = @import("shared");
 const formats = @import("formats.zig");
 const Error = @import("errors.zig").Error;

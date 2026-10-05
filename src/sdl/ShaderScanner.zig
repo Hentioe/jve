@@ -2,7 +2,6 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const errors = @import("errors.zig");
 const shader_loader = @import("shader_loader.zig");
-const config = @import("config");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Error = errors.Error;

@@ -1,7 +1,5 @@
-const std = @import("std");
 const c = @import("c.zig").c;
 const post_util = @import("post_util.zig");
-const Error = @import("errors.zig").Error;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
 

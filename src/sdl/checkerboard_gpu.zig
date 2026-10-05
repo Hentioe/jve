@@ -1,4 +1,3 @@
-const std = @import("std");
 const c = @import("c.zig").c;
 const shader_loader = @import("shader_loader.zig");
 const Error = @import("errors.zig").Error;

@@ -1,9 +1,7 @@
-const std = @import("std");
 const c = @import("c.zig").c;
 const post_util = @import("post_util.zig");
 const shader_loader = @import("shader_loader.zig");
 const Error = @import("errors.zig").Error;
-const Window = @import("window.zig");
 const Self = @This();
 
 pipeline: *c.SDL_GPUGraphicsPipeline,

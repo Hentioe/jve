@@ -1,5 +1,4 @@
 const std = @import("std");
-const enums = @import("enums.zig");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const root = @import("../root.zig");

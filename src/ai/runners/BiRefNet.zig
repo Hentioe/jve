@@ -3,7 +3,6 @@ const ort = @import("ort");
 const shared = @import("shared");
 const config = @import("config");
 const checker = @import("../checker.zig");
-const Allocator = std.mem.Allocator;
 const Error = @import("../errors.zig").Error;
 const Image = @import("vips").Image;
 const Api = ort.Api;
