@@ -54,6 +54,16 @@ pub fn init(input_ptr: *const anyopaque, shape: IShape(i32), format: Format) Err
     };
 }
 
+// 需要用原生 heifload 加载的 HEIF 家族扩展名
+const HEIF_EXTENSIONS = [_][]const u8{ ".avif", ".heic", ".heif" };
+
+fn isHeifExtension(extension: []const u8) bool {
+    for (HEIF_EXTENSIONS) |ext| {
+        if (std.ascii.eqlIgnoreCase(extension, ext)) return true;
+    }
+    return false;
+}
+
 // 从文件加载图像，返回 Image 实例
 pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
     const extension = std.fs.path.extension(path);
@@ -62,9 +72,11 @@ pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
 
     // 从文件创建 VipsImage 指针
     var in: [*c]c.VipsImage = null;
-    if (std.mem.eql(u8, extension, ".avif")) {
-        std.log.info("Heif loading...", .{});
-        if (!h.check(c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL))) { // 对 avif 特殊处理（仅获取第一帧）
+    if (isHeifExtension(extension)) {
+        // libvips 的 heifload 嗅探白名单缺少 AVIF 动图的 ftypavis 标识，
+        // vips_image_new_from_file 会回退到 magickload，后者一次性解码整段动画，
+        // 导致卡顿和内存升高。这里直接调用原生 heifload，仅获取第一帧。
+        if (!h.check(c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL))) {
             return Error.VipsHeifLoadFailed;
         }
     } else {
