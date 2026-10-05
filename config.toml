@@ -1,6 +1,7 @@
 default_mode = "sdl_gpu"
 min_scale = 0.5
 max_scale = 3.0
+mod_key = "left_ctrl"
 screenshot_dir = "screenshots"
 shader_dir = "shaders"
 

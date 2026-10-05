@@ -25,11 +25,31 @@ pub const MagicTouch = struct {
     model: []const u8, // MagicTouch 模型文件
 };
 
+// 可配置的常用修饰键（与配置字符串一一对应）
+pub const ModKey = enum {
+    left_alt,
+    right_alt,
+    left_ctrl,
+    right_ctrl,
+    left_shift,
+    right_shift,
+    left_gui,
+    right_gui,
+
+    pub const default: ModKey = .left_alt;
+
+    // 将配置字符串映射为修饰键，无法识别时返回 null
+    pub fn parse(name: []const u8) ?ModKey {
+        return std.meta.stringToEnum(ModKey, name);
+    }
+};
+
 pub const MainConfig = struct {
     base_dir: ?[]const u8 = null, // 基础目录（自动设置）
     default_mode: []const u8 = "sdl_gpu", // 默认模式
     min_scale: f32 = 0.5, // 最小缩放倍数
     max_scale: f32 = 3.0, // 最大缩放倍数
+    mod_key: []const u8 = "left_alt", // 组合键的 Mod 键
     screenshot_dir: ?[]const u8 = null, // 截图保存目录
     shader_dir: ?[]const u8 = null, // 着色器目录
     animation: AnimationConfig = .{
@@ -56,6 +76,7 @@ pub const FromVariant = union(enum) {
 pub const Loaded = struct {
     allocator: Allocator,
     config: FromVariant,
+    mod_key: ModKey, // 加载后解析出的 Mod 键（保证有效）
 
     pub fn get(self: *const Loaded) *const MainConfig {
         return self.config.get();
@@ -99,9 +120,25 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
         const base_dir = std.fs.path.dirname(p) orelse ".";
         parsed.value.base_dir = try allocator.dupe(u8, base_dir);
 
-        return Loaded{ .allocator = allocator, .config = .{ .parsed = parsed } };
+        return Loaded{
+            .allocator = allocator,
+            .config = .{ .parsed = parsed },
+            .mod_key = parseModKey(parsed.value.mod_key),
+        };
     } else {
         const default = MainConfig{};
-        return Loaded{ .allocator = allocator, .config = .{ .owned = default } };
+        return Loaded{
+            .allocator = allocator,
+            .config = .{ .owned = default },
+            .mod_key = parseModKey(default.mod_key),
+        };
     }
+}
+
+// 校验配置中的 Mod 键，配置错误时输出警告并回退到默认值
+fn parseModKey(name: []const u8) ModKey {
+    return ModKey.parse(name) orelse {
+        std.log.warn("Invalid mod_key \"{s}\", falling back to default \"{s}\"", .{ name, @tagName(ModKey.default) });
+        return ModKey.default;
+    };
 }

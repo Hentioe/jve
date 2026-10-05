@@ -16,7 +16,7 @@ display_width: i32,
 display_height: i32,
 sdl_window: *c.SDL_Window,
 windowed: bool, // 窗口化的？
-leader_pressed: bool = false, // 是否按下了 Leader 键
+mod_key_pressed: bool = false, // 是否按下了 Mod 键
 
 const Options = struct {
     windowed: bool = true,
@@ -102,7 +102,7 @@ pub fn imageSizeUpdated(self: *Self, size: ISize(i32)) void {
 
 fn hitTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, self_ptr: ?*anyopaque) callconv(.c) c_uint {
     const self: *Self = @ptrCast(@alignCast(self_ptr)); // 还原回调数据
-    if (self.windowed and !self.leader_pressed) {
+    if (self.windowed and !self.mod_key_pressed) {
         return c.SDL_HITTEST_DRAGGABLE; // 允许通过拖动窗口的任意位置来移动窗口
     } else {
         return c.SDL_HITTEST_NORMAL; // 如果无边框，不支持拖动

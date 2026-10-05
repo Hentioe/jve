@@ -15,7 +15,7 @@ const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
 const Window = @import("window.zig");
 const Pipeline = @import("Pipeline.zig");
-const LeaderKey = @import("LeaderKey.zig");
+const ModKey = @import("ModKey.zig");
 const Task = @import("Task.zig");
 const Uploader = @import("Uploader.zig");
 const Checkerboard = @import("checkerboard_gpu.zig");
@@ -39,7 +39,7 @@ const EventAction = union(enum) {
     none,
     quit,
     toggle,
-    leader: EventType,
+    mod_key: EventType,
     reset,
     invert,
     grayscale,
@@ -260,7 +260,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     var contrast: f32 = 1; // 对比度调整值（暂未实现）
     var gamma: f32 = 1; // Gamma 校正值（暂未实现）
     // 其它开关
-    var leader = LeaderKey.init(c.SDLK_LALT); // Leader 键
+    var mod_key = ModKey.init(ModKey.keycode(root.config.modKey())); // Mod 键
     var custom_shader_enabled = false; // 是否启用自定义着色器
     // 标记
     const marker_radius: f32 = 18.0; // 标记半径（像素），同时作为二次点击移除的判定范围
@@ -284,7 +284,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
 
         // 动作的依赖项
         const action_deps: ActionDeps = .{
-            .leader = &leader,
+            .mod_key = &mod_key,
             .is_sliding = is_sliding,
             .is_busy = is_busy,
         };
@@ -304,9 +304,9 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 toggle = true;
                 running = false;
             },
-            .leader => |event_type| {
-                leader.inputType(event_type); // 根据类型，自动管理按下状态
-                window.leader_pressed = leader.pressed; // 更新窗口的 leader_pressed 状态
+            .mod_key => |event_type| {
+                mod_key.input(event_type); // 根据类型，自动管理按下状态
+                window.mod_key_pressed = mod_key.pressed; // 更新窗口的 Mod 键按下状态
             },
             .invert => is_inverted = !is_inverted,
             .grayscale => is_grayscale = !is_grayscale,
@@ -562,7 +562,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
 }
 
 const ActionDeps = struct {
-    leader: *LeaderKey,
+    mod_key: *ModKey,
     is_sliding: bool,
     is_busy: bool,
 };
@@ -572,19 +572,19 @@ fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionD
         action.* = .quit;
     } else if (isToggleEvent(event)) {
         action.* = .toggle;
-    } else if (event.key.key == deps.leader.key) {
-        action.* = .{ .leader = event.type };
+    } else if (event.key.key == deps.mod_key.key) {
+        action.* = .{ .mod_key = event.type };
     } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) { // / 键重置所有参数
         action.* = .reset;
-    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !deps.leader.pressed) { // R 键反转颜色
+    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_R and !deps.mod_key.pressed) { // R 键反转颜色
         action.* = .invert;
     } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_G) { // G 键灰阶化
         action.* = .grayscale;
     } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_S) { // S 键保存截图
         action.* = .save_screenshot;
-    } else if (deps.leader.pressedAndKeyDown(event, c.SDLK_R) and !deps.is_busy) { // Leader+R 去除背景
+    } else if (deps.mod_key.pressedAndKeyDown(event, c.SDLK_R) and !deps.is_busy) { // Mod+R 去除背景
         action.* = .start_task;
-    } else if (deps.leader.pressedAndKeyDown(event, c.SDLK_T)) { // Leader+T 切换自定义着色器的启用状态
+    } else if (deps.mod_key.pressedAndKeyDown(event, c.SDLK_T)) { // Mod+T 切换自定义着色器的启用状态
         action.* = .toggle_custom_shader;
     } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_C and (event.key.mod & c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
         action.* = .copy_screenshot;

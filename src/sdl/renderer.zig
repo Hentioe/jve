@@ -9,7 +9,7 @@ const Error = @import("errors.zig").Error;
 const State = @import("State.zig");
 const Window = @import("window.zig");
 const LImage = @import("vips").LImage;
-const LeaderKey = @import("LeaderKey.zig");
+const ModKey = @import("ModKey.zig");
 const Animated = @import("Animated.zig");
 const SlideIn = @import("SlideIn.zig");
 const Delta = @import("Delta.zig");
@@ -20,7 +20,7 @@ const RenderNext = @import("enums.zig").RenderNext;
 const EventType = @FieldType(c.union_SDL_Event, "type");
 const EventAction = union(enum) {
     none,
-    leader: EventType,
+    mod_key: EventType,
     quit,
     toggle,
     drag_start: struct { button_x: f32, button_y: f32 },
@@ -68,7 +68,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     const min_scale = config.get().min_scale;
     const slide_animation = config.get().animation.image_switch; // 切换图片时是否播放侧滑自旋动画；为 false 则原位直接替换
     // 其它控制参数
-    var leader = LeaderKey.init(c.SDLK_LALT); // Leader 键
+    var mod_key = ModKey.init(ModKey.keycode(config.modKey())); // Mod 键
     var is_dragging: bool = false; // 是否正在拖动
     var move_offset = state.move_offset; // 移动偏移量
     var scale = Animated.init(1.0, 1.0, 15); // 缩放
@@ -83,7 +83,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
         defer action = .none; // 重置动作
         // 动作的依赖项
         const action_deps: ActionDeps = .{
-            .leader = &leader,
+            .mod_key = &mod_key,
             .dst_rect = &dst_rect,
             .is_dragging = is_dragging,
         };
@@ -98,7 +98,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
         // 根据动作修改状态
         switch (action) {
             .none => {},
-            .leader => |event_type| leader.inputType(event_type), // 根据类型，自动管理按下状态
+            .mod_key => |event_type| mod_key.input(event_type), // 根据类型，自动管理 Mod 按下状态
             .quit => running = false,
             .toggle => {
                 running = false;
@@ -231,14 +231,14 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
 }
 
 const ActionDeps = struct {
-    leader: *LeaderKey,
+    mod_key: *ModKey,
     dst_rect: *c.SDL_FRect,
     is_dragging: bool,
 };
 
 fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionDeps) void {
-    if (event.key.key == deps.leader.key) {
-        action.* = .{ .leader = event.type };
+    if (event.key.key == deps.mod_key.key) {
+        action.* = .{ .mod_key = event.type };
     } else if (isQuitEvent(event)) {
         action.* = .quit;
     } else if (isToggleEvent(event, deps.dst_rect)) {
@@ -251,7 +251,7 @@ fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionD
         handleDragingEvent(event, action);
     } else if (isRotateEvent(event)) {
         action.* = .{ .rotate = .{ .key = event.key.key } };
-    } else if (deps.leader.pressedAndKeyDown(event, c.SDLK_D)) {
+    } else if (deps.mod_key.pressedAndKeyDown(event, c.SDLK_D)) {
         action.* = .delete;
     } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and (c.SDL_GetModState() & c.SDL_KMOD_CTRL) != 0) {
         action.* = .{ .scale = .{ .wheel_y = event.wheel.y } };
