@@ -1,7 +1,7 @@
 .{
-    .name = .imageviewer,
+    .name = .jve,
     .version = "0.0.0",
-    .fingerprint = 0x9e21c46038c0f5a0, // Changing this has security and trust implications.
+    .fingerprint = 0xfebcdc43c4343364, // Changing this has security and trust implications.
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .sdl = .{ // 此分支特用于 0.15

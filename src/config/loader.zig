@@ -58,7 +58,7 @@ pub const Loaded = struct {
 
 pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
     const path = if (config_path) |path| path else val: {
-        break :val try paths.findConfigFile(allocator, "imageviewer", "imageviewer.toml");
+        break :val try paths.findConfigFile(allocator, "jve", "config.toml");
     };
 
     defer if (path) |p| {

@@ -32,12 +32,12 @@ pub fn build(b: *std.Build) void {
     const sdl_lib = sdl_dep.artifact("SDL3");
     const sdl_test_lib = sdl_dep.artifact("SDL3_test");
 
-    const root_mod = b.addModule("imageviewer", .{
+    const root_mod = b.addModule("jve", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .imports = &.{ toml_import, ort_import },
     });
-    const root_import: Import = .{ .name = "imageviewer", .module = root_mod };
+    const root_import: Import = .{ .name = "jve", .module = root_mod };
     // 链接 sdl
     root_mod.linkLibrary(sdl_lib);
     root_mod.linkLibrary(sdl_test_lib);
@@ -51,7 +51,7 @@ pub fn build(b: *std.Build) void {
     root_mod.linkSystemLibrary("onnxruntime", .{});
 
     const exe = b.addExecutable(.{
-        .name = "imageviewer",
+        .name = "jve",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,

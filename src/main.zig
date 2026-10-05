@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const cli = @import("cli.zig");
-const viewer = @import("imageviewer");
+const jve = @import("jve");
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
@@ -23,11 +23,11 @@ pub fn main() !void {
         file_path = pos;
     }
     // 初始化
-    defer viewer.deinit();
-    try viewer.init(allocator, file_path);
+    defer jve.deinit();
+    try jve.init(allocator, file_path);
     // 读取后端参数
-    const backend: []const u8 = res.args.backend orelse viewer.config.get().default_mode;
+    const backend: []const u8 = res.args.backend orelse jve.config.get().default_mode;
     std.log.info("Using backend: {s}", .{backend});
     // 渲染图像
-    try viewer.render(allocator, backend);
+    try jve.render(allocator, backend);
 }
