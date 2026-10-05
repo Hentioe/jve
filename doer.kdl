@@ -1,7 +1,10 @@
 tasks {
-  run "zig build run -- -b sdl_gpu {*}"
-  format "zig fmt ."
-  release "zig build --release=fast"
-  clean "rm -rf .zig-cache/ zig-out/"
-  count "cloc src"
+    run "zig build run -- -b sdl_renderer {*}"
+    format {
+        - "zig fmt ."
+        - "dprint fmt"
+    }
+    release "zig build --release=fast"
+    clean "rm -rf .zig-cache/ zig-out/"
+    count "cloc src"
 }
