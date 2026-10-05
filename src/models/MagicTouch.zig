@@ -2,6 +2,7 @@ const std = @import("std");
 const ort = @import("ort");
 const heap = @import("../heap.zig");
 const config = @import("../root.zig").config;
+const checker = @import("checker.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const Image = @import("../vips.zig").Image;
@@ -16,23 +17,29 @@ const Self = @This();
 const SIZE = 512;
 const ROI_RADIUS: f32 = 5.0;
 
-allocator: Allocator,
 api: *const Api,
 session: Session,
 
-pub fn init(allocator: Allocator, api: *const Api) Error!Self {
+pub fn init(api: *const Api) Error!Self {
+    // 初始化过程涉及大量路径分配，使用 sfa 应付
+    var sf = std.heap.stackFallback(std.fs.max_path_bytes, api.gpa);
+    const sfa = sf.get();
+    // 检查模型是否已配置
     const model_config = config.get().models.magic_touch;
     if (model_config == null) return Error.ModelNotConfigured;
+    // 检查并获取模型目录
+    const model_dir = try checker.modelDirCheck(sfa);
+    defer sfa.free(model_dir);
+    // 检查并获取模型路径
+    const model_path = try checker.modelFileCheck(sfa, model_dir, model_config.?.model);
+    defer sfa.free(model_path);
 
-    const model_dir = config.get().models.dir;
-    const model = model_config.?.model;
-    // 组合成路径
-    const model_path = try std.fs.path.join(allocator, &.{ model_dir, model });
-    defer allocator.free(model_path);
+    const session = try api.createSession(
+        model_path,
+        .{ .disable_gpu = true },
+    );
 
-    const session = try api.createSession(model_path, .{ .disable_gpu = true });
-
-    return .{ .allocator = allocator, .api = api, .session = session };
+    return .{ .api = api, .session = session };
 }
 
 pub fn deinit(self: *Self) void {
@@ -41,7 +48,7 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn run(self: *const Self, input: Input) !Image {
-    const allocator = self.allocator;
+    const allocator = self.api.gpa;
     defer heap.mallocTrim(); // 立即归还空闲堆给操作系统
     // 打印输入的基本信息
     std.log.info("Image shape: {f}", .{input.shape});

@@ -1,7 +1,12 @@
 const OrtError = @import("ort").Error;
+const ConfigError = @import("../config.zig").Error;
 
 pub const CustomError = error{
-    ModelNotConfigured, // 模型未配置
+    ModelNotConfigured,
+    ModelDirNotFound,
+    ModelDirAccessError,
+    ModelFileNotFound,
+    ModelFileAccessError,
 };
 
-pub const Error = CustomError || OrtError;
+pub const Error = CustomError || OrtError || ConfigError;

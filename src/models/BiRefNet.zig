@@ -2,6 +2,7 @@ const std = @import("std");
 const ort = @import("ort");
 const heap = @import("../heap.zig");
 const config = @import("../root.zig").config;
+const checker = @import("checker.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const Image = @import("../vips.zig").Image;
@@ -15,24 +16,26 @@ const Self = @This();
 const Variant = enum { lite, standard };
 const SIZE = 1024;
 
-allocator: Allocator,
 api: *const Api,
 session: Session,
 variant: Variant,
 
-pub fn init(allocator: Allocator, api: *const Api) Error!Self {
+pub fn init(api: *const Api) Error!Self {
+    // 初始化过程涉及大量路径分配，使用 sfa 应付
+    var sf = std.heap.stackFallback(std.fs.max_path_bytes, api.gpa);
+    const sfa = sf.get();
+    // 检查模型是否已配置
     const model_config = config.get().models.birefnet;
     if (model_config == null) return Error.ModelNotConfigured;
-
-    const model_dir = config.get().models.dir;
-    const lite_model = model_config.?.lite_model;
-    // 组合成路径
-    const lite_model_path = try std.fs.path.join(allocator, &.{ model_dir, lite_model });
-    defer allocator.free(lite_model_path);
-    const standard_model = model_config.?.standard_model;
-    const standard_model_path = try std.fs.path.join(allocator, &.{ model_dir, standard_model });
-    defer allocator.free(standard_model_path);
-
+    // 检查并获取模型目录
+    const model_dir = try checker.modelDirCheck(sfa);
+    defer sfa.free(model_dir);
+    // 检查并获取模型路径
+    const lite_model_path = try checker.modelFileCheck(sfa, model_dir, model_config.?.lite_model);
+    defer sfa.free(lite_model_path);
+    const standard_model_path = try checker.modelFileCheck(sfa, model_dir, model_config.?.standard_model);
+    defer sfa.free(standard_model_path);
+    // 根据配置决定使用的模型变体
     const variant: Variant = if (std.mem.eql(u8, model_config.?.used_variant, "standard")) .standard else .lite;
     std.log.info("Using BiRefNet variant: {s}", .{@tagName(variant)});
 
@@ -41,12 +44,7 @@ pub fn init(allocator: Allocator, api: *const Api) Error!Self {
         .standard => api.createSession(standard_model_path, .{ .disable_gpu = true }),
     };
 
-    return .{
-        .allocator = allocator,
-        .api = api,
-        .session = session,
-        .variant = variant,
-    };
+    return .{ .api = api, .session = session, .variant = variant };
 }
 
 pub fn deinit(self: *Self) void {
@@ -54,9 +52,8 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-// todo: 移除 allocator 参数
 pub fn run(self: *const Self, input: Input) !Image {
-    const allocator = self.allocator;
+    const allocator = self.api.gpa;
     defer heap.mallocTrim(); // 立即归还空闲堆给操作系统
     // 打印输入的基本信息
     std.log.info("Image shape: {f}", .{input.shape});

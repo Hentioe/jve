@@ -93,7 +93,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
 
         var parsed = parser.parseFile(p) catch |err| {
             std.log.err("Failed to parse config file: {}", .{err});
-            return Error.ParseError;
+            return Error.ConfigParseError;
         };
         // 附加基础目录路径
         const base_dir = std.fs.path.dirname(p) orelse ".";

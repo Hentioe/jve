@@ -1,6 +1,7 @@
 const std = @import("std");
 
-pub const CustomError = error{
-    ParseError,
+pub const ConfigError = error{
+    ConfigParseError,
+    ConfigNotFound,
 };
-pub const Error = CustomError || std.mem.Allocator.Error || std.process.GetEnvVarOwnedError;
+pub const Error = ConfigError || std.mem.Allocator.Error || std.process.GetEnvVarOwnedError;
