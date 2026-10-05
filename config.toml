@@ -1,7 +1,8 @@
 default_mode = "sdl_gpu"
 min_scale = 0.5
 max_scale = 3.0
-mod_key = "left_ctrl"
+# 修饰键: left_alt | right_alt | left_ctrl | right_ctrl | left_shift | right_shift | left_gui | right_gui
+mod_key = "left_alt"
 # 排序方式: name | created_desc | created_asc | modified_desc | modified_asc
 sort = "name"
 screenshot_dir = "screenshots"
