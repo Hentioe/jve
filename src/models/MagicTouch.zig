@@ -1,7 +1,7 @@
 const std = @import("std");
 const ort = @import("ort");
-const heap = @import("../heap.zig");
-const config = @import("../root.zig").config;
+const jve = @import("../root.zig");
+const config = jve.config;
 const checker = @import("checker.zig");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
@@ -9,9 +9,9 @@ const Image = @import("../vips.zig").Image;
 const Api = ort.Api;
 const Session = ort.Session;
 const Timer = @import("Timer.zig");
+const Point = jve.Point;
 const Input = @import("processors/Input.zig");
 const Output = @import("processors/Output.zig");
-const Position = @import("Position.zig");
 const Self = @This();
 
 const SIZE = 512;
@@ -49,7 +49,7 @@ pub fn deinit(self: *Self) void {
 
 pub fn run(self: *const Self, input: Input) !Image {
     const allocator = self.api.gpa;
-    defer heap.mallocTrim(); // 立即归还空闲堆给操作系统
+    defer jve.heap.mallocTrim(); // 立即归还空闲堆给操作系统
     // 打印输入的基本信息
     std.log.info("Image shape: {f}", .{input.shape});
     // 前处理：强制 3 通道、缩放、归一化
@@ -125,7 +125,7 @@ pub fn run(self: *const Self, input: Input) !Image {
 // 再缩放到模型输入尺寸（与图像缩放保持一致）。未提供点击坐标时退化为图像中心。
 fn buildPriorMap(allocator: Allocator, input: Input) ![]f32 {
     const f_size = input.shape.toISize(f32);
-    const point = input.click_position orelse Position{
+    const point = input.click_position orelse Point(f32){
         .x = f_size.w / 2.0,
         .y = f_size.h / 2.0,
     };

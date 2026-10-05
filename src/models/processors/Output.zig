@@ -8,8 +8,6 @@ const PixelLayout = enums.PixelLayout;
 const Format = Image.Format;
 const Self = @This();
 
-const Postprocessed = struct {};
-
 pub fn parse(allocator: Allocator, output_ptr: *anyopaque, shape: IShape(i32), format: Format, layout: PixelLayout, normalized: bool, apply_sigmoid: bool) !Image {
     var image: Image = undefined;
     if (layout == .NCHW) {

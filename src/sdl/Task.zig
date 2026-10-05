@@ -12,7 +12,6 @@ const Point = root.Point(f32);
 const Image = @import("../vips.zig").Image;
 const RenderState = @import("State.zig");
 const Extractor = @import("Extractor.zig");
-const Position = @import("../models/Position.zig");
 const ModelInput = @import("../models/processors/Input.zig");
 const Self = @This();
 
@@ -68,7 +67,7 @@ fn run(
     try render_state.initModel(model);
     const data_ptr = self.extracted.?.pixels_slice.ptr;
     const u_shape = input.shape.to(u32);
-    const click_position: ?Position = if (input.click) |click| .{ .x = click.x, .y = click.y } else null;
+    const click_position: ?Point = if (input.click) |click| .{ .x = click.x, .y = click.y } else null;
     // 运行模型推理
     var image: Image = undefined;
     const model_input: ModelInput = .{

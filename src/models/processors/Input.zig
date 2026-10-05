@@ -1,17 +1,17 @@
 const std = @import("std");
 const enums = @import("../enums.zig");
-const root = @import("../../root.zig");
+const jve = @import("../../root.zig");
 const Allocator = std.mem.Allocator;
-const IShape = root.IShape;
-const ISize = root.ISize;
+const IShape = jve.IShape;
+const ISize = jve.ISize;
+const Point = jve.Point(f32);
 const PixelLayout = enums.PixelLayout;
-const Position = @import("../Position.zig");
 const Image = @import("../../vips.zig").Image;
 const Self = @This();
 
 shape: IShape(u32),
 data_ptr: *const anyopaque,
-click_position: ?Position = null,
+click_position: ?Point = null,
 
 const Options = struct {
     new_size: ?ISize(i32) = null,
