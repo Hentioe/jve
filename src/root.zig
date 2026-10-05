@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 
 pub const structs = @import("structs.zig");
 pub const config = @import("config.zig");
+pub const heap = @import("heap.zig");
 pub const vips = @import("vips.zig");
 pub const sdl = @import("sdl.zig");
 pub const album = @import("album.zig");
@@ -19,7 +20,15 @@ pub const IShape = structs.IShape;
 pub const ISize = structs.ISize;
 pub const Point = structs.Point;
 
+// glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
+// 内存会滞留在各自的 arena 中不归还操作系统，导致轮换图片时 RSS 持续上涨。
+// 限制 arena 数量即可让这些缓冲被复用（此为 glibc 常量 M_ARENA_MAX）。
+const M_ARENA_MAX: c_int = -8;
+extern "c" fn mallopt(param: c_int, value: c_int) c_int;
+
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
+    // 限制 malloc arena 数量，避免工作线程造成的内存滞留
+    if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
     try config.init(allocator, "./imageviewer.toml");
     try vips.init(allocator);
     try album.init(allocator, file_path);

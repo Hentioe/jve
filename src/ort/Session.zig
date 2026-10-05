@@ -23,9 +23,21 @@ pub fn init(
     const ort_api = api.ort_api;
     // 创建 SessionOptions
     var session_options: ?*c.OrtSessionOptions = null;
-    if (!h.check(ort_api, ort_api.*.CreateSessionOptions.?(&session_options))) {
+    if (!h.check(ort_api, ort_api.*.CreateSessionOptions.?(&session_options)))
         return Error.OrtCreateSessionOptionsFailed;
-    }
+    // 关闭 Pattern 优化（避免额外内存申请）
+    if (!h.check(ort_api, ort_api.*.DisableMemPattern.?(session_options)))
+        return Error.OrtDisableMemPatternFailed;
+    // 关闭 CPU Arena（用完立即释放内存）
+    if (!h.check(ort_api, ort_api.*.DisableCpuMemArena.?(session_options)))
+        return Error.OrtDisableCpuMemArenaFailed;
+    // 关闭权重预打包（预打包会在堆上额外保存 Conv 权重的优化布局）
+    if (!h.check(ort_api, ort_api.*.AddSessionConfigEntry.?(
+        session_options,
+        "session.disable_prepacking",
+        "1",
+    ))) return Error.OrtAddSessionConfigEntryFailed;
+    // 检查 GPU 加速配置
     if (!init_options.disable_gpu) {
         // 给会话附加 GPU EP 选项
         for (provider_options_list.items) |p| {

@@ -23,8 +23,4 @@ pub const CustomError = error{
     UnsupportedChannels, // 不支持的通道数
 };
 
-pub const MallocError = error{
-    MalloptFailed,
-};
-
-pub const Error = CustomError || VipsError || MallocError || std.mem.Allocator.Error;
+pub const Error = CustomError || VipsError || std.mem.Allocator.Error;

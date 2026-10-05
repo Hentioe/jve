@@ -1,5 +1,6 @@
 const std = @import("std");
 const ort = @import("ort");
+const heap = @import("../heap.zig");
 const Allocator = std.mem.Allocator;
 const Image = @import("../vips.zig").Image;
 const Api = ort.Api;
@@ -28,6 +29,8 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn run(self: *const Self, allocator: Allocator, input: Input) !Image {
+    // 所有张量释放后归还空闲堆给操作系统
+    defer heap.trimHeap();
     // 打印输入的基本信息
     std.log.info("Image shape: {f}", .{input.shape});
     // 前处理：强制 3 通道、缩放、归一化
