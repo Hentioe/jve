@@ -23,7 +23,7 @@ pub fn main() !void {
         defer jve.vips_deinit();
         const formats = try std.mem.join(allocator, " ", try jve.vips.formats.get());
         defer allocator.free(formats);
-        std.debug.print("Supported formats:\n{s}", .{formats});
+        std.debug.print("Supported formats: {s}\n", .{formats});
     } else if (res.positionals[0]) |pos| {
         // 取位置参数作为路径
         const file_path = pos;
@@ -32,7 +32,6 @@ pub fn main() !void {
         try jve.init(allocator, file_path);
         // 读取后端参数
         const backend: []const u8 = res.args.backend orelse jve.config.get().default_mode;
-        std.log.info("Using backend: {s}", .{backend});
         // 渲染图像
         try jve.render(allocator, backend);
     }

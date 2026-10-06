@@ -63,6 +63,7 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
 }
 
 pub fn render(allocator: Allocator, backend: []const u8) !void {
+    std.log.info("Using backend: {s}", .{backend});
     var current_renderer: ?Backend = null;
     if (std.mem.eql(u8, backend, "sdl_renderer")) {
         current_renderer = .sdl_renderer;
