@@ -35,10 +35,13 @@ pub inline fn sort() loader.Sort {
     return cache.sort;
 }
 
-/// 基于配置主目录和相对路径，创建完整路径
-pub fn allocFullPath(allocator: Allocator, relative_path: []const u8) Error![]const u8 {
+/// 将配置目录和输入路径组合，创建完整路径。若输入路径是绝对路径，将直接返回输入路径。
+pub fn allocFullPath(allocator: Allocator, path: []const u8) Error![]const u8 {
+    if (std.fs.path.isAbsolute(path)) {
+        return try allocator.dupe(u8, path);
+    }
     if (get().base_dir) |base_dir| {
-        return try std.fs.path.join(allocator, &.{ base_dir, relative_path });
+        return try std.fs.path.join(allocator, &.{ base_dir, path });
     } else {
         return Error.ConfigNotFound;
     }
