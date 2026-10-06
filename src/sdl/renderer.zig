@@ -128,7 +128,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                     texture = try createTexture(renderer, &next_image);
                     dirty = true; // 动画触发 dst_rect 更新
                 } else |err| {
-                    if (err == error.NoImageLeft) {
+                    if (err == album.Error.AlbumNoImageLeft) {
                         running = false; // 没有图片了，退出循环
                         std.log.info("No images left in the album", .{});
                     } else {
