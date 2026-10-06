@@ -99,19 +99,21 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
         // }
 
         // 扫描和编译着色器
-        if (config.get().base_dir) |base_dir| {
-            // todo: base_dir 是否存在
-            _ = base_dir;
+        if (config.get().base_dir) |base_dir| if (shared.pathExists(base_dir)) {
             var sf = std.heap.stackFallback(256, self.allocator);
             const sfa = sf.get();
             const full_path = try config.allocFullPath(sfa, config.get().shaders.dir);
             defer sfa.free(full_path);
-            var shader_scanner = try ShaderScanner.init(self.allocator, full_path);
-            defer shader_scanner.deinit();
-            std.log.info("Scanning shaders in directory: {s}", .{full_path});
-            try shader_scanner.scan();
-            self.shaders = try shader_scanner.compileShaders(self.allocator, device);
-        }
+            if (shared.pathExists(full_path)) {
+                var shader_scanner = try ShaderScanner.init(self.allocator, full_path);
+                defer shader_scanner.deinit();
+                std.log.info("Scanning shaders in directory: {s}", .{full_path});
+                try shader_scanner.scan();
+                self.shaders = try shader_scanner.compileShaders(self.allocator, device);
+            } else {
+                std.log.warn("Shader directory does not exist: {s}", .{full_path});
+            }
+        };
 
         self.gpu_window = window;
         self.gpu_device = device;
