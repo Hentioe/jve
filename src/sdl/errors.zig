@@ -32,6 +32,7 @@ pub const SdlError = error{
     SdlSetClipboardDataFailed,
     SdlSetRenderVSyncFailed,
     SdlSubmitGPUCommandBufferFailed,
+    SdlSetNumberPropertyFailed,
     SdlBeginRenderPassFailed,
 };
 

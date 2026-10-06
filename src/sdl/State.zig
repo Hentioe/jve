@@ -70,7 +70,7 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
         const window = try Window.create(
             self.allocator,
             image_size,
-            .{ .backend = .sdl_gpu },
+            .{ .windowed = true, .backend = .sdl_gpu },
         );
         errdefer window.destroy();
         // 创建 GPU 设备
