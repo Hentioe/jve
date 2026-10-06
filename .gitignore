@@ -5,3 +5,5 @@
 /images/
 /models/
 /screenshots/
+# Nix build
+/result

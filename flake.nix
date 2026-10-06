@@ -15,6 +15,27 @@
         rocmSupport = false;
         cudaSupport = false;
       };
+
+      # SDL 在运行时通过 dlopen 加载的库。
+      # 它们不会出现在链接依赖里，所以不会被写进 RPATH，必须通过 LD_LIBRARY_PATH 提供。
+      runtimeLibs = with pkgs; [
+        vulkan-loader
+        libGL
+        wayland
+        libxkbcommon
+        # 如果用 X11，按需取消注释（不同 nixpkgs 版本里包名可能是 xorg.libX11 或 libx11，以实际为准）
+        # libx11
+        # libxext
+        # libxcursor
+        # libxi
+        # libxrandr
+      ];
+
+      # 程序运行时调用的外部命令（剪贴板）
+      runtimeTools = with pkgs; [
+        wl-clipboard
+        xclip
+      ];
     in
     {
       packages.${system}.default = pkgs.stdenv.mkDerivation {
@@ -27,6 +48,7 @@
           zig_0_15
           pkg-config
           sdl3-shadercross # 提供 shadercross 命令
+          makeBinaryWrapper # 用于 postFixup 里的 wrapProgram
         ];
 
         buildInputs = with pkgs; [
@@ -57,6 +79,13 @@
           done
         '';
 
+        # 为可执行文件注入运行时库路径和外部命令路径
+        postFixup = ''
+          wrapProgram $out/bin/jve \
+            --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeLibs} \
+            --prefix PATH : ${pkgs.lib.makeBinPath runtimeTools}
+        '';
+
         meta = with pkgs.lib; {
           description = "GPU-accelerated image viewer with custom shader pipelines and local AI models";
           mainProgram = "jve";
@@ -70,12 +99,13 @@
       };
 
       devShells.${system}.default = pkgs.mkShell {
-        packages = with pkgs; [
-          zig_0_15
-          pkg-config
-          wl-clipboard
-          xclip
-        ];
+        packages =
+          with pkgs;
+          [
+            zig_0_15
+            pkg-config
+          ]
+          ++ runtimeTools;
 
         buildInputs = with pkgs; [
           vips
@@ -85,6 +115,9 @@
           libGL
           onnxruntime
         ];
+
+        # 让 zig build run 出来的程序也能 dlopen 到这些库
+        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibs;
       };
     };
 }

@@ -5,19 +5,19 @@
 ```bash
 git clone https://github.com/Hentioe/jve.git
 cd jve
-nix profile install .
+nix profile add .
 ```
 
 ## 从远程仓库安装
 
 ```bash
-nix profile install github:Hentioe/jve
+nix profile add github:Hentioe/jve
 ```
 
 固定到某个提交：
 
 ```bash
-nix profile install github:Hentioe/jve/<commit>
+nix profile add github:Hentioe/jve/<commit>
 ```
 
 ## 运行与卸载
