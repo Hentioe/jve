@@ -4,16 +4,16 @@
     .fingerprint = 0xfebcdc43c4343364, // Changing this has security and trust implications.
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
-        .sdl = .{ // 此分支特用于 0.15
+        .sdl = .{ // 此分提交特用于 0.15
             .url = "git+https://github.com/castholm/SDL.git#76ee7f13177b5dfad124e7066dec29c90f7db275",
             .hash = "sdl-0.4.2+3.4.4-SDL--nF2pQHiRAibwjhZ6jBJu0Omc3x4EoxPn6gxfnAi",
         },
-        .clap = .{ // 此分支特用于 0.15
+        .clap = .{ // 此提交特用于 0.15
             .url = "git+https://github.com/Hejsil/zig-clap#c499116264c348e4a98d939917b2446cad79d5fb",
             .hash = "clap-0.11.0-oBajB-TnAQC7yPLnZRT5WzHZ_4Ly4dX2OILskli74b9H",
         },
-        .toml = .{ // 此分支特用于 0.15
-            .url = "git+https://github.com/sam701/zig-toml?ref=zig-0.15#475b03c630c802f8b6bd3e239d8fc2279b4fadb8",
+        .toml = .{ // 此提交特用于 0.15
+            .url = "git+https://github.com/sam701/zig-toml#475b03c630c802f8b6bd3e239d8fc2279b4fadb8",
             .hash = "toml-0.3.0-bV14BfV7AQD8DkuQI7skP8ekQTaBYKTO0MY_35Cw_EXo",
         },
     },
