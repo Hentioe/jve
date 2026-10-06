@@ -30,12 +30,16 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .imports = &.{shared_import},
     });
+    // 链接系统 vips
+    vips_mod.linkSystemLibrary("vips", .{});
     const vips_import: Import = .{ .name = "vips", .module = vips_mod };
 
     const ort_mod = b.addModule("ort", .{
         .root_source_file = b.path("src/ort.zig"),
         .target = target,
     });
+    // 链接系统 onnxruntime
+    ort_mod.linkSystemLibrary("onnxruntime", .{});
     const ort_import: Import = .{ .name = "ort", .module = ort_mod };
 
     // AI 模块
@@ -49,29 +53,49 @@ pub fn build(b: *std.Build) void {
     const clap_dep = b.dependency("clap", .{});
     const clap_import: Import = .{ .name = "clap", .module = clap_dep.module("clap") };
 
+    const sdl_dep = b.dependency("sdl", .{
+        .target = target,
+        .optimize = optimize,
+        //.preferred_linkage = .static,
+        //.strip = null,
+        //.sanitize_c = null,
+        //.pic = null,
+        //.lto = null,
+        //.emscripten_pthreads = false,
+        //.system_include_path = null,
+        //.system_framework_path = null,
+    });
+    const sdl_lib = sdl_dep.artifact("SDL3");
+    const sdl_test_lib = sdl_dep.artifact("SDL3_test");
+
+    const sdl_shadercross_dep = b.dependency("SDL_shadercross", .{
+        .target = target,
+        .optimize = optimize,
+        .link_system_sdl = false, // 已由外部提供 SDL，禁用系统回退
+    });
+    const sdl_shadercross_mod = sdl_shadercross_dep.module("SDL_shadercross");
+    const sdl_shadercross_import: Import = .{ .name = "SDL_shadercross", .module = sdl_shadercross_mod };
+    sdl_shadercross_mod.linkLibrary(sdl_lib); // 让 sdl_shadercross 链接到 sdl
+
     const root_mod = b.addModule("jve", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .imports = &.{
             shared_import,
+            toml_import,
             config_import,
+            vips_import,
             ort_import,
             ai_import,
-            vips_import,
-            toml_import,
+            sdl_shadercross_import,
         },
     });
     const root_import: Import = .{ .name = "jve", .module = root_mod };
 
-    // 链接 vips 库
-    vips_mod.linkSystemLibrary("vips", .{});
-    // 链接 onnxruntime
-    ort_mod.linkSystemLibrary("onnxruntime", .{});
-    // 链接 SDL3
-    root_mod.linkSystemLibrary("SDL3", .{});
-    // 链接 SDL3_shadercross
-    root_mod.linkSystemLibrary("SDL3_shadercross", .{});
-    // 链接 glib（vips 依赖）
+    // 链接 SDL 库
+    root_mod.linkLibrary(sdl_lib);
+    root_mod.linkLibrary(sdl_test_lib);
+    // 链接系统 glib（vips 依赖）
     root_mod.linkSystemLibrary("glib-2.0", .{});
 
     const exe = b.addExecutable(.{

@@ -19,10 +19,10 @@
       # SDL 在运行时通过 dlopen 加载的库。
       # 它们不会出现在链接依赖里，所以不会被写进 RPATH，必须通过 LD_LIBRARY_PATH 提供。
       runtimeLibs = with pkgs; [
-        vulkan-loader
         libGL
-        wayland
         libxkbcommon
+        vulkan-loader
+        wayland
         # 如果用 X11，按需取消注释（不同 nixpkgs 版本里包名可能是 xorg.libX11 或 libx11，以实际为准）
         # libx11
         # libxext
@@ -53,12 +53,12 @@
 
         buildInputs = with pkgs; [
           vips
-          glib
-          sdl3
-          sdl3-shadercross
-          vulkan-loader
-          libGL
+          spirv-cross # SPIRV-Cross C API（SDL_shadercross 依赖）
+          directx-shader-compiler # DXC（SDL_shadercross 依赖）
           onnxruntime
+          glib
+          libGL
+          vulkan-loader
         ];
 
         zigBuildFlags = [
@@ -69,7 +69,14 @@
 
         # 将事先由 zon2nix 生成的依赖目录接入 Zig 包缓存
         postConfigure = ''
-          ln -s ${pkgs.callPackage ./build.zig.zon.nix { }} $ZIG_GLOBAL_CACHE_DIR/p
+          ln -s ${
+            pkgs.callPackage ./build.zig.zon.nix {
+              # zon2nix 用 `nix flake prefetch` 计算 hash（不会拉取 git 子模块），
+              # 而 nixpkgs 的 fetchgit 默认 fetchSubmodules = true，遇到带子模块的
+              # 依赖（如 SDL_shadercross）时 hash 会对不上，故显式关闭以对齐。
+              fetchgit = args: pkgs.fetchgit (args // { fetchSubmodules = false; });
+            }
+          } $ZIG_GLOBAL_CACHE_DIR/p
         '';
 
         postInstall = ''

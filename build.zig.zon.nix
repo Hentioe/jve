@@ -8,11 +8,35 @@
 
 linkFarm "zig-packages" [
   {
+    name = "SDL_shadercross-0.0.0-b_zI8tpfAgDpZOx1uc1k2SG6cpEeSt3yJfXhnnhHg4uj";
+    path = fetchgit {
+      url = "https://github.com/Hentioe/SDL_shadercross";
+      rev = "696a80fc012a5ddeb2a1d202bf240504b21adaed";
+      hash = "sha256-uCSml9Xe+XWIKGjwLiytFXUnA5JWa9p8hGyxDaZy2A0=";
+    };
+  }
+  {
     name = "clap-0.11.0-oBajB-TnAQC7yPLnZRT5WzHZ_4Ly4dX2OILskli74b9H";
     path = fetchgit {
       url = "https://github.com/Hejsil/zig-clap";
       rev = "c499116264c348e4a98d939917b2446cad79d5fb";
       hash = "sha256-1HN2dL6AkfHB3S1wsFXX4OA4jwMnYJccbCgRTjTgTmw=";
+    };
+  }
+  {
+    name = "sdl-0.4.2+3.4.4-SDL--nF2pQHiRAibwjhZ6jBJu0Omc3x4EoxPn6gxfnAi";
+    path = fetchgit {
+      url = "https://github.com/castholm/SDL";
+      rev = "76ee7f13177b5dfad124e7066dec29c90f7db275";
+      hash = "sha256-g+i4iACnDQRxqzTOtLpgpKEP9stQJ3YPDTKitr0L3ds=";
+    };
+  }
+  {
+    name = "sdl_linux_deps-0.0.0-SDL_ltg8hgAOayMwFN6BhHW3Rs5UPtf6n8m-2qcQHuGS";
+    path = fetchgit {
+      url = "https://github.com/castholm/SDL_linux_deps";
+      rev = "fd349940b9dbaa0f221703b05df826d745d7ce2a";
+      hash = "sha256-sgaGfevW0iUweBYFlce749UERP3j56wj32YMp6Kl4lw=";
     };
   }
   {
