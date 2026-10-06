@@ -8,6 +8,7 @@ in
 mkShell {
   packages = [
     custom-zig # 受 zvm 管理的 Zig
+    zon2nix # 把 Zig 依赖转换为 Nix 依赖
     wl-clipboard # Wayland 剪贴板工具
     xclip # X11 剪贴板工具
     pkg-config # 依赖库搜索
@@ -16,6 +17,7 @@ mkShell {
   buildInputs = [
     vips # 图像解码
     glib # vips 依赖
+    sdl3 # SDL 依赖
     sdl3-shadercross # SDL_shadercross
     vulkan-loader # Vulkan
     libGL # SDL 依赖

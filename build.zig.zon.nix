@@ -16,22 +16,6 @@ linkFarm "zig-packages" [
     };
   }
   {
-    name = "sdl-0.4.2+3.4.4-SDL--nF2pQHiRAibwjhZ6jBJu0Omc3x4EoxPn6gxfnAi";
-    path = fetchgit {
-      url = "https://github.com/castholm/SDL";
-      rev = "76ee7f13177b5dfad124e7066dec29c90f7db275";
-      hash = "sha256-g+i4iACnDQRxqzTOtLpgpKEP9stQJ3YPDTKitr0L3ds=";
-    };
-  }
-  {
-    name = "sdl_linux_deps-0.0.0-SDL_ltg8hgAOayMwFN6BhHW3Rs5UPtf6n8m-2qcQHuGS";
-    path = fetchgit {
-      url = "https://github.com/castholm/SDL_linux_deps";
-      rev = "fd349940b9dbaa0f221703b05df826d745d7ce2a";
-      hash = "sha256-sgaGfevW0iUweBYFlce749UERP3j56wj32YMp6Kl4lw=";
-    };
-  }
-  {
     name = "toml-0.3.0-bV14BfV7AQD8DkuQI7skP8ekQTaBYKTO0MY_35Cw_EXo";
     path = fetchgit {
       url = "https://github.com/sam701/zig-toml";

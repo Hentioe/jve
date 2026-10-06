@@ -54,6 +54,7 @@
         buildInputs = with pkgs; [
           vips
           glib
+          sdl3
           sdl3-shadercross
           vulkan-loader
           libGL
@@ -96,28 +97,6 @@
       apps.${system}.default = {
         type = "app";
         program = "${self.packages.${system}.default}/bin/jve";
-      };
-
-      devShells.${system}.default = pkgs.mkShell {
-        packages =
-          with pkgs;
-          [
-            zig_0_15
-            pkg-config
-          ]
-          ++ runtimeTools;
-
-        buildInputs = with pkgs; [
-          vips
-          glib
-          sdl3-shadercross
-          vulkan-loader
-          libGL
-          onnxruntime
-        ];
-
-        # 让 zig build run 出来的程序也能 dlopen 到这些库
-        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibs;
       };
     };
 }

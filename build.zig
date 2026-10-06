@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
     });
     const config_import: Import = .{ .name = "config", .module = config_mod };
 
-    // vips 模块
+    // VIPS 模块
     const vips_mod = b.addModule("vips", .{
         .root_source_file = b.path("src/vips.zig"),
         .target = target,
@@ -49,21 +49,6 @@ pub fn build(b: *std.Build) void {
     const clap_dep = b.dependency("clap", .{});
     const clap_import: Import = .{ .name = "clap", .module = clap_dep.module("clap") };
 
-    const sdl_dep = b.dependency("sdl", .{
-        .target = target,
-        .optimize = optimize,
-        //.preferred_linkage = .static,
-        //.strip = null,
-        //.sanitize_c = null,
-        //.pic = null,
-        //.lto = null,
-        //.emscripten_pthreads = false,
-        //.system_include_path = null,
-        //.system_framework_path = null,
-    });
-    const sdl_lib = sdl_dep.artifact("SDL3");
-    const sdl_test_lib = sdl_dep.artifact("SDL3_test");
-
     const root_mod = b.addModule("jve", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -78,13 +63,12 @@ pub fn build(b: *std.Build) void {
     });
     const root_import: Import = .{ .name = "jve", .module = root_mod };
 
-    // 链接系统 vips 库
+    // 链接 vips 库
     vips_mod.linkSystemLibrary("vips", .{});
     // 链接 onnxruntime
     ort_mod.linkSystemLibrary("onnxruntime", .{});
-    // 链接 sdl
-    root_mod.linkLibrary(sdl_lib);
-    root_mod.linkLibrary(sdl_test_lib);
+    // 链接 SDL3
+    root_mod.linkSystemLibrary("SDL3", .{});
     // 链接 SDL3_shadercross
     root_mod.linkSystemLibrary("SDL3_shadercross", .{});
     // 链接 glib（vips 依赖）
