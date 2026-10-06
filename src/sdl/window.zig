@@ -34,8 +34,10 @@ pub fn create(allocator: Allocator, image_size: ISize(i32), options: Options) Er
     // 创建窗口属性
     const props = c.SDL_CreateProperties();
     defer c.SDL_DestroyProperties(props);
+    // 创建时隐藏
+    if (!h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, 1))) return Error.SdlSetNumberPropertyFailed;
     if (options.backend == .sdl_renderer) {
-        flags |= c.SDL_WINDOW_TRANSPARENT;
+        flags |= c.SDL_WINDOW_TRANSPARENT; // 透明背景
     }
     if (options.windowed) {
         // 设置窗口的初始宽高为图片的宽高
@@ -85,19 +87,17 @@ pub fn hide(self: *Self) Error!void {
 }
 
 pub fn show(self: *Self) Error!void {
-    if (self.windowed) {
-        if (self.dirty) {
-            std.log.debug("Window is dirty, updating size and position", .{});
-            // 重新调整窗口到图片大小
-            if (!h.check(c.SDL_SetWindowSize(self.sdl_window, self.image_width, self.image_height))) {
-                std.log.warn("Failed to set window size to {d}x{d}", .{ self.image_width, self.image_height });
-            }
-            // 窗口位置重新居中
-            if (!h.check(c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED))) {
-                std.log.warn("Failed to set window position to centered", .{});
-            }
-            self.dirty = false;
+    if (self.windowed and self.dirty) {
+        std.log.debug("Window is dirty, updating size and position", .{});
+        // 重新调整窗口到图片大小
+        if (!h.check(c.SDL_SetWindowSize(self.sdl_window, self.image_width, self.image_height))) {
+            std.log.warn("Failed to set window size to {d}x{d}", .{ self.image_width, self.image_height });
         }
+        // 窗口位置重新居中
+        if (!h.check(c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED))) {
+            std.log.warn("Failed to set window position to centered", .{});
+        }
+        self.dirty = false;
     }
     if (!h.check(c.SDL_ShowWindow(self.sdl_window))) return Error.SdlShowWindowFailed;
 }
