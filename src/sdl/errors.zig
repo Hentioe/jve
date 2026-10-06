@@ -39,7 +39,7 @@ pub const SdlError = error{
 pub const CustomError = error{
     NotDownloaded,
     NoPixelData,
-    ModelNotInitialized,
+    CreateScreenshotDirFailed, // 创建截图目录失败
 };
 
 pub const Error = SdlError || CustomError || SizeError || OrtError || AlbumError || AiError ||

@@ -33,34 +33,20 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn saveToFile(self: *const Self) void {
-    if (!self.extracted.downloaded) {
-        std.log.err("Screenshot not downloaded yet", .{});
-        return;
-    }
-    const out_filename = allocNewName(self.allocator, self.image.file_name, "png") catch |err| {
-        std.log.err("Failed to create new filename: {}", .{err});
-        return;
-    };
-    defer self.allocator.free(out_filename);
-    // 若配置了截图保存目录，则拼接为完整路径；否则直接使用文件名
-    const joined = joinOutputPath(self.allocator, out_filename) catch |err| {
-        std.log.err("Failed to resolve screenshot path: {}", .{err});
-        return;
-    };
-    defer if (joined) |p| self.allocator.free(p);
+pub fn saveToFile(self: *const Self) Error!void {
+    // 用 sfa 处理路径分配（大概 3 条）
+    var sf = std.heap.stackFallback(256 * 3, self.allocator);
+    const sfa = sf.get();
+    // 创建输出文件路径
+    const out_filename = try allocOutFilename(sfa, self.image.file_name, "png");
+    defer sfa.free(out_filename);
+    const filename = try sfa.dupeZ(u8, out_filename);
     // 写入到文件
-    if (writer.savePixelsToFile(
-        self.extracted.pixels_slice.ptr,
-        self.image.shape,
-        joined orelse out_filename,
-    )) {
-        std.log.info("Screenshot saved, size: {d}", .{self.extracted.buffer_size});
-    } else |err| {
-        std.log.err("Failed to save screenshot: {}", .{err});
-    }
+    try writer.savePixelsToFile(self.extracted.pixels_slice.ptr, self.image.shape, filename);
+    std.log.info("Screenshot saved, size: {d}", .{self.extracted.buffer_size});
 }
 
+// todo: 不要在函数内部输出日志，直接返回错误
 /// 复制到剪切板
 pub fn copyToClipboard(self: *const Self) void {
     if (!self.extracted.downloaded) {
@@ -84,23 +70,28 @@ pub fn copyToClipboard(self: *const Self) void {
     }
 }
 
-/// 将文件名与配置中的截图保存目录拼接为完整路径。
-/// 未配置目录时返回 null（无需分配）；目录不存在时尝试创建，失败则退回当前目录。
-fn joinOutputPath(allocator: Allocator, filename: []const u8) Error!?[]u8 {
-    const dir = config.get().screenshot_dir orelse return null;
-    std.fs.cwd().makePath(dir) catch |err| {
-        std.log.warn("Cannot create screenshot directory '{s}': {}, saving to current directory", .{ dir, err });
-        return null;
-    };
-    return try std.fs.path.join(allocator, &.{ dir, filename });
-}
-
-/// 分配一个新的文件名，基于原始文件名和当前时间戳。
-fn allocNewName(allocator: Allocator, original_file_name: []const u8, format: []const u8) Error![]u8 {
+/// 分配输出文件名（路径），基于原始文件名和当前时间戳。
+fn allocOutFilename(allocator: Allocator, original_file_name: []const u8, format: []const u8) Error![]u8 {
     // 取文件名主干：去掉目录和最后一个扩展名
     const stem = std.fs.path.stem(original_file_name);
     // 兼容 ".png" 这种带点的格式写法
     const ext = if (format.len > 0 and format[0] == '.') format[1..] else format;
     const ts = std.time.timestamp(); // 秒级 Unix 时间戳（i64）
-    return std.fmt.allocPrint(allocator, "{s}_{d}.{s}", .{ stem, ts, ext });
+    const new_filename = try std.fmt.allocPrint(allocator, "{s}_{d}.{s}", .{ stem, ts, ext });
+
+    // 将文件名与配置中的截图保存目录拼接为完整路径
+    if (config.get().screenshot_dir) |screenshot_dir| {
+        defer allocator.free(new_filename); // 释放文件名
+        // 获取输出目录
+        const out_dir = try config.allocFullPath(allocator, screenshot_dir);
+        // 创建输出目录
+        std.fs.cwd().makePath(out_dir) catch |err| {
+            std.log.err("Failed to create screenshot directory: {}", .{err});
+            return Error.CreateScreenshotDirFailed;
+        };
+        // 创建完整文件路径
+        return try std.fs.path.join(allocator, &.{ out_dir, new_filename });
+    } else {
+        return new_filename;
+    }
 }

@@ -531,7 +531,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
             };
             if (screenshot) |*s| {
                 defer s.deinit();
-                if (save_screenshot) s.saveToFile();
+                if (save_screenshot) s.saveToFile() catch |err| std.log.err("Failed to save screenshot: {}", .{err});
                 if (copy_screenshot) s.copyToClipboard();
             }
 
