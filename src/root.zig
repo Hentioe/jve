@@ -23,7 +23,7 @@ extern "c" fn mallopt(param: c_int, value: c_int) c_int;
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
     // 限制 malloc arena 数量，避免工作线程造成的内存滞留
     if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
-    try config.init(allocator, "./config.toml");
+    try config.init(allocator, null); // todo: 支持手动传递配置
     try vips.init(allocator);
     try album.init(allocator, file_path);
     try sdl.init();
