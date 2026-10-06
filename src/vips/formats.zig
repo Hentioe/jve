@@ -44,7 +44,7 @@ pub fn init(allocator: Allocator) Error!void {
     var n: usize = 0;
     while (suffixes_ptr[n] != null) : (n += 1) {}
     // 输出支持的格式数量
-    std.log.info("Vips supports {d} format(s)", .{n});
+    std.log.info("VIPS library supports {d} format(s)", .{n});
     // 初始化缓存
     cache = try Cache.init(allocator, suffixes_ptr, n);
     initialized = true;

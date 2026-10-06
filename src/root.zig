@@ -38,6 +38,14 @@ pub fn deinit() void {
     config.deinit();
 }
 
+pub fn vips_init(allocator: Allocator) !void {
+    try vips.init(allocator);
+}
+
+pub fn vips_deinit() void {
+    vips.deinit();
+}
+
 pub fn isSupported(suffix: []const u8) !bool {
     return try vips.formats.isSupported(suffix);
 }

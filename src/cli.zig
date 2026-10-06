@@ -2,9 +2,9 @@ const std = @import("std");
 const clap = @import("clap");
 
 const params = clap.parseParamsComptime(
-    \\<str>
     \\-b, --backend <str>
-    \\
+    \\--supports
+    \\<str>
 );
 
 pub fn init(allocator: std.mem.Allocator) !clap.Result(clap.Help, &params, clap.parsers.default) {

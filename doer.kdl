@@ -1,5 +1,9 @@
 tasks {
-    run "zig build run -- -b sdl_renderer {*}"
+    run {
+        - "zig build run -- -b sdl_renderer {path}"
+        opt path=image.png
+    }
+    supports "zig build run -- --supports"
     format {
         - "zig fmt ."
         - "dprint fmt"

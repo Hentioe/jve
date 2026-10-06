@@ -17,17 +17,23 @@ pub fn main() !void {
     // 解析命令行参数
     const res = try cli.init(allocator);
     defer res.deinit();
-    // 图片路径（带默认值）
-    var file_path: []const u8 = "image.png";
-    if (res.positionals[0]) |pos| {
-        file_path = pos;
+    if (res.args.supports != 0) {
+        // 获取并打印支持的图像格式
+        try jve.vips_init(allocator);
+        defer jve.vips_deinit();
+        const formats = try std.mem.join(allocator, " ", try jve.vips.formats.get());
+        defer allocator.free(formats);
+        std.debug.print("Supported formats:\n{s}", .{formats});
+    } else if (res.positionals[0]) |pos| {
+        // 取位置参数作为路径
+        const file_path = pos;
+        // 初始化
+        defer jve.deinit();
+        try jve.init(allocator, file_path);
+        // 读取后端参数
+        const backend: []const u8 = res.args.backend orelse jve.config.get().default_mode;
+        std.log.info("Using backend: {s}", .{backend});
+        // 渲染图像
+        try jve.render(allocator, backend);
     }
-    // 初始化
-    defer jve.deinit();
-    try jve.init(allocator, file_path);
-    // 读取后端参数
-    const backend: []const u8 = res.args.backend orelse jve.config.get().default_mode;
-    std.log.info("Using backend: {s}", .{backend});
-    // 渲染图像
-    try jve.render(allocator, backend);
 }
