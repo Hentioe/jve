@@ -6,7 +6,7 @@ const shared = @import("shared");
 const shader_loader = @import("shader_loader.zig");
 const gpu = @import("gpu.zig");
 const structs = @import("structs.zig");
-const album = root.album;
+const gallery = root.gallery;
 const ArrayList = std.ArrayList;
 const State = @import("State.zig");
 const Error = @import("errors.zig").Error;
@@ -52,7 +52,7 @@ const EventAction = union(enum) {
 // 基于 SDL_GPU 渲染图片
 pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
     // 从相册取出当前图片
-    const image = try album.current();
+    const image = try gallery.current();
     // 更新状态
     try state.startRendering(&image, .sdl_gpu);
     // 创建窗口

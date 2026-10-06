@@ -4,7 +4,7 @@ const h = @import("helper.zig");
 const root = @import("../root.zig");
 const shared = @import("shared");
 const config = @import("config");
-const album = root.album;
+const gallery = root.gallery;
 const Error = @import("errors.zig").Error;
 const State = @import("State.zig");
 const Window = @import("window.zig");
@@ -35,7 +35,7 @@ const EventAction = union(enum) {
 
 // 基于 sdl_renderer 渲染图片
 pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
-    var image = try album.current();
+    var image = try gallery.current();
     // 更新状态
     try state.startRendering(&image, .sdl_renderer);
     // 创建窗口
@@ -122,15 +122,15 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             .delete => {
                 // 删除当前相册图片
                 std.log.info("Deleting current image: {s}", .{image.file_name});
-                if (album.deleteCurrentGetNext()) |next_image| {
+                if (gallery.deleteCurrentGetNext()) |next_image| {
                     image = next_image;
                     c.SDL_DestroyTexture(texture);
                     texture = try createTexture(renderer, &next_image);
                     dirty = true; // 动画触发 dst_rect 更新
                 } else |err| {
-                    if (err == album.Error.AlbumNoImageLeft) {
+                    if (err == gallery.Error.GalleryNoImageLeft) {
                         running = false; // 没有图片了，退出循环
-                        std.log.info("No images left in the album", .{});
+                        std.log.info("No images left in the gallery", .{});
                     } else {
                         std.log.err("Failed to delete current image: {}", .{err});
                     }
@@ -147,15 +147,15 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 std.log.debug("Mouse wheel event without modifier: {d}", .{payload.wheel_y});
                 const to_next = payload.wheel_y < 0;
                 if (to_next) {
-                    _ = album.next() catch |err| {
+                    _ = gallery.next() catch |err| {
                         std.log.err("Failed to switch to next image: {}", .{err});
                     };
                 } else {
-                    _ = album.prev() catch |err| {
+                    _ = gallery.prev() catch |err| {
                         std.log.err("Failed to switch to previous image: {}", .{err});
                     };
                 }
-                const crrent = album.current() catch |err| val: {
+                const crrent = gallery.current() catch |err| val: {
                     std.log.err("Failed to get current image: {}", .{err});
                     break :val null;
                 };

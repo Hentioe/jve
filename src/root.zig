@@ -6,7 +6,7 @@ const Allocator = std.mem.Allocator;
 pub const config = @import("config");
 pub const vips = @import("vips");
 pub const sdl = @import("sdl.zig");
-pub const album = @import("album.zig");
+pub const gallery = @import("gallery.zig");
 pub const clipboard = @import("clipboard.zig");
 pub const renderer = @import("sdl/renderer.zig");
 pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
@@ -25,7 +25,7 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
     if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
     try config.init(allocator, null); // todo: 支持手动传递配置
     try vips.init(allocator);
-    try album.init(allocator, file_path);
+    try gallery.init(allocator, file_path);
     try sdl.init();
 }
 
@@ -33,7 +33,7 @@ pub fn deinit() void {
     // 和 init 的顺序相反，先 deinit 后初始化的组件
     remover.deinit(); // remover 是按需延迟初始化的，无需在此处初始化
     sdl.deinit();
-    album.deinit();
+    gallery.deinit();
     vips.deinit();
     config.deinit();
 }

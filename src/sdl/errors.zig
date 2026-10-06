@@ -1,7 +1,7 @@
 const std = @import("std");
 const OrtError = @import("ort").Error;
 const SizeError = @import("shared").SizeError;
-const AlbumError = @import("../album.zig").Error;
+const GalleryError = @import("../gallery.zig").Error;
 const AiError = @import("ai").Error;
 
 pub const SdlError = error{
@@ -42,5 +42,5 @@ pub const CustomError = error{
     CreateScreenshotDirFailed, // 创建截图目录失败
 };
 
-pub const Error = SdlError || CustomError || SizeError || OrtError || AlbumError || AiError ||
+pub const Error = SdlError || CustomError || SizeError || OrtError || GalleryError || AiError ||
     std.mem.Allocator.Error || std.Thread.SpawnError || std.posix.AccessError;

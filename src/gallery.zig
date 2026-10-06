@@ -4,15 +4,15 @@ const LImage = @import("vips").LImage;
 const Allocator = std.mem.Allocator;
 const Scanner = @import("Scanner.zig");
 
-const AlbumError = error{
-    AlbumNoImageSelected,
-    AlbumNoImageLeft,
-    AlbumCurrentFileNotFound,
+const GalleryError = error{
+    GalleryNoImageSelected,
+    GalleryNoImageLeft,
+    GalleryCurrentFileNotFound,
 };
 
 const PathJoinError = error{PathJoinFailed};
 
-pub const Error = AlbumError || PathJoinError || root.LoadError || Scanner.Error || std.posix.UnlinkError;
+pub const Error = GalleryError || PathJoinError || root.LoadError || Scanner.Error || std.posix.UnlinkError;
 
 // 全局缓存
 const Cache = struct {
@@ -44,7 +44,7 @@ pub fn init(allocator: Allocator, file_path: []const u8) Error!void {
     var scanner = try Scanner.init(allocator, dir, try root.extensions(), .{ .sort = root.config.sort() });
     errdefer scanner.deinit();
     // 选择当前文件
-    if (!scanner.select(base)) return Error.AlbumCurrentFileNotFound;
+    if (!scanner.select(base)) return Error.GalleryCurrentFileNotFound;
     // 加载图片
     std.log.info("Loading image: {s}", .{file_path});
     const image = try root.load(allocator, file_path);
@@ -101,10 +101,10 @@ pub fn deleteCurrentGetNext() Error!LImage {
         try std.fs.cwd().deleteFile(full_path);
         // 重新扫描
         try cache.scanner.rescan();
-        if (try next() == null) return Error.AlbumNoImageLeft;
+        if (try next() == null) return Error.GalleryNoImageLeft;
         return try current();
     } else {
-        return Error.AlbumNoImageSelected;
+        return Error.GalleryNoImageSelected;
     }
 }
 
@@ -130,6 +130,6 @@ fn reloadCurrent() Error!void {
         cache.dirty = false;
     } else {
         // 没有选择图片
-        return Error.AlbumNoImageSelected;
+        return Error.GalleryNoImageSelected;
     }
 }
