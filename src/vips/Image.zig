@@ -64,15 +64,15 @@ fn isHeifExtension(extension: []const u8) bool {
     return false;
 }
 
-// 从文件加载图像，返回 Image 实例
+/// 从文件加载图像，返回 Image 实例
 pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
-    const extension = std.fs.path.extension(path);
+    const ext = std.fs.path.extension(path);
     const filename = try allocator.dupeZ(u8, path);
     defer allocator.free(filename);
 
-    // 从文件创建 VipsImage 指针
+    // 从文件创建 Vips 图像指针
     var in: [*c]c.VipsImage = null;
-    if (isHeifExtension(extension)) {
+    if (isHeifExtension(ext)) {
         // libvips 的 heifload 嗅探白名单缺少 AVIF 动图的 ftypavis 标识，
         // vips_image_new_from_file 会回退到 magickload，后者一次性解码整段动画，
         // 导致卡顿和内存升高。这里直接调用原生 heifload，仅获取第一帧。
@@ -89,10 +89,6 @@ pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
 
     // 获取通道数
     const channels = c.vips_image_get_bands(in);
-    if (channels < 3) {
-        c.g_object_unref(in);
-        return Error.UnsupportedChannels;
-    }
 
     var self = Self{
         .width = c.vips_image_get_width(in),
@@ -109,7 +105,7 @@ pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
     return self;
 }
 
-// 将图像转换为 sRGB 色彩空间
+/// 将图像转换为 sRGB 色彩空间
 pub fn toSrgb(self: *Self) Error!void {
     var out: ?*c.VipsImage = null;
     if (!h.check(c.vips_colourspace(self._in, &out, c.VIPS_INTERPRETATION_sRGB, VIPS_ARGUMENT_NULL))) {
@@ -161,7 +157,7 @@ pub fn addAlpha(self: *Self, alpha: f64) Error!void {
     self.channels = c.vips_image_get_bands(self._in);
 }
 
-// 将单通道灰度图复制为 RGB 三通道（用于把模型输出的单通道 mask 交给需要 RGBA 的渲染器）
+/// 将单通道灰度图复制为 RGB 三通道（用于把模型输出的单通道 mask 交给需要 RGBA 的渲染器）
 pub fn toRgb(self: *Self) Error!void {
     if (self.channels >= 3) return;
     var images = [_]?*c.VipsImage{ self._in, self._in, self._in };

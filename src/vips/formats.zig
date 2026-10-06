@@ -44,7 +44,7 @@ var initialized: bool = false;
 var cache: Cache = undefined;
 
 pub fn get() Error![]const []const u8 {
-    if (!initialized) return Error.NotInitialized;
+    if (!initialized) return Error.FormatsNotCached;
     return cache.suffixes.keys();
 }
 

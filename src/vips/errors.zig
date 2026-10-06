@@ -18,9 +18,8 @@ pub const VipsError = error{
 };
 
 pub const CustomError = error{
-    NotInitialized, // 未初始化
+    FormatsNotCached, // 格式未缓存
     UnsupportedFormat, // 不支持的格式
-    UnsupportedChannels, // 不支持的通道数
 };
 
 pub const Error = CustomError || VipsError || std.mem.Allocator.Error;
