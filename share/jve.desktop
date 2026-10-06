@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Version=alpha
+Name=JVE
+Name[zh_CN]=JVE 图像查看器
+GenericName=Image Viewer
+GenericName[zh_CN]=图像查看器
+Comment=GPU-accelerated image viewer with custom shader pipelines and local AI models
+Comment[zh_CN]=GPU 加速的图像查看器，支持自定义着色器管线和本地 AI 模型
+Exec=jve %f
+Icon=jve
+Terminal=false
+Categories=Graphics;Viewer;
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/tiff;image/bmp;image/avif;image/heic;image/heif;image/jxl;image/jp2;image/vnd.radiance;image/fits;image/x-portable-bitmap;image/x-portable-graymap;image/x-portable-pixmap;image/x-portable-anymap;image/x-portable-floatmap;
+Keywords=image;viewer;picture;photo;
+Keywords[zh_CN]=图像;查看;查看器;图片;照片;
+StartupNotify=true
