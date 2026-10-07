@@ -1,6 +1,6 @@
 const std = @import("std");
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const c = @import("sdl").c;
+const sdl = @import("sdl");
 const root = @import("../root.zig");
 const shared = @import("shared");
 const config = root.config;
@@ -11,7 +11,7 @@ const IShape = shared.IShape;
 const Point = shared.Point(f32);
 const Window = @import("window.zig");
 const Shaders = std.ArrayList(*c.SDL_GPUShader);
-const Backend = @import("enums.zig").Backend;
+const Backend = @import("enums.zig").Mode;
 const Extractor = @import("Extractor.zig");
 const ShaderScanner = @import("ShaderScanner.zig");
 const Self = @This();
@@ -23,9 +23,9 @@ target_scale: f64 = 1.0,
 move_offset: Point = .{},
 current_backend: Backend = undefined,
 window: ?*Window = null,
-renderer: ?*c.SDL_Renderer = null,
+renderer: ?sdl.Renderer = null,
 gpu_window: ?*Window = null,
-gpu_device: ?*c.SDL_GPUDevice = null,
+gpu: ?sdl.Gpu = null,
 shaders: ?Shaders = null,
 extracted: ?Extractor = null,
 
@@ -34,16 +34,24 @@ pub fn init(allocator: Allocator) Error!Self {
 }
 
 pub fn deinit(self: *Self) void {
-    if (self.renderer) |renderer| c.SDL_DestroyRenderer(renderer);
+    if (self.renderer) |*renderer| renderer.destroy();
     if (self.window) |window| window.destroy();
-    if (self.shaders) |*shaders| { // 着色器释放时依赖 gpu_device
-        for (shaders.items) |shader| c.SDL_ReleaseGPUShader(self.gpu_device, shader);
+    if (self.shaders) |*shaders| { // 着色器释放时依赖 gpu
+        if (self.gpu) |*gpu| for (shaders.items) |shader| gpu.releaseGPUShader(shader);
         shaders.deinit(self.allocator);
     }
-    if (self.gpu_device) |device| c.SDL_DestroyGPUDevice(device);
+    if (self.gpu) |*gpu| gpu.destroy();
     if (self.gpu_window) |window| window.destroy();
     if (self.extracted) |*extractor| extractor.deinit();
     self.* = undefined;
+}
+
+pub fn getGpu(self: *Self) Error!*sdl.Gpu {
+    return if (self.gpu) |*gpu| gpu else Error.GpuNotCreated;
+}
+
+pub fn getRenderer(self: *Self) Error!*sdl.Renderer {
+    return if (self.renderer) |*renderer| renderer else Error.RendererNotCreated;
 }
 
 pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error!void {
@@ -54,10 +62,11 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
             image_size,
             .{ .windowed = false, .backend = backend },
         );
-        const renderer = try h.check(c.SDL_CreateRenderer(window.sdl_window, null));
+        // 创建 renderer
+        var renderer = try sdl.Renderer.create(window.sdl_window);
         errdefer window.destroy();
         // 开启垂直同步
-        try h.check(c.SDL_SetRenderVSync(renderer, 1));
+        try renderer.setRenderVSync(1);
         self.window = window;
         self.renderer = renderer;
     } else if (backend == .sdl_gpu and self.gpu_window == null) {
@@ -70,20 +79,16 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
             .{ .windowed = true, .backend = .sdl_gpu },
         );
         errdefer window.destroy();
-        // 创建 GPU 设备
-        const device = try h.check(c.SDL_CreateGPUDevice(
-            c.SDL_GPU_SHADERFORMAT_SPIRV | c.SDL_GPU_SHADERFORMAT_DXIL | c.SDL_GPU_SHADERFORMAT_MSL,
-            false,
-            null,
-        ));
+        // 创建 GPU
+        var gpu = try sdl.Gpu.create();
         // 绑定窗口到 GPU 设备
-        try h.check(c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window));
+        try gpu.claimWindow(window.sdl_window);
         // 关闭垂直同步（修改交换链的 Present Mode）
         // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
         // 注意：目前垂直同步关闭已被取消，sdl_gpu 仍然是默认状态。
-        // if (c.SDL_WindowSupportsGPUPresentMode(device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
+        // if (c.SDL_WindowSupportsGPUPresentMode(gpu.gpu_device, window.sdl_window, c.SDL_GPU_PRESENTMODE_IMMEDIATE)) {
         //     _ = h.check(c.SDL_SetGPUSwapchainParameters( // 忽略返回状态，仅输出错误消息
-        //         device,
+        //         gpu.gpu_device,
         //         window.sdl_window,
         //         c.SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
         //         c.SDL_GPU_PRESENTMODE_IMMEDIATE,
@@ -103,14 +108,14 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
                 defer shader_scanner.deinit();
                 std.log.info("Scanning shaders in directory: {s}", .{full_path});
                 try shader_scanner.scan();
-                self.shaders = try shader_scanner.compileShaders(self.allocator, device);
+                self.shaders = try shader_scanner.compileShaders(self.allocator, &gpu);
             } else {
                 std.log.warn("Shader directory does not exist: {s}", .{full_path});
             }
         };
 
         self.gpu_window = window;
-        self.gpu_device = device;
+        self.gpu = gpu;
     }
     self.image_shape = image.shape;
     self.current_backend = backend;
@@ -133,16 +138,16 @@ pub fn stopRendering(self: *Self) Error!void {
     }
 }
 
-pub fn writeTexture(self: *Self, device: *c.SDL_GPUDevice, gpu_texture: ?*c.SDL_GPUTexture) Error!void {
+pub fn writeTexture(self: *Self, gpu: *sdl.Gpu, gpu_texture: ?*c.SDL_GPUTexture) Error!void {
     // 创建提取器
-    var extracted = Extractor.init(self.allocator, device, self.image_shape);
+    var extracted = Extractor.init(self.allocator, gpu, self.image_shape);
     // 下载纹理
     try extracted.downloadTexture(gpu_texture);
     // 缓存已下载的内容
     self.extracted = extracted;
 }
 
-pub fn readTexture(self: *Self, renderer: *c.SDL_Renderer) Error!?*c.SDL_Texture {
+pub fn readTexture(self: *Self) Error!?*c.SDL_Texture {
     if (self.extracted) |*extracted| {
         defer {
             extracted.deinit(); // 读取后释放下载数据
@@ -151,22 +156,21 @@ pub fn readTexture(self: *Self, renderer: *c.SDL_Renderer) Error!?*c.SDL_Texture
         const pitch = self.image_shape.w * self.image_shape.c; // 计算 pitch
         std.log.info("Pitch: {d}", .{pitch});
         // 创建图片纹理
-        const texture = try h.check(c.SDL_CreateTexture(
-            renderer,
+        const texture = try self.renderer.?.createTexture(
             c.SDL_PIXELFORMAT_RGBA32,
             c.SDL_TEXTUREACCESS_STATIC,
             self.image_shape.w,
             self.image_shape.h,
-        ));
+        );
         // 开启纹理混合模式
-        try h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND));
+        try sdl.Renderer.setTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND);
         // 上传纹理
-        try h.check(c.SDL_UpdateTexture(
+        try sdl.Renderer.updateTexture(
             texture,
             null,
             extracted.pixels_slice.ptr,
             pitch,
-        ));
+        );
 
         return texture;
     }

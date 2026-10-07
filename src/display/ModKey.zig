@@ -1,4 +1,4 @@
-const c = @import("c.zig").c;
+const c = @import("sdl").c;
 const config = @import("config");
 const Self = @This();
 

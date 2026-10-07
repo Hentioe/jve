@@ -1,7 +1,8 @@
 const std = @import("std");
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const c = @import("sdl").c;
+const h = @import("sdl").h;
 const Error = @import("errors.zig").Error;
+const Gpu = @import("sdl").Gpu;
 
 const Stage = enum(c_uint) {
     vertex = c.SDL_GPU_SHADERSTAGE_VERTEX,
@@ -11,7 +12,7 @@ const Stage = enum(c_uint) {
 // todo: 两个 num 参数合并成一个结构体
 pub fn loadHlslFile(
     allocator: std.mem.Allocator,
-    device: *c.SDL_GPUDevice,
+    gpu: *Gpu,
     file_path: []const u8,
     entrypoint: [*:0]const u8,
     stage: Stage,
@@ -56,17 +57,16 @@ pub fn loadHlslFile(
         .props = 0,
     };
 
-    const shader = try h.check(c.SDL_ShaderCross_CompileGraphicsShaderFromSPIRV(
-        device,
+    const shader = try gpu.compileGraphicsShaderFromSPIRV(
         &spirv_info,
         &.{ .num_samplers = num_samplers, .num_uniform_buffers = num_uniform_buffers },
         0,
-    ));
+    );
     return shader;
 }
 
 pub fn load(
-    device: *c.SDL_GPUDevice,
+    gpu: *Gpu,
     bytes: []const u8,
     entrypoint: [*:0]const u8,
     stage: Stage,
@@ -85,5 +85,5 @@ pub fn load(
         .num_uniform_buffers = num_uniform_buffers,
     };
 
-    return try h.check(c.SDL_CreateGPUShader(device, &create_info));
+    return try gpu.createGPUShader(&create_info);
 }

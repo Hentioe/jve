@@ -1,18 +1,19 @@
 const std = @import("std");
 const errors = @import("errors.zig");
-const Backend = @import("sdl/enums.zig").Backend;
 const Allocator = std.mem.Allocator;
 
 pub const config = @import("config");
 pub const vips = @import("vips");
-pub const sdl = @import("sdl.zig");
+pub const display = @import("display.zig");
 pub const gallery = @import("gallery.zig");
 pub const clipboard = @import("clipboard.zig");
-pub const renderer = @import("sdl/renderer.zig");
-pub const renderer_gpu = @import("sdl/renderer_gpu.zig");
-pub const State = @import("sdl/State.zig");
+pub const renderer = @import("display/renderer.zig");
+pub const renderer_gpu = @import("display/renderer_gpu.zig");
+pub const State = @import("display/State.zig");
 pub const remover = @import("ai").remover;
 pub const LoadError = errors.LoadError;
+
+const DisplayMode = display.Mode;
 
 // glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
 // 内存会滞留在各自的 arena 中不归还操作系统，导致轮换图片时 RSS 持续上涨。
@@ -26,13 +27,13 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8) !void {
     try config.init(allocator, null); // todo: 支持手动传递配置
     try vips.init(allocator);
     try gallery.init(allocator, file_path);
-    try sdl.init();
+    try display.init();
 }
 
 pub fn deinit() void {
     // 和 init 的顺序相反，先 deinit 后初始化的组件
     remover.deinit(); // remover 是按需延迟初始化的，无需在此处初始化
-    sdl.deinit();
+    display.deinit();
     gallery.deinit();
     vips.deinit();
     config.deinit();
@@ -62,16 +63,16 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
     return try vips.loader.load(allocator, file_path);
 }
 
-pub fn render(allocator: Allocator, backend: []const u8) !void {
-    std.log.info("Using backend: {s}", .{backend});
-    var current_renderer: ?Backend = null;
-    if (std.mem.eql(u8, backend, "sdl_renderer")) {
-        current_renderer = .sdl_renderer;
-    } else if (std.mem.eql(u8, backend, "sdl_gpu")) {
-        current_renderer = .sdl_gpu;
+pub fn show(allocator: Allocator, display_mode: []const u8) !void {
+    std.log.info("Display mode: {s}", .{display_mode});
+    var current_model: ?DisplayMode = null;
+    if (std.mem.eql(u8, display_mode, "sdl_renderer")) {
+        current_model = .sdl_renderer;
+    } else if (std.mem.eql(u8, display_mode, "sdl_gpu")) {
+        current_model = .sdl_gpu;
     } else {
-        std.log.err("Unknown backend: {s}", .{backend});
-        return error.UnknownBackend;
+        std.log.err("Unknown mode: {s}", .{display_mode});
+        return error.UnknownDisplayMode;
     }
 
     // 初始化状态
@@ -79,18 +80,18 @@ pub fn render(allocator: Allocator, backend: []const u8) !void {
     defer state.deinit();
 
     // 在不同后端循环渲染（模式切换）
-    while (current_renderer != null) {
-        if (current_renderer == .sdl_renderer) {
+    while (current_model != null) {
+        if (current_model == .sdl_renderer) {
             if (try renderer.render(allocator, &state) == .toggle) {
-                current_renderer = .sdl_gpu;
+                current_model = .sdl_gpu;
             } else {
-                current_renderer = null;
+                current_model = null;
             }
-        } else if (current_renderer == .sdl_gpu) {
+        } else if (current_model == .sdl_gpu) {
             if (try renderer_gpu.render(allocator, &state) == .toggle) {
-                current_renderer = .sdl_renderer;
+                current_model = .sdl_renderer;
             } else {
-                current_renderer = null;
+                current_model = null;
             }
         }
     }

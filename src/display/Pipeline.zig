@@ -1,17 +1,17 @@
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const c = @import("sdl").c;
 const Error = @import("errors.zig").Error;
+const Gpu = @import("sdl").Gpu;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
 
-device: *c.SDL_GPUDevice,
+gpu: *Gpu,
 sdl_pipeline: *c.SDL_GPUGraphicsPipeline,
 render_pass: ?*c.SDL_GPURenderPass = null,
 
-pub fn init(device: *c.SDL_GPUDevice, window: *c.SDL_Window, sharders: ShaderPair) Error!Self {
+pub fn init(gpu: *Gpu, window: *c.SDL_Window, sharders: ShaderPair) Error!Self {
     // 构造管线
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
-        .format = c.SDL_GetGPUSwapchainTextureFormat(device, window),
+        .format = gpu.getGPUSwapchainTextureFormat(window),
         .blend_state = .{ // 启用 Alpha 混合
             .enable_blend = true,
             .src_color_blendfactor = c.SDL_GPU_BLENDFACTOR_SRC_ALPHA,
@@ -31,13 +31,13 @@ pub fn init(device: *c.SDL_GPUDevice, window: *c.SDL_Window, sharders: ShaderPai
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
     };
 
-    const sdl_pipeline = try h.check(c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info));
+    const sdl_pipeline = try gpu.createGPUGraphicsPipeline(&pipeline_info);
 
-    return Self{ .device = device, .sdl_pipeline = sdl_pipeline };
+    return Self{ .gpu = gpu, .sdl_pipeline = sdl_pipeline };
 }
 
 pub fn deinit(self: *Self) void {
-    c.SDL_ReleaseGPUGraphicsPipeline(self.device, self.sdl_pipeline);
+    self.gpu.releaseGPUGraphicsPipeline(self.sdl_pipeline);
 }
 
 pub fn bind(self: *Self, render_pass: *c.SDL_GPURenderPass) void {

@@ -1,6 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const sdl = @import("sdl");
 const root = @import("../root.zig");
 const shared = @import("shared");
 const config = @import("config");
@@ -8,6 +7,7 @@ const gallery = root.gallery;
 const Error = @import("errors.zig").Error;
 const State = @import("State.zig");
 const Window = @import("window.zig");
+const Renderer = @import("sdl").Renderer;
 const LImage = @import("vips").LImage;
 const ModKey = @import("ModKey.zig");
 const Animated = @import("Animated.zig");
@@ -15,9 +15,9 @@ const SlideIn = @import("SlideIn.zig");
 const Delta = @import("Delta.zig");
 const ISize = shared.ISize;
 const Point = shared.Point(f32);
-const RenderNext = @import("enums.zig").RenderNext;
+const NextAction = @import("enums.zig").ExitAction;
 
-const EventType = @FieldType(c.union_SDL_Event, "type");
+const EventType = @FieldType(sdl.c.union_SDL_Event, "type");
 const EventAction = union(enum) {
     none,
     mod_key: EventType,
@@ -26,7 +26,7 @@ const EventAction = union(enum) {
     drag_start: struct { button_x: f32, button_y: f32 },
     drag_stop: struct { button_x: f32, button_y: f32 },
     dragging: struct { xrel: f32, yrel: f32 },
-    rotate: struct { key: c.SDL_Keycode },
+    rotate: struct { key: sdl.c.SDL_Keycode },
     delete,
     scale: struct { wheel_y: f32 },
     next_or_prev: struct { wheel_y: f32 },
@@ -34,7 +34,7 @@ const EventAction = union(enum) {
 };
 
 // 基于 sdl_renderer 渲染图片
-pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
+pub fn render(_: std.mem.Allocator, state: *State) Error!NextAction {
     var image = try gallery.current();
     // 更新状态
     try state.startRendering(&image, .sdl_renderer);
@@ -43,21 +43,21 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     // 更新窗口标题
     try window.setTitle(image.file_name);
     // 创建渲染器
-    const renderer = state.renderer.?;
+    var renderer = try state.getRenderer();
     // 创建纹理（先尝试从缓存中读取）
-    var texture = try state.readTexture(renderer);
+    var texture = try state.readTexture();
     if (texture == null) { // 没有就创建新的纹理
         texture = try createTexture(renderer, &image);
     } else {
         // 复用纹理
         std.log.info("Reusing texture from state", .{});
     }
-    errdefer c.SDL_DestroyTexture(texture);
+    errdefer Renderer.destroyTexture(texture);
     // 创建目标矩形
-    var dst_rect = c.SDL_FRect{};
+    var dst_rect = sdl.c.SDL_FRect{};
     calculateDstRect(&dst_rect, window, image.shape.toISize(i32), .{});
     // 循环、动画和事件参数
-    var event: c.SDL_Event = undefined;
+    var event: sdl.c.SDL_Event = undefined;
     var action: EventAction = .none;
     var running = true;
     var toggle = false;
@@ -88,12 +88,12 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
             .is_dragging = is_dragging,
         };
         if (!dirty) {
-            var wait_event: c.SDL_Event = undefined;
-            if (c.SDL_WaitEvent(&wait_event)) updateActionFromEvent(&action, wait_event, action_deps);
+            var wait_event: sdl.c.SDL_Event = undefined;
+            if (sdl.c.SDL_WaitEvent(&wait_event)) updateActionFromEvent(&action, wait_event, action_deps);
             delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
         // 从事件中更新动作
-        while (c.SDL_PollEvent(&event)) updateActionFromEvent(&action, event, action_deps);
+        while (sdl.c.SDL_PollEvent(&event)) updateActionFromEvent(&action, event, action_deps);
 
         // 根据动作修改状态
         switch (action) {
@@ -124,7 +124,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 std.log.info("Deleting current image: {s}", .{image.file_name});
                 if (gallery.deleteCurrentGetNext()) |next_image| {
                     image = next_image;
-                    c.SDL_DestroyTexture(texture);
+                    Renderer.destroyTexture(texture);
                     texture = try createTexture(renderer, &next_image);
                     dirty = true; // 动画触发 dst_rect 更新
                 } else |err| {
@@ -161,7 +161,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 };
                 if (crrent) |new_image| {
                     image = new_image;
-                    c.SDL_DestroyTexture(texture);
+                    Renderer.destroyTexture(texture);
                     texture = try createTexture(renderer, &new_image);
                 }
                 if (slide_animation) {
@@ -215,10 +215,10 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
         }
         const render_angle: f64 = if (slide.isRunning()) slide.angle else angle.current;
         const alpha: u8 = if (window.windowed) 255 else 60; // 根据边框模式设置背景透明度
-        try h.check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
-        try h.check(c.SDL_RenderClear(renderer));
-        try h.check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, render_angle, null, c.SDL_FLIP_NONE));
-        try h.check(c.SDL_RenderPresent(renderer));
+        try renderer.setRenderDrawColor(0, 0, 0, alpha); // 设置白色背景
+        try renderer.renderClear();
+        try renderer.renderTextureRotated(texture, null, &dst_rect, render_angle, null, sdl.c.SDL_FLIP_NONE);
+        try renderer.renderPresent();
     }
     // 缓存控制参数
     state.target_angle = angle.target;
@@ -232,11 +232,11 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
 
 const ActionDeps = struct {
     mod_key: *ModKey,
-    dst_rect: *c.SDL_FRect,
+    dst_rect: *sdl.c.SDL_FRect,
     is_dragging: bool,
 };
 
-fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionDeps) void {
+fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: ActionDeps) void {
     if (event.key.key == deps.mod_key.key) {
         action.* = .{ .mod_key = event.type };
     } else if (isQuitEvent(event)) {
@@ -245,61 +245,61 @@ fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionD
         action.* = .toggle;
     } else if (isDragStartEvent(event, deps.dst_rect)) {
         action.* = .{ .drag_start = .{ .button_x = event.button.x, .button_y = event.button.y } };
-    } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == c.SDL_BUTTON_LEFT) {
+    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == sdl.c.SDL_BUTTON_LEFT) {
         action.* = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
-    } else if (event.type == c.SDL_EVENT_MOUSE_MOTION and deps.is_dragging) {
+    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_MOTION and deps.is_dragging) {
         handleDragingEvent(event, action);
     } else if (isRotateEvent(event)) {
         action.* = .{ .rotate = .{ .key = event.key.key } };
-    } else if (deps.mod_key.pressedAndKeyDown(event, c.SDLK_D)) {
+    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.c.SDLK_D)) {
         action.* = .delete;
-    } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL and (c.SDL_GetModState() & c.SDL_KMOD_CTRL) != 0) {
+    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_WHEEL and (sdl.c.SDL_GetModState() & sdl.c.SDL_KMOD_CTRL) != 0) {
         action.* = .{ .scale = .{ .wheel_y = event.wheel.y } };
-    } else if (event.type == c.SDL_EVENT_MOUSE_WHEEL) {
+    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_WHEEL) {
         action.* = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
-    } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) {
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_SLASH) {
         action.* = .reset;
     }
 }
 
 // 是否是退出事件
-fn isQuitEvent(event: c.SDL_Event) bool {
-    if (event.type == c.SDL_EVENT_QUIT) { // 正常退出
+fn isQuitEvent(event: sdl.c.SDL_Event) bool {
+    if (event.type == sdl.c.SDL_EVENT_QUIT) { // 正常退出
         return true;
     }
-    if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_ESCAPE) { // ESC 键
+    if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_ESCAPE) { // ESC 键
         return true;
     }
     return false;
 }
 
 // 是否是切换事件
-fn isToggleEvent(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
-    if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_RIGHT) { // 右键
+fn isToggleEvent(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
+    if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_RIGHT) { // 右键
         return true;
-    } else if (event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == c.SDL_BUTTON_LEFT) { // 左键非图片区域
+    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_LEFT) { // 左键非图片区域
         return !isInRect(event, dst_rect);
     }
     return false;
 }
 
 // 是否是拖拽开始事件
-fn isDragStartEvent(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
-    const point = c.SDL_FPoint{ .x = event.button.x, .y = event.button.y };
-    return event.type == c.SDL_EVENT_MOUSE_BUTTON_DOWN and
-        event.button.button == c.SDL_BUTTON_LEFT and
-        c.SDL_PointInRectFloat(&point, dst_rect);
+fn isDragStartEvent(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
+    const point = sdl.c.SDL_FPoint{ .x = event.button.x, .y = event.button.y };
+    return event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and
+        event.button.button == sdl.c.SDL_BUTTON_LEFT and
+        sdl.c.SDL_PointInRectFloat(&point, dst_rect);
 }
 
 // 方向键的数组
-const DIRECTION_KEYS = [_]c.SDL_Keycode{ c.SDLK_UP, c.SDLK_DOWN, c.SDLK_LEFT, c.SDLK_RIGHT };
+const DIRECTION_KEYS = [_]sdl.c.SDL_Keycode{ sdl.c.SDLK_UP, sdl.c.SDLK_DOWN, sdl.c.SDLK_LEFT, sdl.c.SDLK_RIGHT };
 // 是否是旋转
-fn isRotateEvent(event: c.SDL_Event) bool {
-    return event.type == c.SDL_EVENT_KEY_DOWN and
+fn isRotateEvent(event: sdl.c.SDL_Event) bool {
+    return event.type == sdl.c.SDL_EVENT_KEY_DOWN and
         std.mem.indexOfScalar(u32, &DIRECTION_KEYS, event.key.key) != null;
 }
 
-fn handleDragingEvent(event: c.SDL_Event, action: *EventAction) void {
+fn handleDragingEvent(event: sdl.c.SDL_Event, action: *EventAction) void {
     switch (action.*) {
         .dragging => |*payload| {
             // 如果这一帧里已经有 dragging 动作了，累加位移
@@ -314,18 +314,18 @@ fn handleDragingEvent(event: c.SDL_Event, action: *EventAction) void {
 }
 
 // 按键映射旋转角度
-fn mapKeyToAngle(key: c.SDL_Keycode) ?f64 {
+fn mapKeyToAngle(key: sdl.c.SDL_Keycode) ?f64 {
     return switch (key) {
-        c.SDLK_UP => 0.0,
-        c.SDLK_DOWN => 180.0,
-        c.SDLK_LEFT => 270.0,
-        c.SDLK_RIGHT => 90.0,
+        sdl.c.SDLK_UP => 0.0,
+        sdl.c.SDLK_DOWN => 180.0,
+        sdl.c.SDLK_LEFT => 270.0,
+        sdl.c.SDLK_RIGHT => 90.0,
         else => null,
     };
 }
 
 // 判断鼠标位置是否在图片上
-fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
+fn isInRect(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
     const mouse_x = event.button.x;
     const mouse_y = event.button.y;
     return mouse_x >= dst_rect.x and mouse_x <= dst_rect.x + dst_rect.w and
@@ -333,7 +333,7 @@ fn isInRect(event: c.SDL_Event, dst_rect: *c.SDL_FRect) bool {
 }
 
 // 重新计算 rect
-fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, size: ISize(i32), offset: Point) void {
+fn calculateDstRect(dst_rect: *sdl.c.SDL_FRect, window: *Window, size: ISize(i32), offset: Point) void {
     const window_width = window.display_width;
     const window_height = window.display_height;
 
@@ -346,27 +346,26 @@ fn calculateDstRect(dst_rect: *c.SDL_FRect, window: *Window, size: ISize(i32), o
     dst_rect.y = center_y + offset.y;
 }
 
-fn createTexture(renderer: *c.SDL_Renderer, image: *const LImage) Error!*c.SDL_Texture {
+fn createTexture(renderer: *Renderer, image: *const LImage) Error!*sdl.c.SDL_Texture {
     // 计算 pitch
     const pitch = image.shape.w * image.shape.c;
     std.log.info("Pitch: {d}", .{pitch});
     // 创建图片纹理
-    const texture = c.SDL_CreateTexture(
-        renderer,
-        c.SDL_PIXELFORMAT_RGBA32,
-        c.SDL_TEXTUREACCESS_STATIC,
+    const texture = try renderer.createTexture(
+        sdl.c.SDL_PIXELFORMAT_RGBA32,
+        sdl.c.SDL_TEXTUREACCESS_STATIC,
         image.shape.w,
         image.shape.h,
     );
     // 开启纹理混合模式
-    try h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND));
+    try Renderer.setTextureBlendMode(texture, sdl.c.SDL_BLENDMODE_BLEND);
     // 上传纹理
-    try h.check(c.SDL_UpdateTexture(
+    try Renderer.updateTexture(
         texture,
         null,
         image.pixels_ptr,
         pitch,
-    ));
+    );
 
     return texture;
 }

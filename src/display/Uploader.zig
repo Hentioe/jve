@@ -1,9 +1,10 @@
 const std = @import("std");
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const c = @import("sdl").c;
+const h = @import("sdl").h;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
+const Gpu = @import("sdl").Gpu;
 const ISize = shared.ISize(u32);
 const Self = @This();
 
@@ -55,12 +56,12 @@ const UploadTask = union(enum) {
 };
 
 allocator: Allocator,
-device: *c.SDL_GPUDevice,
+gpu: *Gpu,
 tasks: std.ArrayListUnmanaged(UploadTask),
 
-pub fn init(allocator: Allocator, device: *c.SDL_GPUDevice) Self {
+pub fn init(allocator: Allocator, gpu: *Gpu) Self {
     return .{
-        .device = device,
+        .gpu = gpu,
         .allocator = allocator,
         .tasks = .{},
     };
@@ -79,7 +80,7 @@ pub fn uploadTexture(
     size: ISize,
 ) Error!*c.SDL_GPUTexture {
     // 1. 创建 GPU 纹理资源
-    const texture = try h.check(c.SDL_CreateGPUTexture(self.device, create_info));
+    const texture = try self.gpu.createGPUTexture(create_info);
 
     // 2. 计算 RGBA8888 字节大小并做 4 字节对齐
     const raw_size: u32 = @intCast(size.w * size.h * 4);
@@ -107,7 +108,7 @@ pub fn uploadBuffer(
     size: u32,
 ) Error!*c.SDL_GPUBuffer {
     // 1. 创建 GPU 缓冲资源
-    const buffer = try h.check(c.SDL_CreateGPUBuffer(self.device, create_info));
+    const buffer = try self.gpu.createGPUBuffer(create_info);
 
     // 2. 做 4 字节对齐
     const aligned_size = std.mem.alignForward(u32, size, 4);
@@ -138,11 +139,11 @@ pub fn submit(self: *Self) Error!void {
         .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
         .size = total_buffer_size,
     };
-    const transfer_buf = try h.check(c.SDL_CreateGPUTransferBuffer(self.device, &transfer_info));
-    defer c.SDL_ReleaseGPUTransferBuffer(self.device, transfer_buf);
+    const transfer_buf = try self.gpu.createGPUTransferBuffer(&transfer_info);
+    defer self.gpu.releaseGPUTransferBuffer(transfer_buf);
 
     // 3. 映射内存，根据各任务计算出的 offset 依次拷贝像素数据
-    const map_ptr = c.SDL_MapGPUTransferBuffer(self.device, transfer_buf, false);
+    const map_ptr = try self.gpu.mapGPUTransferBuffer(transfer_buf, false);
     var current_offset: u32 = 0;
     const base_bytes: [*]u8 = @ptrCast(map_ptr);
 
@@ -150,10 +151,10 @@ pub fn submit(self: *Self) Error!void {
         _ = c.SDL_memcpy(base_bytes + current_offset, task.dataPtr(), task.dataSize()); // 此处忽略返回是安全的，它表示 dst 自身
         current_offset += task.alignedSize();
     }
-    c.SDL_UnmapGPUTransferBuffer(self.device, transfer_buf);
+    self.gpu.unmapGPUTransferBuffer(transfer_buf);
 
     // 4. 获取 Command Buffer 并开启 Copy Pass
-    const cmd_buf = try h.check(c.SDL_AcquireGPUCommandBuffer(self.device));
+    const cmd_buf = try self.gpu.acquireGPUCommandBuffer();
     const copy_pass = try h.check(c.SDL_BeginGPUCopyPass(cmd_buf));
 
     // 5. 遍历任务，利用不同的 offset 录制上传指令

@@ -1,19 +1,19 @@
 // 由于 sdl_renderer 后端取消了窗口模式，此棋盘格实现并未实际使用。
 
 const std = @import("std");
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const c = @import("sdl").c;
 const errors = @import("errors.zig");
 const Error = errors.Error;
+const Renderer = @import("sdl").Renderer;
 const Self = @This();
 
 const tile_size = 12;
 const parten_size = tile_size * 2;
 
-renderer: *c.SDL_Renderer,
+renderer: Renderer,
 texture: *c.SDL_Texture,
 
-pub fn init(allocator: std.mem.Allocator, renderer: *c.SDL_Renderer) Error!Self {
+pub fn init(allocator: std.mem.Allocator, renderer: Renderer) Error!Self {
     // 分配像素数据内存
     const pixels = try allocator.alloc(u8, @intCast(parten_size * parten_size * 4));
     defer allocator.free(pixels);
@@ -32,23 +32,23 @@ pub fn init(allocator: std.mem.Allocator, renderer: *c.SDL_Renderer) Error!Self 
         }
     }
     // 上传棋盘格纹理
-    const texture = c.SDL_CreateTexture(
-        renderer,
+    var self = Self{ .renderer = renderer, .texture = undefined };
+    self.texture = try self.renderer.createTexture(
         c.SDL_PIXELFORMAT_RGBA32,
         c.SDL_TEXTUREACCESS_STATIC,
         parten_size,
         parten_size,
     );
     // 更新棋盘格纹理
-    try h.check(c.SDL_UpdateTexture(texture, null, pixels.ptr, parten_size * 4));
+    try Renderer.updateTexture(self.texture, null, pixels.ptr, parten_size * 4);
 
-    return Self{ .renderer = renderer, .texture = texture };
+    return self;
 }
 
 pub fn deinit(self: Self) void {
-    c.SDL_DestroyTexture(self.texture);
+    Renderer.destroyTexture(self.texture);
 }
 
-pub fn render(self: Self) errors.SdlError!void {
-    try h.check(c.SDL_RenderTextureTiled(self.renderer, self.texture, null, 1.0, null));
+pub fn render(self: *Self) errors.SdlError!void {
+    try self.renderer.renderTextureTiled(self.texture, null, 1.0, null);
 }

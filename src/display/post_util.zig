@@ -1,10 +1,10 @@
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const c = @import("sdl").c;
 const Error = @import("errors.zig").Error;
+const Gpu = @import("sdl").Gpu;
 const ShaderPair = @import("structs.zig").ShaderPair;
 
 pub fn createPipeline(
-    device: *c.SDL_GPUDevice,
+    gpu: *Gpu,
     shader_pair: ShaderPair,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
@@ -22,5 +22,5 @@ pub fn createPipeline(
         .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = color_target_desc },
     };
-    return try h.check(c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info));
+    return try gpu.createGPUGraphicsPipeline(&pipeline_info);
 }

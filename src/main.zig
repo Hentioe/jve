@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const cli = @import("cli.zig");
 const jve = @import("jve");
+const cli = @import("cli.zig");
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
@@ -30,9 +30,9 @@ pub fn main() !void {
         // 初始化
         defer jve.deinit();
         try jve.init(allocator, file_path);
-        // 读取后端参数
-        const backend: []const u8 = res.args.backend orelse jve.config.get().default_mode;
-        // 渲染图像
-        try jve.render(allocator, backend);
+        // 显示模式
+        const display_mode: []const u8 = res.args.backend orelse jve.config.get().default_mode;
+        // 显示图像
+        try jve.show(allocator, display_mode);
     }
 }

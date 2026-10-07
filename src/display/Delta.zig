@@ -1,4 +1,4 @@
-const c = @import("c.zig").c;
+const c = @import("sdl").c;
 const Self = @This();
 
 /// 上一帧到这一帧的时间间隔（秒），每次调用 update() 后刷新

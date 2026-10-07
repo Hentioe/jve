@@ -1,10 +1,10 @@
 const std = @import("std");
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const c = @import("sdl").c;
+const h = @import("sdl").h;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
-const Backend = @import("enums.zig").Backend;
+const Backend = @import("enums.zig").Mode;
 const ISize = shared.ISize;
 
 const Self = @This();

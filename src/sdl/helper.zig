@@ -1,6 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
-const SdlError = @import("errors.zig").SdlError;
+const Error = @import("errors.zig").Error;
 
 /// 根据传入值的类型，在编译期推导成功时的返回类型：
 ///   - `bool`   -> `void`
@@ -15,11 +15,11 @@ fn Payload(comptime T: type) type {
     };
 }
 
-fn fail() SdlError {
+fn fail() Error {
     const err = c.SDL_GetError();
     std.log.err("[SDL ERROR]: {s}", .{err});
     if (c.SDL_ClearError()) std.log.debug("[SDL ERROR CLEARED]", .{});
-    return SdlError.SdlFailed;
+    return Error.SdlFailed;
 }
 
 /// 检查 SDL 调用的返回值，如果失败则打印错误并返回 SdlError.SdlFailed
@@ -27,7 +27,7 @@ fn fail() SdlError {
 ///   - `bool`   -> `false` 表示失败
 ///   - `?T`     -> `null` 表示失败
 ///   - `[*c]T`  -> `null` 表示失败
-pub fn check(value: anytype) SdlError!Payload(@TypeOf(value)) {
+pub fn check(value: anytype) Error!Payload(@TypeOf(value)) {
     const T = @TypeOf(value);
     switch (@typeInfo(T)) {
         .bool => {

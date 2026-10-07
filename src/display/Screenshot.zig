@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("sdl").c;
 const config = @import("config");
 const vips = @import("vips");
 const writer = vips.writer;
@@ -7,6 +7,7 @@ const LImage = vips.LImage;
 const clipboard = @import("clipboard.zig");
 const Allocator = std.mem.Allocator;
 const Extractor = @import("Extractor.zig");
+const Gpu = @import("sdl").Gpu;
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -14,9 +15,9 @@ allocator: Allocator,
 extracted: Extractor,
 image: *const LImage,
 
-pub fn init(allocator: std.mem.Allocator, device: *c.SDL_GPUDevice, texture: ?*c.SDL_GPUTexture, image: *const LImage) Error!Self {
+pub fn init(allocator: std.mem.Allocator, gpu: *Gpu, texture: ?*c.SDL_GPUTexture, image: *const LImage) Error!Self {
     // 创建下载器
-    var extractor = Extractor.init(allocator, device, image.shape);
+    var extractor = Extractor.init(allocator, gpu, image.shape);
     errdefer extractor.deinit();
     // 下载纹理
     try extractor.downloadTexture(texture);

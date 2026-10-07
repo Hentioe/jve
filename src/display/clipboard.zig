@@ -1,5 +1,5 @@
-const c = @import("c.zig").c;
-const h = @import("helper.zig");
+const c = @import("sdl").c;
+const h = @import("sdl").h;
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Format = @import("../enums.zig").ScreenshotFormat;

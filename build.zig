@@ -12,6 +12,31 @@ pub fn build(b: *std.Build) void {
     });
     const shared_import: Import = .{ .name = "shared", .module = shared_mod };
 
+    const sdl_dep = b.dependency("sdl", .{
+        .target = target,
+        .optimize = optimize,
+        //.preferred_linkage = .static,
+        //.strip = null,
+        //.sanitize_c = null,
+        //.pic = null,
+        //.lto = null,
+        //.emscripten_pthreads = false,
+        //.system_include_path = null,
+        //.system_framework_path = null,
+    });
+
+    const sdl_lib = sdl_dep.artifact("SDL3");
+    const sdl_test_lib = sdl_dep.artifact("SDL3_test");
+
+    // SDL 包装模块
+    const sdl_wrapper_mod = b.addModule("sdl", .{
+        .root_source_file = b.path("src/sdl.zig"),
+        .target = target,
+    });
+    sdl_wrapper_mod.linkLibrary(sdl_lib); // 让 sdl_wrapper 链接到 sdl
+    sdl_wrapper_mod.linkLibrary(sdl_test_lib); // 让 sdl_wrapper 链接到 sdl_test
+    const sdl_wrapper_import: Import = .{ .name = "sdl", .module = sdl_wrapper_mod };
+
     // TOML 依赖
     const toml_dep = b.dependency("toml", .{});
     const toml_import: Import = .{ .name = "toml", .module = toml_dep.module("toml") };
@@ -53,21 +78,6 @@ pub fn build(b: *std.Build) void {
     const clap_dep = b.dependency("clap", .{});
     const clap_import: Import = .{ .name = "clap", .module = clap_dep.module("clap") };
 
-    const sdl_dep = b.dependency("sdl", .{
-        .target = target,
-        .optimize = optimize,
-        //.preferred_linkage = .static,
-        //.strip = null,
-        //.sanitize_c = null,
-        //.pic = null,
-        //.lto = null,
-        //.emscripten_pthreads = false,
-        //.system_include_path = null,
-        //.system_framework_path = null,
-    });
-    const sdl_lib = sdl_dep.artifact("SDL3");
-    const sdl_test_lib = sdl_dep.artifact("SDL3_test");
-
     const sdl_shadercross_dep = b.dependency("SDL_shadercross", .{
         .target = target,
         .optimize = optimize,
@@ -87,14 +97,12 @@ pub fn build(b: *std.Build) void {
             vips_import,
             ort_import,
             ai_import,
+            sdl_wrapper_import,
             sdl_shadercross_import,
         },
     });
     const root_import: Import = .{ .name = "jve", .module = root_mod };
 
-    // 链接 SDL 库
-    root_mod.linkLibrary(sdl_lib);
-    root_mod.linkLibrary(sdl_test_lib);
     // 链接系统 glib（vips 依赖）
     root_mod.linkSystemLibrary("glib-2.0", .{});
 

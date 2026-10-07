@@ -1,4 +1,4 @@
-const c = @import("c.zig").c;
+const c = @import("sdl").c;
 const shared = @import("shared");
 const Error = @import("errors.zig").Error;
 const ISize = shared.ISize(u32);

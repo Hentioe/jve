@@ -1,4 +1,4 @@
-const c = @import("c.zig").c;
+const c = @import("sdl").c;
 
 // 定义顶点与 UV 坐标
 pub const Vertex = struct {

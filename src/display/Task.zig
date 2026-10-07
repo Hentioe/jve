@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("sdl").c;
 const shared = @import("shared");
 const vips = @import("vips");
 const ai = @import("ai");
@@ -10,6 +10,7 @@ const IShape = shared.IShape;
 const Point = shared.Point(f32);
 const Image = vips.Image;
 const Extractor = @import("Extractor.zig");
+const Gpu = @import("sdl").Gpu;
 const OrtRunner = ai.OrtRunner;
 const remover = ai.remover;
 const Self = @This();
@@ -47,7 +48,7 @@ result: ?Result = null,
 
 pub fn start(
     allocator: Allocator,
-    device: *c.SDL_GPUDevice,
+    gpu: *Gpu,
     texture: ?*c.SDL_GPUTexture,
     input: Input,
 ) Error!*Self {
@@ -57,7 +58,7 @@ pub fn start(
 
     self_ptr.* = .{
         .allocator = allocator,
-        .thread = try std.Thread.spawn(.{}, run, .{ self_ptr, device, texture, input }),
+        .thread = try std.Thread.spawn(.{}, run, .{ self_ptr, gpu, texture, input }),
     };
     // 返回自身指针
     return self_ptr;
@@ -65,11 +66,11 @@ pub fn start(
 
 fn run(
     self: *Self,
-    device: *c.SDL_GPUDevice,
+    gpu: *Gpu,
     texture: ?*c.SDL_GPUTexture,
     input: Input,
 ) void {
-    self.execute(device, texture, input) catch |err| {
+    self.execute(gpu, texture, input) catch |err| {
         self.result = .{ .failure = err };
     };
     self.state.store(.done, .release);
@@ -77,13 +78,13 @@ fn run(
 
 fn execute(
     self: *Self,
-    device: *c.SDL_GPUDevice,
+    gpu: *Gpu,
     texture: ?*c.SDL_GPUTexture,
     input: Input,
 ) !void {
     std.log.info("Task is running", .{});
     // 提取像素数据
-    self.extracted = try Extractor.extract(self.allocator, device, texture, input.shape);
+    self.extracted = try Extractor.extract(self.allocator, gpu, texture, input.shape);
     // 选择模型：如果存在点击座标，则用 MagicTouch 否则用 BiRefNet
     const model: OrtRunner.Model = if (input.click != null) .magic_touch else .birefnet;
     const data_ptr = self.extracted.?.pixels_slice.ptr;

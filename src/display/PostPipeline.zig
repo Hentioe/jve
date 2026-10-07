@@ -1,5 +1,6 @@
-const c = @import("c.zig").c;
+const c = @import("sdl").c;
 const post_util = @import("post_util.zig");
+const Gpu = @import("sdl").Gpu;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
 
@@ -15,19 +16,19 @@ const EffectType = enum {
 };
 
 pub const Builder = struct {
-    device: *c.SDL_GPUDevice,
+    gpu: *Gpu,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 
     pub fn init(
-        device: *c.SDL_GPUDevice,
+        gpu: *Gpu,
         vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
         vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
         color_target_desc: *const c.SDL_GPUColorTargetDescription,
     ) Builder {
         return Builder{
-            .device = device,
+            .gpu = gpu,
             .vert_buffer_desc = vert_buffer_desc,
             .vert_attrs = vert_attrs,
             .color_target_desc = color_target_desc,
@@ -37,7 +38,7 @@ pub const Builder = struct {
     pub fn build(self: *const Builder, effect: EffectType, shader_pair: ShaderPair) !Self {
         return try Self.init(
             effect,
-            self.device,
+            self.gpu,
             shader_pair,
             self.vert_buffer_desc,
             self.vert_attrs,
@@ -52,14 +53,14 @@ render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(
     effect: EffectType,
-    device: *c.SDL_GPUDevice,
+    gpu: *Gpu,
     shader_pair: ShaderPair,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 ) !Self {
     const pipeline = try post_util.createPipeline(
-        device,
+        gpu,
         shader_pair,
         vert_buffer_desc,
         vert_attrs,
@@ -71,8 +72,8 @@ pub fn init(
     };
 }
 
-pub fn deinit(self: *Self, device: *c.SDL_GPUDevice) void {
-    c.SDL_ReleaseGPUGraphicsPipeline(device, self.pipeline);
+pub fn deinit(self: *Self, gpu: *Gpu) void {
+    gpu.releaseGPUGraphicsPipeline(self.pipeline);
     self.* = undefined;
 }
 
