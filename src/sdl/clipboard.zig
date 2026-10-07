@@ -16,13 +16,13 @@ pub fn copyImage(allocator: Allocator, src: []const u8, format: Format) Error!vo
     lock.lock();
     defer lock.unlock();
 
-    if (!h.check(c.SDL_SetClipboardData(
+    try h.check(c.SDL_SetClipboardData(
         callback,
         cleanup,
         null,
         &mime_types,
         mime_types.len,
-    ))) return Error.SdlSetClipboardDataFailed;
+    ));
 
     const dst = try allocator.alloc(u8, src.len);
     @memcpy(dst, src);

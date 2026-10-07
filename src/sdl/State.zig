@@ -54,13 +54,10 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
             image_size,
             .{ .windowed = false, .backend = backend },
         );
-        const renderer = c.SDL_CreateRenderer(window.sdl_window, null) orelse {
-            h.printError();
-            return Error.SdlCreateRendererFailed;
-        };
+        const renderer = try h.check(c.SDL_CreateRenderer(window.sdl_window, null));
         errdefer window.destroy();
         // 开启垂直同步
-        if (!h.check(c.SDL_SetRenderVSync(renderer, 1))) return Error.SdlSetRenderVSyncFailed;
+        try h.check(c.SDL_SetRenderVSync(renderer, 1));
         self.window = window;
         self.renderer = renderer;
     } else if (backend == .sdl_gpu and self.gpu_window == null) {
@@ -74,16 +71,13 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
         );
         errdefer window.destroy();
         // 创建 GPU 设备
-        const device = c.SDL_CreateGPUDevice(
+        const device = try h.check(c.SDL_CreateGPUDevice(
             c.SDL_GPU_SHADERFORMAT_SPIRV | c.SDL_GPU_SHADERFORMAT_DXIL | c.SDL_GPU_SHADERFORMAT_MSL,
             false,
             null,
-        ) orelse {
-            h.printError();
-            return Error.SdlCreateGPUDeviceFailed;
-        };
+        ));
         // 绑定窗口到 GPU 设备
-        if (!h.check(c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window))) return Error.SdlClaimWindowForGPUDeviceFailed;
+        try h.check(c.SDL_ClaimWindowForGPUDevice(device, window.sdl_window));
         // 关闭垂直同步（修改交换链的 Present Mode）
         // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
         // 注意：目前垂直同步关闭已被取消，sdl_gpu 仍然是默认状态。
@@ -157,26 +151,22 @@ pub fn readTexture(self: *Self, renderer: *c.SDL_Renderer) Error!?*c.SDL_Texture
         const pitch = self.image_shape.w * self.image_shape.c; // 计算 pitch
         std.log.info("Pitch: {d}", .{pitch});
         // 创建图片纹理
-        const texture = c.SDL_CreateTexture(
+        const texture = try h.check(c.SDL_CreateTexture(
             renderer,
             c.SDL_PIXELFORMAT_RGBA32,
             c.SDL_TEXTUREACCESS_STATIC,
             self.image_shape.w,
             self.image_shape.h,
-        );
-        if (texture == null) {
-            h.printError();
-            return Error.SdlCreateTextureFailed;
-        }
+        ));
         // 开启纹理混合模式
-        if (!h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND))) return Error.SdlSetTextureBlendModeFailed;
+        try h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND));
         // 上传纹理
-        if (!h.check(c.SDL_UpdateTexture(
+        try h.check(c.SDL_UpdateTexture(
             texture,
             null,
             extracted.pixels_slice.ptr,
             pitch,
-        ))) return Error.SdlUpdateTextureFailed;
+        ));
 
         return texture;
     }

@@ -157,7 +157,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
     };
     // 基础着色器（负责图像渲染）
-    const base_pl: *c.SDL_GPUGraphicsPipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse return Error.SdlCreateGPUGraphicsPipelineFailed;
+    const base_pl: *c.SDL_GPUGraphicsPipeline = try h.check(c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info));
     defer c.SDL_ReleaseGPUGraphicsPipeline(device, base_pl);
     // 构造棋盘格（透明图片的背景）
     var checkerboard = try Checkerboard.init(device, window);
@@ -366,7 +366,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
         }
 
         // 获取当前帧的 Command Buffer
-        const cmd_buf = c.SDL_AcquireGPUCommandBuffer(device) orelse return Error.SdlAcquireGPUCommandBufferFailed;
+        const cmd_buf = try h.check(c.SDL_AcquireGPUCommandBuffer(device));
         // 开启 Render Pass
         const base_color_target: c.SDL_GPUColorTargetInfo = .{
             .texture = tex_src,
@@ -514,8 +514,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!RenderNext {
                 onscreen.end();
             }
         }
-        // 提交绘制命令，渲染到屏幕
-        if (!h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf))) return Error.SdlSubmitGPUCommandBufferFailed;
+        // 提交命令，渲染到屏幕
+        try h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf));
 
         // 处理截图保存和复制
         if (save_screenshot or copy_screenshot) {

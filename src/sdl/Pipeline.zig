@@ -1,4 +1,5 @@
 const c = @import("c.zig").c;
+const h = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
@@ -30,9 +31,7 @@ pub fn init(device: *c.SDL_GPUDevice, window: *c.SDL_Window, sharders: ShaderPai
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
     };
 
-    const sdl_pipeline = c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info) orelse {
-        return Error.SdlCreateGPUGraphicsPipelineFailed;
-    };
+    const sdl_pipeline = try h.check(c.SDL_CreateGPUGraphicsPipeline(device, &pipeline_info));
 
     return Self{ .device = device, .sdl_pipeline = sdl_pipeline };
 }

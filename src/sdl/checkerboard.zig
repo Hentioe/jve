@@ -3,7 +3,8 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const h = @import("helper.zig");
-const Error = @import("errors.zig").Error;
+const errors = @import("errors.zig");
+const Error = errors.Error;
 const Self = @This();
 
 const tile_size = 12;
@@ -38,23 +39,16 @@ pub fn init(allocator: std.mem.Allocator, renderer: *c.SDL_Renderer) Error!Self 
         parten_size,
         parten_size,
     );
-    if (!h.check(c.SDL_UpdateTexture(
-        texture,
-        null,
-        pixels.ptr,
-        parten_size * 4,
-    ))) return Error.SdlUpdateTextureFailed;
+    // 更新棋盘格纹理
+    try h.check(c.SDL_UpdateTexture(texture, null, pixels.ptr, parten_size * 4));
 
-    return Self{
-        .renderer = renderer,
-        .texture = texture,
-    };
+    return Self{ .renderer = renderer, .texture = texture };
 }
 
 pub fn deinit(self: Self) void {
     c.SDL_DestroyTexture(self.texture);
 }
 
-pub fn render(self: Self) void {
-    _ = c.SDL_RenderTextureTiled(self.renderer, self.texture, null, 1.0, null);
+pub fn render(self: Self) errors.SdlError!void {
+    try h.check(c.SDL_RenderTextureTiled(self.renderer, self.texture, null, 1.0, null));
 }

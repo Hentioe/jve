@@ -215,10 +215,10 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
         }
         const render_angle: f64 = if (slide.isRunning()) slide.angle else angle.current;
         const alpha: u8 = if (window.windowed) 255 else 60; // 根据边框模式设置背景透明度
-        check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
-        check(c.SDL_RenderClear(renderer));
-        check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, render_angle, null, c.SDL_FLIP_NONE));
-        check(c.SDL_RenderPresent(renderer));
+        try h.check(c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha)); // 设置白色背景
+        try h.check(c.SDL_RenderClear(renderer));
+        try h.check(c.SDL_RenderTextureRotated(renderer, texture, null, &dst_rect, render_angle, null, c.SDL_FLIP_NONE));
+        try h.check(c.SDL_RenderPresent(renderer));
     }
     // 缓存控制参数
     state.target_angle = angle.target;
@@ -260,10 +260,6 @@ fn updateActionFromEvent(action: *EventAction, event: c.SDL_Event, deps: ActionD
     } else if (event.type == c.SDL_EVENT_KEY_DOWN and event.key.key == c.SDLK_SLASH) {
         action.* = .reset;
     }
-}
-
-inline fn check(ok: bool) void {
-    if (!ok) h.printError();
 }
 
 // 是否是退出事件
@@ -363,14 +359,14 @@ fn createTexture(renderer: *c.SDL_Renderer, image: *const LImage) Error!*c.SDL_T
         image.shape.h,
     );
     // 开启纹理混合模式
-    if (!h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND))) return Error.SdlSetTextureBlendModeFailed;
+    try h.check(c.SDL_SetTextureBlendMode(texture, c.SDL_BLENDMODE_BLEND));
     // 上传纹理
-    if (!h.check(c.SDL_UpdateTexture(
+    try h.check(c.SDL_UpdateTexture(
         texture,
         null,
         image.pixels_ptr,
         pitch,
-    ))) return Error.SdlUpdateTextureFailed;
+    ));
 
     return texture;
 }

@@ -32,11 +32,7 @@ pub fn loadHlslFile(
     // 正在加载着色器
     std.log.info("Loading shader: {s}", .{input_path});
     var file_size: usize = 0;
-    const hlsl_source = c.SDL_LoadFile(@ptrCast(input_path), &file_size);
-    if (hlsl_source == null) {
-        h.printError();
-        return Error.SdlLoadFileFailed;
-    }
+    const hlsl_source = try h.check(c.SDL_LoadFile(@ptrCast(input_path), &file_size));
     defer c.SDL_free(hlsl_source);
 
     var hlsl_info = c.SDL_ShaderCross_HLSL_Info{
@@ -49,11 +45,7 @@ pub fn loadHlslFile(
     };
 
     var spirv_size: usize = 0;
-    const spirv_bytes = c.SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size);
-    if (spirv_bytes == null) {
-        h.printError();
-        return Error.SdlCompileShaderFailed;
-    }
+    const spirv_bytes = try h.check(c.SDL_ShaderCross_CompileSPIRVFromHLSL(&hlsl_info, &spirv_size));
     defer c.SDL_free(spirv_bytes);
 
     var spirv_info = c.SDL_ShaderCross_SPIRV_Info{
@@ -64,17 +56,13 @@ pub fn loadHlslFile(
         .props = 0,
     };
 
-    const shader = c.SDL_ShaderCross_CompileGraphicsShaderFromSPIRV(
+    const shader = try h.check(c.SDL_ShaderCross_CompileGraphicsShaderFromSPIRV(
         device,
         &spirv_info,
         &.{ .num_samplers = num_samplers, .num_uniform_buffers = num_uniform_buffers },
         0,
-    );
-    if (shader == null) {
-        h.printError();
-        return Error.SdlCompileShaderFailed;
-    }
-    return shader.?;
+    ));
+    return shader;
 }
 
 pub fn load(
@@ -97,5 +85,5 @@ pub fn load(
         .num_uniform_buffers = num_uniform_buffers,
     };
 
-    return c.SDL_CreateGPUShader(device, &create_info) orelse return Error.SdlCreateShaderFailed;
+    return try h.check(c.SDL_CreateGPUShader(device, &create_info));
 }

@@ -79,7 +79,7 @@ pub fn uploadTexture(
     size: ISize,
 ) Error!*c.SDL_GPUTexture {
     // 1. 创建 GPU 纹理资源
-    const texture = c.SDL_CreateGPUTexture(self.device, create_info) orelse return Error.SdlCreateGPUTextureFailed;
+    const texture = try h.check(c.SDL_CreateGPUTexture(self.device, create_info));
 
     // 2. 计算 RGBA8888 字节大小并做 4 字节对齐
     const raw_size: u32 = @intCast(size.w * size.h * 4);
@@ -107,7 +107,7 @@ pub fn uploadBuffer(
     size: u32,
 ) Error!*c.SDL_GPUBuffer {
     // 1. 创建 GPU 缓冲资源
-    const buffer = c.SDL_CreateGPUBuffer(self.device, create_info) orelse return Error.SdlCreateGPUBufferFailed;
+    const buffer = try h.check(c.SDL_CreateGPUBuffer(self.device, create_info));
 
     // 2. 做 4 字节对齐
     const aligned_size = std.mem.alignForward(u32, size, 4);
@@ -138,7 +138,7 @@ pub fn submit(self: *Self) Error!void {
         .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
         .size = total_buffer_size,
     };
-    const transfer_buf = c.SDL_CreateGPUTransferBuffer(self.device, &transfer_info) orelse return Error.SdlCreateGPUTransferBufferFailed;
+    const transfer_buf = try h.check(c.SDL_CreateGPUTransferBuffer(self.device, &transfer_info));
     defer c.SDL_ReleaseGPUTransferBuffer(self.device, transfer_buf);
 
     // 3. 映射内存，根据各任务计算出的 offset 依次拷贝像素数据
@@ -153,8 +153,8 @@ pub fn submit(self: *Self) Error!void {
     c.SDL_UnmapGPUTransferBuffer(self.device, transfer_buf);
 
     // 4. 获取 Command Buffer 并开启 Copy Pass
-    const cmd_buf = c.SDL_AcquireGPUCommandBuffer(self.device) orelse return Error.SdlAcquireGPUCommandBufferFailed;
-    const copy_pass = c.SDL_BeginGPUCopyPass(cmd_buf) orelse return Error.SdlBeginGPUCopyPassFailed;
+    const cmd_buf = try h.check(c.SDL_AcquireGPUCommandBuffer(self.device));
+    const copy_pass = try h.check(c.SDL_BeginGPUCopyPass(cmd_buf));
 
     // 5. 遍历任务，利用不同的 offset 录制上传指令
     current_offset = 0;
@@ -193,8 +193,8 @@ pub fn submit(self: *Self) Error!void {
 
     c.SDL_EndGPUCopyPass(copy_pass);
 
-    // 6. 提交命令缓冲区并检查返回状态
-    if (!h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf))) return Error.SdlSubmitGPUCommandBufferFailed;
+    // 6. 提交命令缓冲区
+    try h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf));
 
     // 7. 清空已完成的任务列表（保留分配的容量供下次复用）
     self.tasks.clearRetainingCapacity();

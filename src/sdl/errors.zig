@@ -4,38 +4,7 @@ const SizeError = @import("shared").SizeError;
 const GalleryError = @import("../gallery.zig").Error;
 const AiError = @import("ai").Error;
 
-pub const SdlError = error{
-    SdlInitFailed,
-    SdlShaderCrossInitFailed,
-    SdlCreateShaderFailed,
-    SdlCreateGPUDeviceFailed,
-    SdlCreateWindowFailed,
-    SdlClaimWindowForGPUDeviceFailed,
-    SdlCreateRendererFailed,
-    SdlCreateTextureFailed,
-    SdlCreateGPUTextureFailed,
-    SdlCreateGPUBufferFailed,
-    SdlCreateGPUTransferBufferFailed,
-    SdlAcquireGPUCommandBufferFailed,
-    SdlBeginGPUCopyPassFailed,
-    SdlEndGPUCopyPassFailed,
-    SdlLoadFileFailed,
-    SdlCompileShaderFailed,
-    SdlSetWindowHitTestFailed,
-    SdlHideWindowFailed,
-    SdlShowWindowFailed,
-    SdlSetWindowTitleFailed,
-    SdlCreateGPUGraphicsPipelineFailed,
-    SdlSetTextureBlendModeFailed,
-    SdlUpdateTextureFailed,
-    SdlMapGPUTransferBufferFailed,
-    SdlSetClipboardDataFailed,
-    SdlSetRenderVSyncFailed,
-    SdlSubmitGPUCommandBufferFailed,
-    SdlSetNumberPropertyFailed,
-    SdlBeginRenderPassFailed,
-};
-
+pub const SdlError = error{SdlFailed};
 pub const CustomError = error{
     NotDownloaded,
     NoPixelData,

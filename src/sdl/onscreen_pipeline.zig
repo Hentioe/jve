@@ -1,4 +1,5 @@
 const c = @import("c.zig").c;
+const h = @import("helper.zig");
 const post_util = @import("post_util.zig");
 const shader_loader = @import("shader_loader.zig");
 const Error = @import("errors.zig").Error;
@@ -35,7 +36,7 @@ pub fn begin(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, swapchain_texture: ?
         .store_op = c.SDL_GPU_STOREOP_STORE,
         .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0 },
     };
-    self.render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null) orelse return Error.SdlBeginRenderPassFailed;
+    self.render_pass = try h.check(c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null));
 }
 
 pub fn bind(self: *Self) void {

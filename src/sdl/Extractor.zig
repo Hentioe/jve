@@ -54,14 +54,12 @@ pub fn downloadTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
     // 执行下载与复制
     c.SDL_DownloadFromGPUTexture(download_pass, &src_region, &dst_transfer);
     c.SDL_EndGPUCopyPass(download_pass);
-    _ = c.SDL_SubmitGPUCommandBuffer(cmd_buf);
+    // 提交 GPU 命令缓冲区
+    try h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf));
     // 3. 等待 GPU 完成
-    _ = c.SDL_WaitForGPUIdle(self.device);
+    try h.check(c.SDL_WaitForGPUIdle(self.device));
     // 4. 映射缓冲区
-    const mapped_ptr = c.SDL_MapGPUTransferBuffer(self.device, download_buffer, false) orelse {
-        h.printError();
-        return Error.SdlMapGPUTransferBufferFailed;
-    };
+    const mapped_ptr = try h.check(c.SDL_MapGPUTransferBuffer(self.device, download_buffer, false));
     defer c.SDL_UnmapGPUTransferBuffer(self.device, download_buffer); // 解除映射
     const u8_ptr: [*]u8 = @ptrCast(mapped_ptr);
     const u8_slice: []u8 = u8_ptr[0..self.buffer_size];
