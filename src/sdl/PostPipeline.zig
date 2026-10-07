@@ -8,7 +8,7 @@ const EffectType = enum {
     sharpen, // 锐化
     blur_x, // 横向模糊
     blur_y, // 纵向模糊
-    busy_fog, // 忙碌雾气
+    fog, // 雾气
     mask, // 遮罩
     marker, // 标记
     custom, // 自定义

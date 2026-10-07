@@ -146,7 +146,7 @@ pub fn build(b: *std.Build) void {
         .{ .file = "base.frag.hlsl", .stage = .fragment },
         .{ .file = "base.vert.hlsl", .stage = .vertex },
         .{ .file = "blur.frag.hlsl", .stage = .fragment },
-        .{ .file = "busy_fog.frag.hlsl", .stage = .fragment },
+        .{ .file = "fog.frag.hlsl", .stage = .fragment },
         .{ .file = "checker.frag.hlsl", .stage = .fragment },
         .{ .file = "checker.vert.hlsl", .stage = .vertex },
         .{ .file = "checker.frag.hlsl", .stage = .fragment },

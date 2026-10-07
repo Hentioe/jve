@@ -1,6 +1,6 @@
 tasks {
     run {
-        - "zig build run -- -b sdl_renderer {path}"
+        - "zig build run -- -b sdl_gpu {path}"
         opt path=image.png
     }
     supports "zig build run -- --supports"
