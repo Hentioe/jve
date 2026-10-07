@@ -26,15 +26,15 @@
         # 如果用 X11，按需取消注释（不同 nixpkgs 版本里包名可能是 xorg.libX11 或 libx11，以实际为准）
         # libx11
         # libxext
-        # libxcursor
+        libxcursor
         # libxi
         # libxrandr
       ];
 
-      # 程序运行时调用的外部命令（剪贴板）
+      # 程序运行时调用的外部命令
       runtimeTools = with pkgs; [
-        wl-clipboard
-        xclip
+        wl-clipboard # Wayland 剪贴板工具
+        xclip # X11 剪贴板工具
       ];
     in
     {
