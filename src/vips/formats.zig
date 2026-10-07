@@ -1,5 +1,6 @@
 const std = @import("std");
 const c = @import("c.zig").c;
+const h = @import("helper.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Suffixes = std.StringArrayHashMap(void);
@@ -50,7 +51,7 @@ pub fn get() Error![]const []const u8 {
 
 pub fn init(allocator: Allocator) Error!void {
     // 获取 Vips 支持的文件后缀列表
-    const suffixes_ptr = c.vips_foreign_get_suffixes() orelse return Error.VipsForeignGetSuffixesFailed;
+    const suffixes_ptr = try h.check(c.vips_foreign_get_suffixes());
     defer c.g_strfreev(suffixes_ptr);
     // 数元素个数（遇到 null 为止）
     var n: usize = 0;

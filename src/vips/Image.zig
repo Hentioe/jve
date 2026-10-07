@@ -36,14 +36,14 @@ _in: *c.VipsImage,
 
 pub fn init(input_ptr: *const anyopaque, shape: IShape(i32), format: Format) Error!Self {
     const byte_size: usize = if (format == .FLOAT) @sizeOf(f32) else @sizeOf(u8);
-    const in = c.vips_image_new_from_memory_copy(
+    const in = try h.check(c.vips_image_new_from_memory_copy(
         input_ptr,
         shape.calcSize(byte_size),
         shape.w,
         shape.h,
         shape.c,
         @intFromEnum(format),
-    ) orelse return Error.VipsImageNewFromMemoryFailed;
+    ));
 
     return Self{
         .width = shape.w,
@@ -76,15 +76,9 @@ pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
         // libvips 的 heifload 嗅探白名单缺少 AVIF 动图的 ftypavis 标识，
         // vips_image_new_from_file 会回退到 magickload，后者一次性解码整段动画，
         // 导致卡顿和内存升高。这里直接调用原生 heifload，仅获取第一帧。
-        if (!h.check(c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL))) {
-            return Error.VipsHeifLoadFailed;
-        }
+        try h.check(c.vips_heifload(filename, &in, "n", @as(c_int, 1), VIPS_ARGUMENT_NULL));
     } else {
-        in = c.vips_image_new_from_file(filename, VIPS_ARGUMENT_NULL);
-    }
-    if (in == null) {
-        h.printError();
-        return Error.VipsImageLoadFailed;
+        in = try h.check(c.vips_image_new_from_file(filename, VIPS_ARGUMENT_NULL));
     }
 
     // 获取通道数
@@ -108,9 +102,7 @@ pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
 /// 将图像转换为 sRGB 色彩空间
 pub fn toSrgb(self: *Self) Error!void {
     var out: ?*c.VipsImage = null;
-    if (!h.check(c.vips_colourspace(self._in, &out, c.VIPS_INTERPRETATION_sRGB, VIPS_ARGUMENT_NULL))) {
-        return Error.VipsImageLoadFailed;
-    }
+    try h.check(c.vips_colourspace(self._in, &out, c.VIPS_INTERPRETATION_sRGB, VIPS_ARGUMENT_NULL));
     c.g_object_unref(self._in); // 释放原始图像
     self._in = out.?; // 更新为 sRGB 图像
     self.width = c.vips_image_get_width(self._in);
@@ -138,9 +130,7 @@ pub fn removeAlpha(self: *Self) Error!void {
     const white: f64 = if (self.format == .FLOAT) 1.0 else 255.0;
     const bg = c.vips_array_double_newv(3, white, white, white, VIPS_ARGUMENT_NULL);
     defer c.vips_area_unref(c.VIPS_AREA(bg));
-    if (!h.check(c.vips_flatten(self._in, &out, "background", bg, VIPS_ARGUMENT_NULL))) {
-        return Error.VipsFlattenFailed;
-    }
+    try h.check(c.vips_flatten(self._in, &out, "background", bg, VIPS_ARGUMENT_NULL));
     c.g_object_unref(self._in); // 释放原始图像
     self._in = out.?; // 更新为去掉 Alpha 通道后的图像
     self.channels = c.vips_image_get_bands(self._in);
@@ -149,9 +139,7 @@ pub fn removeAlpha(self: *Self) Error!void {
 pub fn addAlpha(self: *Self, alpha: f64) Error!void {
     if (self.channels == 4) return;
     var out: ?*c.VipsImage = null;
-    if (!h.check(c.vips_bandjoin_const1(self._in, &out, alpha, VIPS_ARGUMENT_NULL))) {
-        return Error.VipsBandJoinConst2Failed;
-    }
+    try h.check(c.vips_bandjoin_const1(self._in, &out, alpha, VIPS_ARGUMENT_NULL));
     c.g_object_unref(self._in);
     self._in = out.?; // 更新为添加 Alpha 通道后的图像
     self.channels = c.vips_image_get_bands(self._in);
@@ -162,9 +150,7 @@ pub fn toRgb(self: *Self) Error!void {
     if (self.channels >= 3) return;
     var images = [_]?*c.VipsImage{ self._in, self._in, self._in };
     var out: ?*c.VipsImage = null;
-    if (!h.check(c.vips_bandjoin(@ptrCast(&images), &out, 3, VIPS_ARGUMENT_NULL))) {
-        return Error.VipsBandJoinFailed;
-    }
+    try h.check(c.vips_bandjoin(@ptrCast(&images), &out, 3, VIPS_ARGUMENT_NULL));
     c.g_object_unref(self._in);
     self._in = out.?; // 更新为复制成 RGB 后的图像
     self.channels = c.vips_image_get_bands(self._in);
@@ -176,9 +162,7 @@ pub fn resize(self: *Self, new_width: i32, new_height: i32) Error!void {
     const scale_y = @as(f64, @floatFromInt(new_height)) / @as(f64, @floatFromInt(self.height));
 
     var out: ?*c.VipsImage = null;
-    if (!h.check(c.vips_resize(self._in, &out, scale_x, "vscale", scale_y, VIPS_ARGUMENT_NULL))) {
-        return Error.VipsResizeFailed;
-    }
+    try h.check(c.vips_resize(self._in, &out, scale_x, "vscale", scale_y, VIPS_ARGUMENT_NULL));
     c.g_object_unref(self._in); // 释放原始图像
     self._in = out.?;
     self.width = c.vips_image_get_width(self._in);
@@ -188,9 +172,7 @@ pub fn resize(self: *Self, new_width: i32, new_height: i32) Error!void {
 // 归一化
 pub fn normalize(self: *Self) Error!void {
     var out: ?*c.VipsImage = null;
-    if (!h.check(c.vips_linear1(self._in, &out, 1.0 / 255.0, 0.0, VIPS_ARGUMENT_NULL))) {
-        return Error.VipsLinear1Failed;
-    }
+    try h.check(c.vips_linear1(self._in, &out, 1.0 / 255.0, 0.0, VIPS_ARGUMENT_NULL));
     c.g_object_unref(self._in); // 释放原始图像
     self._in = out.?; // 更新为归一化后的图像
     self.format = .FLOAT; // 更新为浮点格式
@@ -199,7 +181,7 @@ pub fn normalize(self: *Self) Error!void {
 // 将图像写入一块新内存并返回 Out 结构体
 pub fn allocOutInMemory(self: *Self) Error!Out {
     var size: usize = 0;
-    const data_ptr = c.vips_image_write_to_memory(self._in, &size) orelse return Error.VipsWriteToMemoryFailed;
+    const data_ptr = try h.check(c.vips_image_write_to_memory(self._in, &size));
     // 检查 size 是否和计算的一致
     const byte_size: usize = if (self.format == .FLOAT) @sizeOf(f32) else @sizeOf(u8);
     std.debug.assert(size == @as(usize, @intCast(self.width * self.height * self.channels)) * byte_size);
