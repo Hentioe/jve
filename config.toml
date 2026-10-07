@@ -20,6 +20,7 @@ dir = "models"
 standard_model = "BiRefNet.onnx"
 lite_model = "BiRefNet_lite.onnx"
 used_variant = "lite"
+disable_memory_optimization = true # 禁用内存优化
 
 [models.magic_touch]
 model = "magic_touch.onnx"

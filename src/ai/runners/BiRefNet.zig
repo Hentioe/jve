@@ -10,8 +10,10 @@ const Session = ort.Session;
 const Timer = @import("../Timer.zig");
 const Input = @import("../processors/Input.zig");
 const Output = @import("../processors/Output.zig");
-const VTable = @import("../OrtRunner.zig").VTable;
+const OrtRunner = @import("../OrtRunner.zig");
 const Self = @This();
+
+pub const vtable = OrtRunner.VTable.of(Self);
 
 const Variant = enum { lite, standard };
 const SIZE = 1024;
@@ -38,10 +40,12 @@ pub fn init(api: *const Api) Error!*Self {
     // 根据配置决定使用的模型变体
     const variant: Variant = if (std.mem.eql(u8, model_config.?.used_variant, "standard")) .standard else .lite;
     std.log.info("Using BiRefNet variant: {s}", .{@tagName(variant)});
+    // 是否禁用内存优化
+    const disable_memory_optimization = model_config.?.disable_memory_optimization;
 
     const session = try switch (variant) {
-        .lite => api.createSession(lite_model_path, .{ .disable_gpu = true }),
-        .standard => api.createSession(standard_model_path, .{ .disable_gpu = true }),
+        .lite => api.createSession(lite_model_path, .{ .disable_gpu = true, .disable_memory_optimization = disable_memory_optimization }),
+        .standard => api.createSession(standard_model_path, .{ .disable_gpu = true, .disable_memory_optimization = disable_memory_optimization }),
     };
 
     const self_ptr = try api.gpa.create(Self);
@@ -113,5 +117,3 @@ pub fn run(self: *const Self, input: Input) Error!Image {
 
     return image;
 }
-
-pub const vtable = VTable.of(Self);

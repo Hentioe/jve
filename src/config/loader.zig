@@ -23,6 +23,7 @@ pub const BiRefNet = struct {
     standard_model: []const u8, // 标准模型文件
     lite_model: []const u8, // 轻量模型文件
     used_variant: []const u8 = "lite", // 使用的变体
+    disable_memory_optimization: bool = false, // 是否禁用内存优化
 };
 
 pub const MagicTouch = struct {

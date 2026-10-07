@@ -12,6 +12,7 @@ session_options: *c.OrtSessionOptions,
 
 pub const InitOptions = struct {
     disable_gpu: bool = false,
+    disable_memory_optimization: bool = false,
 };
 
 pub fn init(
@@ -25,36 +26,32 @@ pub fn init(
     const ort_api = api.ort_api;
     // 创建 SessionOptions
     var session_options: ?*c.OrtSessionOptions = null;
-    if (!h.check(ort_api, ort_api.*.CreateSessionOptions.?(&session_options)))
-        return Error.OrtCreateSessionOptionsFailed;
-    // 关闭 Pattern 优化（避免额外内存申请）
-    if (!h.check(ort_api, ort_api.*.DisableMemPattern.?(session_options)))
-        return Error.OrtDisableMemPatternFailed;
-    // 关闭 CPU Arena（用完立即释放内存）
-    if (!h.check(ort_api, ort_api.*.DisableCpuMemArena.?(session_options)))
-        return Error.OrtDisableCpuMemArenaFailed;
-    // 关闭权重预打包（预打包会在堆上额外保存 Conv 权重的优化布局）
-    if (!h.check(ort_api, ort_api.*.AddSessionConfigEntry.?(
-        session_options,
-        "session.disable_prepacking",
-        "1",
-    ))) return Error.OrtAddSessionConfigEntryFailed;
-    // 检查 GPU 加速配置
-    if (!init_options.disable_gpu) {
-        // 给会话附加 GPU EP 选项
-        for (provider_options_list.items) |p| {
-            switch (p) {
-                .migraphx => |*options| {
-                    // 把 MIGraphX EP 配置到 SessionOptions
-                    if (!h.check(ort_api, ort_api.*.SessionOptionsAppendExecutionProvider_MIGraphX.?(session_options, options))) {
-                        std.log.warn("Failed to append MIGraphX execution provider to session options", .{});
-                        continue;
-                    }
-                    std.log.info("MIGraphX has been appended to session options", .{});
-                },
-            }
-        }
+    if (!h.check(ort_api, ort_api.*.CreateSessionOptions.?(&session_options))) return Error.OrtCreateSessionOptionsFailed;
+    if (!init_options.disable_memory_optimization) { // 如果未禁用内存优化
+        // 关闭 Pattern 优化（避免额外内存申请）
+        if (!h.check(ort_api, ort_api.*.DisableMemPattern.?(session_options))) return Error.OrtDisableMemPatternFailed;
+        // 关闭 CPU Arena（用完立即释放内存）
+        if (!h.check(ort_api, ort_api.*.DisableCpuMemArena.?(session_options))) return Error.OrtDisableCpuMemArenaFailed;
+        // 关闭权重预打包（预打包会在堆上额外保存 Conv 权重的优化布局）
+        if (!h.check(ort_api, ort_api.*.AddSessionConfigEntry.?(
+            session_options,
+            "session.disable_prepacking",
+            "1",
+        ))) return Error.OrtAddSessionConfigEntryFailed;
     }
+    // 检查 GPU 加速配置
+    if (!init_options.disable_gpu) for (provider_options_list.items) |p| { // 给会话附加 GPU EP 选项
+        switch (p) {
+            .migraphx => |*options| {
+                // 把 MIGraphX EP 配置到 SessionOptions
+                if (!h.check(ort_api, ort_api.*.SessionOptionsAppendExecutionProvider_MIGraphX.?(session_options, options))) {
+                    std.log.warn("Failed to append MIGraphX execution provider to session options", .{});
+                    continue;
+                }
+                std.log.info("MIGraphX has been appended to session options", .{});
+            },
+        }
+    };
     // 创建会话
     const model_path_z = try sfa.dupeZ(u8, model_path);
     defer sfa.free(model_path_z);
