@@ -45,6 +45,17 @@ pub fn updateTarget(self: *Self, target: f64) void {
     self.state = .running;
 }
 
+// 以「角度」方式更新目标：在 360 度周期内选取与当前角度夹角最小的等价目标，
+// 使动画始终沿最短路径旋转（例如 LEFT -> UP 顺时针 90 度，而非逆时针 270 度）。
+pub fn updateTargetAngular(self: *Self, target: f64) void {
+    self.updateTarget(self.current + shortestAngleDelta(self.current, target));
+}
+
+// 计算从 from 到 to 的最短角度增量，结果落在 (-180, 180]。
+fn shortestAngleDelta(from: f64, to: f64) f64 {
+    return @mod(to - from + 180.0, 360.0) - 180.0;
+}
+
 pub fn nextStep(self: *Self, delta: f64) void {
     self.current += (self.target - self.current) * self.step * delta;
 }

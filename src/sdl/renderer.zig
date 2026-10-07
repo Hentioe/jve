@@ -74,7 +74,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
     var scale = Animated.init(1.0, 1.0, 15); // 缩放
     scale.updateTarget(state.target_scale); // 更新为缓存的缩放目标值
     var angle = Animated.init(0.0, 0.0, 15); // 角度
-    angle.updateTarget(state.target_angle); // 更新为缓存的角度目标值
+    angle.updateTargetAngular(state.target_angle); // 更新为缓存的角度目标值（按最短路径）
     var slide = SlideIn.init(1.0, 20.0, 1.0); // 切换图片时的侧滑自旋
     while (running) {
         // 计算 delta
@@ -118,7 +118,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!RenderNext {
                 move_offset.y += payload.yrel;
                 dirty = true;
             },
-            .rotate => |payload| if (mapKeyToAngle(payload.key)) |new_angle| angle.updateTarget(new_angle),
+            .rotate => |payload| if (mapKeyToAngle(payload.key)) |new_angle| angle.updateTargetAngular(new_angle),
             .delete => {
                 // 删除当前相册图片
                 std.log.info("Deleting current image: {s}", .{image.file_name});
