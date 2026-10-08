@@ -1,13 +1,17 @@
 const std = @import("std");
 const SizeError = @import("errors.zig").SizeError;
 
-/// 图片的尺寸结构体（Image Size）
-pub fn ISize(comptime T: type) type {
+/// 表示二维尺寸的结构体（Width x Height）
+pub fn Size2D(comptime T: type) type {
     return struct {
         w: T,
         h: T,
 
         const Self = @This();
+
+        pub fn to(self: Self, comptime U: type) Size2D(U) {
+            return castFields(Size2D(U), self);
+        }
 
         /// 仅适用于 Size(u32)
         pub fn fromI32(w: i32, h: i32) SizeError!Self {
@@ -30,17 +34,11 @@ pub fn IShape(comptime T: type) type {
         const Self = @This();
 
         pub fn to(self: Self, comptime U: type) IShape(U) {
-            if ((T == i32 or T == u32) and (U == f32 or U == f64)) {
-                return .{ .w = @floatFromInt(self.w), .h = @floatFromInt(self.h), .c = @floatFromInt(self.c) };
-            }
-            return .{ .w = @intCast(self.w), .h = @intCast(self.h), .c = @intCast(self.c) };
+            return castFields(IShape(U), self);
         }
 
-        pub fn toISize(self: *const Self, comptime U: type) ISize(U) {
-            if ((T == i32 or T == u32) and (U == f32 or U == f64)) {
-                return .{ .w = @floatFromInt(self.w), .h = @floatFromInt(self.h) };
-            }
-            return .{ .w = @intCast(self.w), .h = @intCast(self.h) };
+        pub fn toSize2D(self: *const Self, comptime U: type) Size2D(U) {
+            return castFields(Size2D(U), self);
         }
 
         /// 计算数据大小
@@ -60,4 +58,33 @@ pub fn Point(comptime T: type) type {
         x: T = std.mem.zeroes(T),
         y: T = std.mem.zeroes(T),
     };
+}
+
+/// 标量转换：int/float 之间任意互转
+pub fn castScalar(comptime U: type, x: anytype) U {
+    const T = @TypeOf(x);
+    if (T == U) return x;
+
+    return switch (@typeInfo(T)) {
+        .int, .comptime_int => switch (@typeInfo(U)) {
+            .int => @intCast(x),
+            .float => @floatFromInt(x),
+            else => @compileError("unsupported: " ++ @typeName(T) ++ " -> " ++ @typeName(U)),
+        },
+        .float, .comptime_float => switch (@typeInfo(U)) {
+            .int => @intFromFloat(x),
+            .float => @floatCast(x),
+            else => @compileError("unsupported: " ++ @typeName(T) ++ " -> " ++ @typeName(U)),
+        },
+        else => @compileError("unsupported: " ++ @typeName(T) ++ " -> " ++ @typeName(U)),
+    };
+}
+
+/// 结构体转换：按字段名逐个转换，目标结构体 Dst 决定每个字段的目标类型
+pub fn castFields(comptime Dst: type, src: anytype) Dst {
+    var out: Dst = undefined;
+    inline for (@typeInfo(Dst).@"struct".fields) |f| {
+        @field(out, f.name) = castScalar(f.type, @field(src, f.name));
+    }
+    return out;
 }

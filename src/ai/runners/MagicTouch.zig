@@ -10,6 +10,7 @@ const Api = ort.Api;
 const Session = ort.Session;
 const Timer = @import("../Timer.zig");
 const Point = shared.Point(f32);
+const Size2D = shared.Size2D;
 const Input = @import("../processors/Input.zig");
 const Output = @import("../processors/Output.zig");
 const VTable = @import("../OrtRunner.zig").VTable;
@@ -120,7 +121,7 @@ pub fn run(self: *const Self, input: Input) Error!Image {
         true,
         false,
     );
-    const original_size = input.shape.toISize(i32);
+    const original_size = input.shape.toSize2D(i32);
     try image.resize(original_size.w, original_size.h);
     try image.toRgb();
     try image.addAlpha(255.0);
@@ -131,7 +132,7 @@ pub fn run(self: *const Self, input: Input) Error!Image {
 // 生成 ROI prior map：在原始分辨率上以点击点为中心画一个半径 ROI_RADIUS 的圆，
 // 再缩放到模型输入尺寸（与图像缩放保持一致）。未提供点击坐标时退化为图像中心。
 fn buildPriorMap(allocator: Allocator, input: Input) ![]f32 {
-    const f_size = input.shape.toISize(f32);
+    const f_size = input.shape.toSize2D(f32);
     const point = input.click_position orelse Point{
         .x = f_size.w / 2.0,
         .y = f_size.h / 2.0,
@@ -161,7 +162,7 @@ fn buildPriorMap(allocator: Allocator, input: Input) ![]f32 {
         }
     }
 
-    const prior_size = input.shape.toISize(i32);
+    const prior_size = input.shape.toSize2D(i32);
     var image = try Image.init(raw.ptr, .{ .w = prior_size.w, .h = prior_size.h, .c = 1 }, .FLOAT);
     defer image.deinit();
     try image.resize(SIZE, SIZE);

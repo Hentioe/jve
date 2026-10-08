@@ -8,6 +8,7 @@ const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const LImage = @import("vips").LImage;
 const IShape = shared.IShape;
+const Size2D = shared.Size2D;
 const Point = shared.Point(f32);
 const Window = @import("window.zig");
 const Shaders = std.ArrayList(*c.SDL_GPUShader);
@@ -55,7 +56,7 @@ pub fn getRenderer(self: *Self) Error!*sdl.Renderer {
 }
 
 pub fn startRendering(self: *Self, image: *const LImage, mode: Mode) Error!void {
-    const image_size = image.shape.toISize(i32);
+    const image_size = image.shape.toSize2D(i32);
     if (mode == .pewview and self.window == null) {
         const window = try Window.create(
             self.allocator,

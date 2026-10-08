@@ -3,7 +3,7 @@ const enums = @import("../enums.zig");
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const IShape = shared.IShape;
-const ISize = shared.ISize;
+const ISize = shared.Size2D(i32);
 const Point = shared.Point(f32);
 const PixelLayout = enums.PixelLayout;
 const Image = @import("vips").Image;
@@ -14,7 +14,7 @@ data_ptr: *const anyopaque,
 click_position: ?Point = null,
 
 const Options = struct {
-    new_size: ?ISize(i32) = null,
+    new_size: ?ISize = null,
     new_layout: ?PixelLayout = null,
     forced_channels: ?u32 = null,
     normalized: bool = false,

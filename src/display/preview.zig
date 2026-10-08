@@ -13,7 +13,7 @@ const ModKey = @import("ModKey.zig");
 const Animated = @import("Animated.zig");
 const SlideIn = @import("SlideIn.zig");
 const Delta = @import("Delta.zig");
-const ISize = shared.ISize;
+const Size2D = shared.Size2D;
 const Point = shared.Point(f32);
 const NextAction = @import("enums.zig").ExitAction;
 
@@ -55,7 +55,7 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!NextAction {
     errdefer Renderer.destroyTexture(texture);
     // 创建目标矩形
     var dst_rect = sdl.c.SDL_FRect{};
-    calculateDstRect(&dst_rect, window, image.shape.toISize(i32), .{});
+    calculateDstRect(&dst_rect, window, image.shape.toSize2D(i32), .{});
     // 循环、动画和事件参数
     var event: sdl.c.SDL_Event = undefined;
     var action: EventAction = .none;
@@ -207,11 +207,11 @@ pub fn render(_: std.mem.Allocator, state: *State) Error!NextAction {
             }
             dirty = scale.state == .running or angle.state == .running or slide.isRunning(); // 如果没有动画了，表示渲染干净了
             // 计算尺寸
-            const f_size = image.shape.toISize(f32);
-            const new_size: ISize(i32) = .{ .w = @intFromFloat(f_size.w * scale.current), .h = @intFromFloat(f_size.h * scale.current) };
+            const f_size = image.shape.toSize2D(f32);
+            const new_size: Size2D(i32) = .{ .w = @intFromFloat(f_size.w * scale.current), .h = @intFromFloat(f_size.h * scale.current) };
             const slide_offset = Point{ .x = move_offset.x + @as(f32, @floatCast(slide.offset)), .y = move_offset.y };
             calculateDstRect(&dst_rect, window, new_size, slide_offset);
-            window.imageSizeUpdated(image.shape.toISize(i32));
+            window.imageSizeUpdated(image.shape.toSize2D(i32));
         }
         const render_angle: f64 = if (slide.isRunning()) slide.angle else angle.current;
         const alpha: u8 = if (window.windowed) 255 else 60; // 根据边框模式设置背景透明度
@@ -333,7 +333,7 @@ fn isInRect(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
 }
 
 // 重新计算 rect
-fn calculateDstRect(dst_rect: *sdl.c.SDL_FRect, window: *Window, size: ISize(i32), offset: Point) void {
+fn calculateDstRect(dst_rect: *sdl.c.SDL_FRect, window: *Window, size: Size2D(i32), offset: Point) void {
     const window_width = window.display_width;
     const window_height = window.display_height;
 

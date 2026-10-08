@@ -3,7 +3,7 @@ const errors = @import("shared/errors.zig");
 const helper = @import("shared/helper.zig");
 
 pub const heap = @import("shared/heap.zig");
-pub const ISize = structs.ISize;
+pub const Size2D = structs.Size2D;
 pub const IShape = structs.IShape;
 pub const Point = structs.Point;
 pub const SizeError = errors.SizeError;

@@ -6,8 +6,8 @@ const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const Mode = @import("enums.zig").Mode;
 const Overflow = @import("enums.zig").Overflow;
-const ISize = shared.ISize;
-const WSize = ISize(i32); // 窗口尺寸
+const ISize = shared.Size2D(i32); // 图片尺寸
+const WSize = shared.Size2D(i32); // 窗口尺寸
 const Point = shared.Point(f32);
 
 const Self = @This();
@@ -31,7 +31,7 @@ const Options = struct {
     mode: Mode = .pewview,
 };
 
-pub fn create(allocator: Allocator, image_size: ISize(i32), options: Options) Error!*Self {
+pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*Self {
     // 获取主显示器尺寸
     const display_mode = c.SDL_GetCurrentDisplayMode(c.SDL_GetPrimaryDisplay());
     const display_width = display_mode.*.w;
@@ -118,7 +118,7 @@ pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
     try h.check(c.SDL_SetWindowTitle(self.sdl_window, titile));
 }
 
-pub fn imageSizeUpdated(self: *Self, size: ISize(i32)) void {
+pub fn imageSizeUpdated(self: *Self, size: ISize) void {
     if (size.w != self.image_width or size.h != self.image_height) {
         self.image_width = size.w;
         self.image_height = size.h;
@@ -136,20 +136,18 @@ pub fn currentSize(self: *Self) Error!WSize {
 
 /// 将当前窗口坐标（鼠标事件坐标）转换为原始图片尺寸坐标。
 pub fn toImagePoint(self: *Self, x: f32, y: f32) Error!Point {
-    const window_size = try self.currentSize();
-    const window_width: f32 = @floatFromInt(window_size.w);
-    const window_height: f32 = @floatFromInt(window_size.h);
+    const f_window_size = (try self.currentSize()).to(f32);
     const image_width: f32 = @floatFromInt(self.image_width);
     const image_height: f32 = @floatFromInt(self.image_height);
     return .{
-        .x = x / window_width * image_width,
-        .y = y / window_height * image_height,
+        .x = x / f_window_size.w * image_width,
+        .y = y / f_window_size.h * image_height,
     };
 }
 
 /// fitToScreen 的计算结果：窗口尺寸及图片相对最大限制的超出方向。
 const FitResult = struct {
-    size: ISize(i32),
+    size: WSize,
     overflow: Overflow,
 };
 

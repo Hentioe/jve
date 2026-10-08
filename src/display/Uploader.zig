@@ -5,14 +5,14 @@ const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const Gpu = @import("sdl").Gpu;
-const ISize = shared.ISize(u32);
+const TexSize = shared.Size2D(u32);
 const Self = @This();
 
 /// 内部纹理上传任务记录
 const TextureUploadTask = struct {
     texture: *c.SDL_GPUTexture,
     pixels_ptr: *const anyopaque,
-    size: ISize,
+    size: TexSize,
     buffer_size: u32,
     aligned_size: u32,
 };
@@ -77,7 +77,7 @@ pub fn uploadTexture(
     self: *Self,
     create_info: *const c.SDL_GPUTextureCreateInfo,
     pixels_ptr: *const anyopaque,
-    size: ISize,
+    size: TexSize,
 ) Error!*c.SDL_GPUTexture {
     // 1. 创建 GPU 纹理资源
     const texture = try self.gpu.createGPUTexture(create_info);

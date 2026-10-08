@@ -20,7 +20,7 @@ const Screenshot = @import("Screenshot.zig");
 const ExitAction = @import("enums.zig").ExitAction;
 const OverflowHint = @import("OverflowHint.zig");
 const Delta = @import("Delta.zig");
-const ISize = shared.ISize;
+const Size2D = shared.Size2D;
 const Point = shared.Point(f32);
 const Vertex = structs.Vertex;
 const BaseUniforms = structs.BaseUniforms;
@@ -68,7 +68,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
     defer uploader.deinit();
 
     // --- 纹理 (Texture) ---
-    const texture_size = image.shape.toISize(u32);
+    const texture_size = image.shape.toSize2D(u32);
     const texture_info = sdl.c.SDL_GPUTextureCreateInfo{
         .type = sdl.c.SDL_GPU_TEXTURETYPE_2D,
         .format = sdl.c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 对应常见的 RGBA8888 像素格式
@@ -425,7 +425,7 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
                 .success => |s| {
                     std.log.info("Task result is reading...", .{});
                     const mask_ptr = s.data_ptr; // 获取遮罩数据指针
-                    const mask_size: ISize(u32) = .{ .w = s.width, .h = s.height };
+                    const mask_size: Size2D(u32) = .{ .w = s.width, .h = s.height };
                     const new_mask = try uploader.uploadTexture(&offscreen_info, mask_ptr, mask_size);
                     try uploader.submit();
                     if (tex_mask) |tex| gpu.releaseGPUTexture(tex); // 释放旧遮罩纹理

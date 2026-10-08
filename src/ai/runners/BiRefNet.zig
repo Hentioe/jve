@@ -3,14 +3,15 @@ const ort = @import("ort");
 const shared = @import("shared");
 const config = @import("config");
 const checker = @import("../checker.zig");
-const Error = @import("../errors.zig").Error;
-const Image = @import("vips").Image;
 const Api = ort.Api;
 const Session = ort.Session;
+const Size2D = shared.Size2D;
+const Image = @import("vips").Image;
 const Timer = @import("../Timer.zig");
 const Input = @import("../processors/Input.zig");
 const Output = @import("../processors/Output.zig");
 const OrtRunner = @import("../OrtRunner.zig");
+const Error = @import("../errors.zig").Error;
 const Self = @This();
 
 pub const vtable = OrtRunner.VTable.of(Self);
@@ -110,7 +111,7 @@ pub fn run(self: *const Self, input: Input) Error!Image {
         true,
     );
 
-    const original_size = input.shape.toISize(i32);
+    const original_size = input.shape.toSize2D(i32);
     try image.resize(original_size.w, original_size.h);
     try image.toRgb();
     try image.addAlpha(255.0);
