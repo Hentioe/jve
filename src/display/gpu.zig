@@ -323,7 +323,9 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
             .start_task => {
                 if (task == null) {
                     is_busy = true;
-                    if (Task.start(allocator, gpu, tex_src, .{ .shape = image.shape, .click = marker_pos })) |t| {
+                    // 点击区域需要转换回原图坐标
+                    const click = if (marker_pos) |p| try window.toImagePoint(p.x, p.y) else null;
+                    if (Task.start(allocator, gpu, tex_src, .{ .shape = image.shape, .click = click })) |t| {
                         std.log.info("Task started successfully", .{});
                         task = t;
                     } else |err| {
@@ -507,8 +509,9 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
                 if (marker_pos) |pos| {
                     // 绘制标记
                     marker_pl.bind(onscreen.render_pass);
-                    // 传递标记位置
-                    const marker_loc_uniforms: MarkerVertUniforms = .fromScreen(pos.x, pos.y, image.shape.w, image.shape.h);
+                    // 传递标记位置：事件坐标基于视口（可能是缩放后的窗口），不可直接用图片尺寸算 NDC
+                    const viewport_size = try window.currentSize();
+                    const marker_loc_uniforms: MarkerVertUniforms = .fromViewportPoint(pos.x, pos.y, viewport_size.w, viewport_size.h);
                     marker_pl.pushVertexUniforms(cmd_buf, 0, &marker_loc_uniforms, @sizeOf(MarkerVertUniforms));
                     // 传递标记大小
                     const marker_size_uniforms: MarkerFragUniforms = .{ .radius = marker_radius, .border_width = 2.0 };

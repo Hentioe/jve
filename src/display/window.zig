@@ -7,6 +7,8 @@ const Error = @import("errors.zig").Error;
 const Mode = @import("enums.zig").Mode;
 const Overflow = @import("enums.zig").Overflow;
 const ISize = shared.ISize;
+const WSize = ISize(i32); // 窗口尺寸
+const Point = shared.Point(f32);
 
 const Self = @This();
 
@@ -122,6 +124,27 @@ pub fn imageSizeUpdated(self: *Self, size: ISize(i32)) void {
         self.image_height = size.h;
         self.dirty = true;
     }
+}
+
+/// 获取窗口当前尺寸。使用 SDL_GetWindowSize 的逻辑坐标，
+pub fn currentSize(self: *Self) Error!WSize {
+    var width: c_int = 0;
+    var height: c_int = 0;
+    try h.check(c.SDL_GetWindowSize(self.sdl_window, &width, &height));
+    return .{ .w = width, .h = height };
+}
+
+/// 将当前窗口坐标（鼠标事件坐标）转换为原始图片尺寸坐标。
+pub fn toImagePoint(self: *Self, x: f32, y: f32) Error!Point {
+    const window_size = try self.currentSize();
+    const window_width: f32 = @floatFromInt(window_size.w);
+    const window_height: f32 = @floatFromInt(window_size.h);
+    const image_width: f32 = @floatFromInt(self.image_width);
+    const image_height: f32 = @floatFromInt(self.image_height);
+    return .{
+        .x = x / window_width * image_width,
+        .y = y / window_height * image_height,
+    };
 }
 
 /// fitToScreen 的计算结果：窗口尺寸及图片相对最大限制的超出方向。

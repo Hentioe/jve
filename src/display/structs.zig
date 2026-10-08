@@ -72,9 +72,9 @@ pub const MarkerVertUniforms = extern struct {
     ndc_y: f32,
     _padding: [2]f32 = .{ 0.0, 0.0 }, // 8 字节：仅用于凑齐 16 字节
 
-    pub fn fromScreen(x: f32, y: f32, screenWidth: i32, screenHeight: i32) MarkerVertUniforms {
-        const f_width: f32 = @floatFromInt(screenWidth);
-        const f_height: f32 = @floatFromInt(screenHeight);
+    pub fn fromViewportPoint(x: f32, y: f32, width: i32, height: i32) MarkerVertUniforms {
+        const f_width: f32 = @floatFromInt(width);
+        const f_height: f32 = @floatFromInt(height);
         const ndc_x = (x / f_width) * 2.0 - 1.0;
         const ndc_y = 1.0 - (y / f_height) * 2.0; // 注意 Y 轴翻转
         return MarkerVertUniforms{ .ndc_x = ndc_x, .ndc_y = ndc_y };
