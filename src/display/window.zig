@@ -9,6 +9,9 @@ const ISize = shared.ISize;
 
 const Self = @This();
 
+/// 窗口化时，窗口最多占据屏幕的比例。超出屏幕时按此比例等比缩小。
+const SCREEN_FILL_RATIO: f32 = 0.9;
+
 allocator: Allocator,
 image_width: i32,
 image_height: i32,
@@ -40,9 +43,10 @@ pub fn create(allocator: Allocator, image_size: ISize(i32), options: Options) Er
         flags |= c.SDL_WINDOW_TRANSPARENT; // 透明背景
     }
     if (options.windowed) {
-        // 设置窗口的初始宽高为图片的宽高
-        try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, image_size.w));
-        try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, image_size.h));
+        // 设置窗口的初始宽高：图片超出屏幕时按比例缩小，否则使用图片原始尺寸
+        const window_size = fitToScreen(image_size.w, image_size.h, display_width, display_height);
+        try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, window_size.w));
+        try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, window_size.h));
     } else {
         std.log.info("Borderless mode", .{});
         // 输出显示器尺寸
@@ -86,9 +90,10 @@ pub fn hide(self: *Self) Error!void {
 pub fn show(self: *Self) Error!void {
     if (self.windowed and self.dirty) {
         std.log.debug("Window is dirty, updating size and position", .{});
-        // 重新调整窗口到图片大小
-        h.check(c.SDL_SetWindowSize(self.sdl_window, self.image_width, self.image_height)) catch {
-            std.log.warn("Failed to set window size to {d}x{d}", .{ self.image_width, self.image_height });
+        // 重新调整窗口到图片大小：超出屏幕时按比例缩小
+        const window_size = fitToScreen(self.image_width, self.image_height, self.display_width, self.display_height);
+        h.check(c.SDL_SetWindowSize(self.sdl_window, window_size.w, window_size.h)) catch {
+            std.log.warn("Failed to set window size to {d}x{d}", .{ window_size.w, window_size.h });
         };
         // 窗口位置重新居中
         h.check(c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED)) catch {
@@ -113,8 +118,25 @@ pub fn imageSizeUpdated(self: *Self, size: ISize(i32)) void {
     }
 }
 
-fn hitTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, self_ptr: ?*anyopaque) callconv(.c) c_uint {
-    const self: *Self = @ptrCast(@alignCast(self_ptr)); // 还原回调数据
+/// 计算窗口尺寸：若图片宽或高超出屏幕，则等比缩小到屏幕的 SCREEN_FILL_RATIO。
+/// 若未超出，则返回图片原始尺寸。
+fn fitToScreen(image_width: i32, image_height: i32, display_width: i32, display_height: i32) ISize(i32) {
+    const max_width = @as(f32, @floatFromInt(display_width)) * SCREEN_FILL_RATIO;
+    const max_height = @as(f32, @floatFromInt(display_height)) * SCREEN_FILL_RATIO;
+    const width: f32 = @floatFromInt(image_width);
+    const height: f32 = @floatFromInt(image_height);
+    const scale = @min(max_width / width, max_height / height);
+    if (scale >= 1.0) {
+        return .{ .w = image_width, .h = image_height };
+    }
+    return .{
+        .w = @intFromFloat(width * scale),
+        .h = @intFromFloat(height * scale),
+    };
+}
+
+fn hitTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, ctx: ?*anyopaque) callconv(.c) c_uint {
+    const self: *Self = @ptrCast(@alignCast(ctx));
     if (self.windowed and !self.mod_key_pressed) {
         return c.SDL_HITTEST_DRAGGABLE; // 允许通过拖动窗口的任意位置来移动窗口
     } else {
