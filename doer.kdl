@@ -1,6 +1,6 @@
 tasks {
     run {
-        - "zig build run -- -d preview {path}"
+        - "zig build run -- -d gpu {path}"
         opt path=image.png
     }
     supports "zig build run -- --supports"
