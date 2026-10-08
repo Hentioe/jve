@@ -1,6 +1,6 @@
 tasks {
     run {
-        - "zig build run -- -c config.toml -d gpu {path}"
+        - "zig build run -- -c config.toml {path}"
         opt path=image.png
     }
     supports "zig build run -- --supports"

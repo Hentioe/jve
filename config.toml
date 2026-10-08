@@ -1,4 +1,4 @@
-default_mode = "gpu"
+display_mode = "gpu"
 min_scale = 0.5
 max_scale = 3.0
 # 修饰键: left_alt | right_alt | left_ctrl | right_ctrl | left_shift | right_shift | left_gui | right_gui
