@@ -67,7 +67,7 @@ pub const Sort = enum {
 
 pub const MainConfig = struct {
     base_dir: ?[]const u8 = null, // 基础目录（自动设置）
-    default_mode: []const u8 = "sdl_gpu", // 默认模式
+    display_mode: []const u8 = "gpu", // 默认模式
     min_scale: f32 = 0.5, // 最小缩放倍数
     max_scale: f32 = 3.0, // 最大缩放倍数
     mod_key: []const u8 = "left_alt", // 组合键的 Mod 键

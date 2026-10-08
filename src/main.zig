@@ -24,14 +24,12 @@ pub fn main() !void {
         const formats = try std.mem.join(allocator, " ", try jve.vips.formats.get());
         defer allocator.free(formats);
         std.debug.print("Supported formats: {s}\n", .{formats});
-    } else if (res.positionals[0]) |pos| {
-        // 取位置参数作为路径
-        const file_path = pos;
+    } else if (res.positionals[0]) |file_path| { // 取位置参数作为路径
         // 初始化
         defer jve.deinit();
-        try jve.init(allocator, file_path);
+        try jve.init(allocator, file_path, res.args.config);
         // 显示模式
-        const display_mode: []const u8 = res.args.display orelse jve.config.get().default_mode;
+        const display_mode: []const u8 = res.args.display orelse jve.config.get().display_mode;
         // 显示图像
         try jve.show(allocator, display_mode);
     }
