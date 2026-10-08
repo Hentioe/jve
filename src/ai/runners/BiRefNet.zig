@@ -5,7 +5,6 @@ const config = @import("config");
 const checker = @import("../checker.zig");
 const Api = ort.Api;
 const Session = ort.Session;
-const Size2D = shared.Size2D;
 const Image = @import("vips").Image;
 const Timer = @import("../Timer.zig");
 const Input = @import("../processors/Input.zig");

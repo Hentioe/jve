@@ -8,7 +8,6 @@ const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const LImage = @import("vips").LImage;
 const IShape = shared.IShape;
-const Size2D = shared.Size2D;
 const Point = shared.Point(f32);
 const Window = @import("window.zig");
 const Shaders = std.ArrayList(*c.SDL_GPUShader);

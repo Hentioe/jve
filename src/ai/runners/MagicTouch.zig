@@ -10,7 +10,6 @@ const Api = ort.Api;
 const Session = ort.Session;
 const Timer = @import("../Timer.zig");
 const Point = shared.Point(f32);
-const Size2D = shared.Size2D;
 const Input = @import("../processors/Input.zig");
 const Output = @import("../processors/Output.zig");
 const VTable = @import("../OrtRunner.zig").VTable;
