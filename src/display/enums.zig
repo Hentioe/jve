@@ -1,7 +1,7 @@
 // 显示模式
 pub const Mode = enum {
-    sdl_renderer,
-    sdl_gpu,
+    pewview,
+    gpu,
 };
 
 // 退出动作

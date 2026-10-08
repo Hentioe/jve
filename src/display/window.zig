@@ -4,7 +4,7 @@ const h = @import("sdl").h;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
-const Backend = @import("enums.zig").Mode;
+const Mode = @import("enums.zig").Mode;
 const ISize = shared.ISize;
 
 const Self = @This();
@@ -21,7 +21,7 @@ dirty: bool = false,
 
 const Options = struct {
     windowed: bool,
-    backend: Backend = .sdl_renderer,
+    mode: Mode = .pewview,
 };
 
 pub fn create(allocator: Allocator, image_size: ISize(i32), options: Options) Error!*Self {
@@ -36,7 +36,7 @@ pub fn create(allocator: Allocator, image_size: ISize(i32), options: Options) Er
     defer c.SDL_DestroyProperties(props);
     // 创建时隐藏
     try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, 1));
-    if (options.backend == .sdl_renderer) {
+    if (options.mode == .pewview) {
         flags |= c.SDL_WINDOW_TRANSPARENT; // 透明背景
     }
     if (options.windowed) {

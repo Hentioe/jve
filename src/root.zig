@@ -7,10 +7,10 @@ pub const vips = @import("vips");
 pub const display = @import("display.zig");
 pub const gallery = @import("gallery.zig");
 pub const clipboard = @import("clipboard.zig");
-pub const renderer = @import("display/renderer.zig");
-pub const renderer_gpu = @import("display/renderer_gpu.zig");
-pub const State = @import("display/State.zig");
 pub const remover = @import("ai").remover;
+pub const preview = display.preview;
+pub const gpu = display.gpu;
+pub const State = display.State;
 pub const LoadError = errors.LoadError;
 
 const DisplayMode = display.Mode;
@@ -65,13 +65,13 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
 
 pub fn show(allocator: Allocator, display_mode: []const u8) !void {
     std.log.info("Display mode: {s}", .{display_mode});
-    var current_model: ?DisplayMode = null;
-    if (std.mem.eql(u8, display_mode, "sdl_renderer")) {
-        current_model = .sdl_renderer;
-    } else if (std.mem.eql(u8, display_mode, "sdl_gpu")) {
-        current_model = .sdl_gpu;
+    var mode: ?DisplayMode = null;
+    if (std.mem.eql(u8, display_mode, "preview")) {
+        mode = .pewview;
+    } else if (std.mem.eql(u8, display_mode, "gpu")) {
+        mode = .gpu;
     } else {
-        std.log.err("Unknown mode: {s}", .{display_mode});
+        std.log.err("Unknown display mode: {s}", .{display_mode});
         return error.UnknownDisplayMode;
     }
 
@@ -79,19 +79,19 @@ pub fn show(allocator: Allocator, display_mode: []const u8) !void {
     var state = try State.init(allocator);
     defer state.deinit();
 
-    // 在不同后端循环渲染（模式切换）
-    while (current_model != null) {
-        if (current_model == .sdl_renderer) {
-            if (try renderer.render(allocator, &state) == .toggle) {
-                current_model = .sdl_gpu;
+    // 在不同的渲染器中轮询（模式切换）
+    while (mode != null) {
+        if (mode == .pewview) {
+            if (try preview.render(allocator, &state) == .toggle) {
+                mode = .gpu;
             } else {
-                current_model = null;
+                mode = null;
             }
-        } else if (current_model == .sdl_gpu) {
-            if (try renderer_gpu.render(allocator, &state) == .toggle) {
-                current_model = .sdl_renderer;
+        } else if (mode == .gpu) {
+            if (try gpu.render(allocator, &state) == .toggle) {
+                mode = .pewview;
             } else {
-                current_model = null;
+                mode = null;
             }
         }
     }

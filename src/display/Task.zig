@@ -46,12 +46,7 @@ thread: std.Thread = undefined,
 extracted: ?Extractor = null,
 result: ?Result = null,
 
-pub fn start(
-    allocator: Allocator,
-    gpu: *Gpu,
-    texture: ?*c.SDL_GPUTexture,
-    input: Input,
-) Error!*Self {
+pub fn start(allocator: Allocator, gpu: *Gpu, texture: ?*c.SDL_GPUTexture, input: Input) Error!*Self {
     // 申请内存分配自身
     const self_ptr = try allocator.create(Self);
     errdefer allocator.destroy(self_ptr);

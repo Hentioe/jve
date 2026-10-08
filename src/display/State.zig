@@ -11,7 +11,7 @@ const IShape = shared.IShape;
 const Point = shared.Point(f32);
 const Window = @import("window.zig");
 const Shaders = std.ArrayList(*c.SDL_GPUShader);
-const Backend = @import("enums.zig").Mode;
+const Mode = @import("enums.zig").Mode;
 const Extractor = @import("Extractor.zig");
 const ShaderScanner = @import("ShaderScanner.zig");
 const Self = @This();
@@ -21,7 +21,7 @@ image_shape: IShape(i32) = undefined,
 target_angle: f64 = 0.0,
 target_scale: f64 = 1.0,
 move_offset: Point = .{},
-current_backend: Backend = undefined,
+current_mode: Mode = undefined,
 window: ?*Window = null,
 renderer: ?sdl.Renderer = null,
 gpu_window: ?*Window = null,
@@ -54,13 +54,13 @@ pub fn getRenderer(self: *Self) Error!*sdl.Renderer {
     return if (self.renderer) |*renderer| renderer else Error.RendererNotCreated;
 }
 
-pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error!void {
+pub fn startRendering(self: *Self, image: *const LImage, mode: Mode) Error!void {
     const image_size = image.shape.toISize(i32);
-    if (backend == .sdl_renderer and self.window == null) {
+    if (mode == .pewview and self.window == null) {
         const window = try Window.create(
             self.allocator,
             image_size,
-            .{ .windowed = false, .backend = backend },
+            .{ .windowed = false, .mode = mode },
         );
         // 创建 renderer
         var renderer = try sdl.Renderer.create(window.sdl_window);
@@ -69,14 +69,14 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
         try renderer.setRenderVSync(1);
         self.window = window;
         self.renderer = renderer;
-    } else if (backend == .sdl_gpu and self.gpu_window == null) {
+    } else if (mode == .gpu and self.gpu_window == null) {
         // 正在初始化 SDL GPU 后端
-        std.log.info("Initializing SDL GPU backend", .{});
+        std.log.info("Initializing SDL GPU mode", .{});
         // 创建窗口
         const window = try Window.create(
             self.allocator,
             image_size,
-            .{ .windowed = true, .backend = .sdl_gpu },
+            .{ .windowed = true, .mode = .gpu },
         );
         errdefer window.destroy();
         // 创建 GPU
@@ -118,11 +118,11 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
         self.gpu = gpu;
     }
     self.image_shape = image.shape;
-    self.current_backend = backend;
+    self.current_mode = mode;
 
-    if (self.current_backend == .sdl_renderer) {
+    if (self.current_mode == .pewview) {
         if (self.window) |window| try window.show();
-    } else if (self.current_backend == .sdl_gpu) {
+    } else if (self.current_mode == .gpu) {
         if (self.gpu_window) |window| {
             window.imageSizeUpdated(image_size); // 显示前更新窗口中的图片尺寸
             try window.show();
@@ -131,9 +131,9 @@ pub fn startRendering(self: *Self, image: *const LImage, backend: Backend) Error
 }
 
 pub fn stopRendering(self: *Self) Error!void {
-    if (self.current_backend == .sdl_renderer) {
+    if (self.current_mode == .pewview) {
         if (self.window) |w| try w.hide();
-    } else if (self.current_backend == .sdl_gpu) {
+    } else if (self.current_mode == .gpu) {
         if (self.gpu_window) |w| try w.hide();
     }
 }

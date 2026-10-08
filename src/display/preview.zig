@@ -37,7 +37,7 @@ const EventAction = union(enum) {
 pub fn render(_: std.mem.Allocator, state: *State) Error!NextAction {
     var image = try gallery.current();
     // 更新状态
-    try state.startRendering(&image, .sdl_renderer);
+    try state.startRendering(&image, .pewview);
     // 创建窗口
     var window = state.window.?; // 确保在 startRendering 中完成初始化
     // 更新窗口标题

@@ -31,7 +31,7 @@ pub fn main() !void {
         defer jve.deinit();
         try jve.init(allocator, file_path);
         // 显示模式
-        const display_mode: []const u8 = res.args.backend orelse jve.config.get().default_mode;
+        const display_mode: []const u8 = res.args.display orelse jve.config.get().default_mode;
         // 显示图像
         try jve.show(allocator, display_mode);
     }

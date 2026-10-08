@@ -2,7 +2,7 @@ const std = @import("std");
 const clap = @import("clap");
 
 const params = clap.parseParamsComptime(
-    \\-b, --backend <str>
+    \\-d, --display <str>
     \\--supports
     \\<str>
 );

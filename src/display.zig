@@ -1,8 +1,11 @@
 const std = @import("std");
 const sdl = @import("sdl");
 
-pub const Error = @import("display/errors.zig").Error;
+pub const preview = @import("display/preview.zig");
+pub const gpu = @import("display/gpu.zig");
+pub const State = @import("display/State.zig");
 pub const Mode = @import("display/enums.zig").Mode;
+pub const Error = @import("display/errors.zig").Error;
 
 pub fn init() Error!void {
     // 设置提示
