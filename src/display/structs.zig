@@ -1,4 +1,5 @@
 const c = @import("sdl").c;
+const Overflow = @import("enums.zig").Overflow;
 
 // 定义顶点与 UV 坐标
 pub const Vertex = struct {
@@ -43,6 +44,26 @@ pub const BlurUniforms = extern struct {
 pub const FogUniforms = extern struct {
     time: f32, // 4 字节：时间戳 (秒)
     _padding: [3]f32 = .{ 0.0, 0.0, 0.0 }, // 12 字节：填充数据，确保结构体总体大小为 16 字节（16-byte / vec4 对齐）
+};
+
+// 超出尺寸提示片段着色器 Uniforms
+pub const OverflowUniforms = extern struct {
+    direction: f32, // 位掩码：1=横向(左右)，2=纵向(上下)，3=全部
+    thickness: f32 = 5.0, // 边缘提示的厚度（像素）
+    alpha: f32, // 整体透明度（用于淡出）
+    _padding: f32 = 0.0,
+
+    pub fn init(overflow: Overflow, alpha: f32) OverflowUniforms {
+        return .{
+            .direction = switch (overflow) {
+                .none => 0.0,
+                .horizontal => 1.0,
+                .vertical => 2.0,
+                .both => 3.0,
+            },
+            .alpha = alpha,
+        };
+    }
 };
 
 // 标记顶点着色器 Uniforms

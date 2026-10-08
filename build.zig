@@ -162,6 +162,7 @@ pub fn build(b: *std.Build) void {
         .{ .file = "marker.vert.hlsl", .stage = .vertex },
         .{ .file = "mask.frag.hlsl", .stage = .fragment },
         .{ .file = "onscreen.frag.hlsl", .stage = .fragment },
+        .{ .file = "overflow.frag.hlsl", .stage = .fragment },
         .{ .file = "sharpen.frag.hlsl", .stage = .fragment },
     };
 

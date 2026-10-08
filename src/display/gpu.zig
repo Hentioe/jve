@@ -18,6 +18,7 @@ const PostPipeline = @import("PostPipeline.zig");
 const OnscreenPipeline = @import("onscreen_pipeline.zig");
 const Screenshot = @import("Screenshot.zig");
 const ExitAction = @import("enums.zig").ExitAction;
+const OverflowHint = @import("OverflowHint.zig");
 const Delta = @import("Delta.zig");
 const ISize = shared.ISize;
 const Point = shared.Point(f32);
@@ -28,6 +29,7 @@ const FogUniforms = structs.FogUniforms;
 const BlurUniforms = structs.BlurUniforms;
 const MarkerVertUniforms = structs.MarkerVertUniforms;
 const MarkerFragUniforms = structs.MarkerFragUniforms;
+const OverflowUniforms = structs.OverflowUniforms;
 
 const EventType = @FieldType(sdl.c.union_SDL_Event, "type");
 const EventAction = union(enum) {
@@ -193,6 +195,11 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
     const fog_frag_shader = try shader_loader.load(gpu, @embedFile("fog.frag.spv"), "main", .fragment, 0, 1);
     defer gpu.releaseGPUShader(fog_frag_shader);
     var fog_pl = try pl_builder.build(.fog, .{ .vert = vert_shader, .frag = fog_frag_shader });
+    // 构造超出提示管线（图片过大被限制尺寸时，在屏幕边缘显示提示）
+    const overflow_frag_shader = try shader_loader.load(gpu, @embedFile("overflow.frag.spv"), "main", .fragment, 0, 1);
+    defer gpu.releaseGPUShader(overflow_frag_shader);
+    var overflow_pl = try pl_builder.build(.overflow, .{ .vert = vert_shader, .frag = overflow_frag_shader });
+    defer overflow_pl.deinit(gpu);
     const mask_frag_shader = try shader_loader.load(gpu, @embedFile("mask.frag.spv"), "main", .fragment, 2, 0);
     defer gpu.releaseGPUShader(mask_frag_shader);
     var mask_pl = try pl_builder.build(.mask, .{ .vert = vert_shader, .frag = mask_frag_shader });
@@ -269,13 +276,19 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
     defer if (task) |t| t.finish();
     var tex_mask: ?*sdl.c.SDL_GPUTexture = null;
     defer if (tex_mask) |tex| gpu.releaseGPUTexture(tex);
+    // 超出提示动画（图片过大被限制尺寸时，屏幕边缘显示提示）
+    var overflow_hint = OverflowHint.init(1.25, 1.25, 0.9);
+    if (window.overflow != .none) overflow_hint.trigger();
 
     while (running) {
         // 计算 delta
         delta.update();
         // std.log.info("delta: {}, fps: {}", .{ delta.value, delta.fps });
         defer action = .none; // 重置动作
-        if (is_busy) dirty = true; // 繁忙的时候，渲染总是脏的状态（刷新迷雾动画）
+        // 推进提示动画
+        if (overflow_hint.isRunning()) overflow_hint.nextStep(delta.value);
+        // 繁忙或提示动画进行时，保持渲染循环刷新（dirty）
+        dirty = is_busy or overflow_hint.isRunning();
 
         // 动作的依赖项
         const action_deps: ActionDeps = .{
@@ -502,6 +515,13 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
                     marker_pl.pushFragmentUniforms(cmd_buf, 0, &marker_size_uniforms, @sizeOf(MarkerFragUniforms));
                     // 绘制标记
                     marker_pl.draw();
+                }
+                if (overflow_hint.isRunning()) {
+                    // 在雾效果之前绘制超出提示（屏幕边缘的红色渐变）
+                    overflow_pl.bindScreen(onscreen.render_pass, &vertices_binding);
+                    const overflow_uniforms = OverflowUniforms.init(window.overflow, overflow_hint.alpha);
+                    sdl.c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &overflow_uniforms, @sizeOf(OverflowUniforms));
+                    overflow_pl.draw();
                 }
                 if (is_busy) {
                     // 显示雾（不采样纹理，仅使用 uniform）

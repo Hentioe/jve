@@ -5,6 +5,7 @@ const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const Mode = @import("enums.zig").Mode;
+const Overflow = @import("enums.zig").Overflow;
 const ISize = shared.ISize;
 
 const Self = @This();
@@ -19,6 +20,7 @@ display_width: i32,
 display_height: i32,
 sdl_window: *c.SDL_Window,
 windowed: bool, // 是否窗口化
+overflow: Overflow = .none, // 图片超出窗口最大限制的方向
 mod_key_pressed: bool = false, // 是否按下了 Mod 键
 dirty: bool = false,
 
@@ -42,11 +44,13 @@ pub fn create(allocator: Allocator, image_size: ISize(i32), options: Options) Er
     if (options.mode == .pewview) {
         flags |= c.SDL_WINDOW_TRANSPARENT; // 透明背景
     }
+    var overflow: Overflow = .none;
     if (options.windowed) {
-        // 设置窗口的初始宽高：图片超出屏幕时按比例缩小，否则使用图片原始尺寸
-        const window_size = fitToScreen(image_size.w, image_size.h, display_width, display_height);
-        try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, window_size.w));
-        try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, window_size.h));
+        // 设置窗口的初始宽高：图片超出最大限制时按比例缩小，否则使用图片原始尺寸
+        const fit = fitToScreen(image_size.w, image_size.h, display_width, display_height);
+        overflow = fit.overflow;
+        try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, fit.size.w));
+        try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, fit.size.h));
     } else {
         std.log.info("Borderless mode", .{});
         // 输出显示器尺寸
@@ -63,6 +67,7 @@ pub fn create(allocator: Allocator, image_size: ISize(i32), options: Options) Er
     self_ptr.* = Self{
         .allocator = allocator,
         .windowed = options.windowed,
+        .overflow = overflow,
         .image_width = image_size.w,
         .image_height = image_size.h,
         .display_width = display_width,
@@ -90,10 +95,11 @@ pub fn hide(self: *Self) Error!void {
 pub fn show(self: *Self) Error!void {
     if (self.windowed and self.dirty) {
         std.log.debug("Window is dirty, updating size and position", .{});
-        // 重新调整窗口到图片大小：超出屏幕时按比例缩小
-        const window_size = fitToScreen(self.image_width, self.image_height, self.display_width, self.display_height);
-        h.check(c.SDL_SetWindowSize(self.sdl_window, window_size.w, window_size.h)) catch {
-            std.log.warn("Failed to set window size to {d}x{d}", .{ window_size.w, window_size.h });
+        // 重新调整窗口到图片大小：超出最大限制时按比例缩小，并记录超出方向
+        const fit = fitToScreen(self.image_width, self.image_height, self.display_width, self.display_height);
+        self.overflow = fit.overflow;
+        h.check(c.SDL_SetWindowSize(self.sdl_window, fit.size.w, fit.size.h)) catch {
+            std.log.warn("Failed to set window size to {d}x{d}", .{ fit.size.w, fit.size.h });
         };
         // 窗口位置重新居中
         h.check(c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED)) catch {
@@ -118,20 +124,37 @@ pub fn imageSizeUpdated(self: *Self, size: ISize(i32)) void {
     }
 }
 
-/// 计算窗口尺寸：若图片宽或高超出屏幕，则等比缩小到屏幕的 SCREEN_FILL_RATIO。
-/// 若未超出，则返回图片原始尺寸。
-fn fitToScreen(image_width: i32, image_height: i32, display_width: i32, display_height: i32) ISize(i32) {
+/// fitToScreen 的计算结果：窗口尺寸及图片相对最大限制的超出方向。
+const FitResult = struct {
+    size: ISize(i32),
+    overflow: Overflow,
+};
+
+/// 根据屏幕尺寸计算窗口允许的最大尺寸（屏幕的 SCREEN_FILL_RATIO），
+/// 并将其作为统一的最大限制：无论图片是否超出屏幕，窗口都不会超过该限制。
+/// 超出时按比例缩小，未超出时保持图片原始尺寸。同时给出超出方向。
+fn fitToScreen(image_width: i32, image_height: i32, display_width: i32, display_height: i32) FitResult {
     const max_width = @as(f32, @floatFromInt(display_width)) * SCREEN_FILL_RATIO;
     const max_height = @as(f32, @floatFromInt(display_height)) * SCREEN_FILL_RATIO;
     const width: f32 = @floatFromInt(image_width);
     const height: f32 = @floatFromInt(image_height);
-    const scale = @min(max_width / width, max_height / height);
-    if (scale >= 1.0) {
-        return .{ .w = image_width, .h = image_height };
-    }
+    // 统一的最大尺寸限制，最多保持原始尺寸（scale 不超过 1）
+    const scale = @min(1.0, @min(max_width / width, max_height / height));
+    // 判断图片相对最大限制的超出方向
+    const overflow: Overflow = if (width > max_width and height > max_height)
+        .both
+    else if (width > max_width)
+        .horizontal
+    else if (height > max_height)
+        .vertical
+    else
+        .none;
     return .{
-        .w = @intFromFloat(width * scale),
-        .h = @intFromFloat(height * scale),
+        .size = .{
+            .w = @intFromFloat(width * scale),
+            .h = @intFromFloat(height * scale),
+        },
+        .overflow = overflow,
     };
 }
 

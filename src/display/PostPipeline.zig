@@ -12,6 +12,7 @@ const EffectType = enum {
     fog, // 雾气
     mask, // 遮罩
     marker, // 标记
+    overflow, // 超出提示
     custom, // 自定义
 };
 
