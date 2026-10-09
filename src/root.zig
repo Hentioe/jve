@@ -8,8 +8,6 @@ pub const display = @import("display.zig");
 pub const gallery = @import("gallery.zig");
 pub const clipboard = @import("clipboard.zig");
 pub const remover = @import("ai").remover;
-pub const preview = display.preview;
-pub const gpu = display.gpu;
 pub const State = display.State;
 pub const LoadError = errors.LoadError;
 
@@ -73,36 +71,16 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
 
 pub fn show(allocator: Allocator, display_mode: []const u8) !void {
     std.log.info("Display mode: {s}", .{display_mode});
-    var mode: ?DisplayMode = null;
-    if (std.mem.eql(u8, display_mode, "preview")) {
-        mode = .pewview;
-    } else if (std.mem.eql(u8, display_mode, "gpu")) {
-        mode = .gpu;
-    } else {
+    const mode: DisplayMode = if (std.mem.eql(u8, display_mode, "preview"))
+        .pewview
+    else if (std.mem.eql(u8, display_mode, "gpu"))
+        .gpu
+    else {
         std.log.err("Unknown display mode: {s}", .{display_mode});
         return error.UnknownDisplayMode;
-    }
+    };
 
-    // 初始化状态
-    var state = try State.init(allocator);
-    defer state.deinit();
-
-    // 在不同的渲染器中轮询（模式切换）
-    while (mode != null) {
-        if (mode == .pewview) {
-            if (try preview.render(allocator, &state) == .toggle) {
-                mode = .gpu;
-            } else {
-                mode = null;
-            }
-        } else if (mode == .gpu) {
-            if (try gpu.render(allocator, &state) == .toggle) {
-                mode = .pewview;
-            } else {
-                mode = null;
-            }
-        }
-    }
+    try display.show(mode, allocator);
 }
 
 pub fn showWelcome(allocator: Allocator) !void {
