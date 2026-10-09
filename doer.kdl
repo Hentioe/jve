@@ -3,6 +3,7 @@ tasks {
         - "zig build run -- -c config.toml {path}"
         opt path=image.png
     }
+    show:preview "zig build run -- -d preview -c config.toml image.png"
     show:welcome "zig build run"
     supports "zig build run -- --supports"
     format {
