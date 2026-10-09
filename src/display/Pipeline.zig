@@ -1,14 +1,17 @@
-const c = @import("sdl").c;
+const sdl = @import("sdl");
+const c = sdl.c;
+const Gpu = sdl.Gpu;
 const Error = @import("errors.zig").Error;
-const Gpu = @import("sdl").Gpu;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
 
 gpu: *Gpu,
 sdl_pipeline: *c.SDL_GPUGraphicsPipeline,
+vert_shader: *sdl.c.SDL_GPUShader,
+frag_shader: ?*sdl.c.SDL_GPUShader,
 render_pass: ?*c.SDL_GPURenderPass = null,
 
-pub fn init(gpu: *Gpu, window: *c.SDL_Window, sharders: ShaderPair) Error!Self {
+pub fn init(gpu: *Gpu, window: *c.SDL_Window, shaders: ShaderPair, vertex_input_state: ?sdl.c.SDL_GPUVertexInputState) Error!Self {
     // 构造管线
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
         .format = gpu.getGPUSwapchainTextureFormat(window),
@@ -25,19 +28,27 @@ pub fn init(gpu: *Gpu, window: *c.SDL_Window, sharders: ShaderPair) Error!Self {
     };
 
     const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
-        .vertex_shader = sharders.vert, // 编译好的顶点着色器
-        .fragment_shader = sharders.frag, // 编译好的片段着色器
+        .vertex_shader = shaders.vert, // 编译好的顶点着色器
+        .fragment_shader = shaders.frag, // 编译好的片段着色器
         .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
         .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
+        .vertex_input_state = vertex_input_state orelse .{},
     };
 
     const sdl_pipeline = try gpu.createGPUGraphicsPipeline(&pipeline_info);
 
-    return Self{ .gpu = gpu, .sdl_pipeline = sdl_pipeline };
+    return Self{
+        .gpu = gpu,
+        .vert_shader = shaders.vert,
+        .frag_shader = shaders.frag,
+        .sdl_pipeline = sdl_pipeline,
+    };
 }
 
 pub fn deinit(self: *Self) void {
     self.gpu.releaseGPUGraphicsPipeline(self.sdl_pipeline);
+    if (self.frag_shader) |s| self.gpu.releaseGPUShader(s);
+    self.gpu.releaseGPUShader(self.vert_shader);
 }
 
 pub fn bind(self: *Self, render_pass: *c.SDL_GPURenderPass) void {

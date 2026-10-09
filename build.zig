@@ -164,6 +164,7 @@ pub fn build(b: *std.Build) void {
         .{ .file = "onscreen.frag.hlsl", .stage = .fragment },
         .{ .file = "overflow.frag.hlsl", .stage = .fragment },
         .{ .file = "sharpen.frag.hlsl", .stage = .fragment },
+        .{ .file = "welcome.frag.hlsl", .stage = .fragment },
     };
 
     const shaders_step = b.step("shaders", "Compile HLSL shaders to SPIR-V");

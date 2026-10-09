@@ -5,6 +5,7 @@ pub const preview = @import("display/preview.zig");
 pub const gpu = @import("display/gpu.zig");
 pub const State = @import("display/State.zig");
 pub const Mode = @import("display/enums.zig").Mode;
+pub const Welcome = @import("display/Welcome.zig");
 pub const Error = @import("display/errors.zig").Error;
 
 pub fn init() Error!void {

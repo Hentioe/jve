@@ -47,6 +47,14 @@ pub fn vips_deinit() void {
     vips.deinit();
 }
 
+pub fn display_init() !void {
+    try display.init();
+}
+
+pub fn display_deinit() void {
+    display.deinit();
+}
+
 pub fn isSupported(suffix: []const u8) !bool {
     return try vips.formats.isSupported(suffix);
 }
@@ -95,4 +103,11 @@ pub fn show(allocator: Allocator, display_mode: []const u8) !void {
             }
         }
     }
+}
+
+pub fn showWelcome(allocator: Allocator) !void {
+    var welcome = try display.Welcome.init(allocator);
+    defer welcome.deinit();
+
+    std.debug.assert(try welcome.show() == .quit);
 }

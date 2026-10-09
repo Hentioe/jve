@@ -5,6 +5,7 @@ const root = @import("../root.zig");
 const shared = @import("shared");
 const shader_loader = @import("shader_loader.zig");
 const structs = @import("structs.zig");
+const consts = @import("consts.zig");
 const gallery = root.gallery;
 const ArrayList = std.ArrayList;
 const State = @import("State.zig");
@@ -86,21 +87,11 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
     );
 
     // --- 顶点 (Vertex) ---
-    // 铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
-    const verts: [6]Vertex = .{
-        // 三角形 1
-        .{ .x = -1.0, .y = 1.0, .z = 0.0, .u = 0.0, .v = 0.0 }, // 左上
-        .{ .x = 1.0, .y = 1.0, .z = 0.0, .u = 1.0, .v = 0.0 }, // 右上
-        .{ .x = -1.0, .y = -1.0, .z = 0.0, .u = 0.0, .v = 1.0 }, // 左下
-        // 三角形 2
-        .{ .x = 1.0, .y = 1.0, .z = 0.0, .u = 1.0, .v = 0.0 }, // 右上
-        .{ .x = 1.0, .y = -1.0, .z = 0.0, .u = 1.0, .v = 1.0 }, // 右下
-        .{ .x = -1.0, .y = -1.0, .z = 0.0, .u = 0.0, .v = 1.0 }, // 左下
-    };
+    const base_verts: [6]Vertex = consts.base_verts;
     // 上传顶点
-    const vertices_size = @sizeOf(Vertex) * verts.len;
+    const vertices_size = @sizeOf(Vertex) * base_verts.len;
     const vertices_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = vertices_size };
-    const vertices_buffer = try uploader.uploadBuffer(&vertices_buffer_info, @ptrCast(&verts), vertices_size);
+    const vertices_buffer = try uploader.uploadBuffer(&vertices_buffer_info, @ptrCast(&base_verts), vertices_size);
     defer gpu.releaseGPUBuffer(vertices_buffer);
     const vertices_binding: sdl.c.SDL_GPUBufferBinding = .{ .buffer = vertices_buffer, .offset = 0 }; // 顶点绑定
 
@@ -205,10 +196,8 @@ pub fn render(allocator: std.mem.Allocator, state: *State) Error!ExitAction {
     var mask_pl = try pl_builder.build(.mask, .{ .vert = vert_shader, .frag = mask_frag_shader });
     // 构造标记管线
     const marker_vert_shader = try shader_loader.load(gpu, @embedFile("marker.vert.spv"), "main", .vertex, 0, 1);
-    defer gpu.releaseGPUShader(marker_vert_shader);
     const marker_frag_shader = try shader_loader.load(gpu, @embedFile("marker.frag.spv"), "main", .fragment, 0, 1);
-    defer gpu.releaseGPUShader(marker_frag_shader);
-    var marker_pl = try Pipeline.init(gpu, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader });
+    var marker_pl = try Pipeline.init(gpu, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader }, null);
     defer marker_pl.deinit();
 
     // 构造后处理管线列表

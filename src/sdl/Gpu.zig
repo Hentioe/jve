@@ -102,3 +102,15 @@ pub fn acquireGPUCommandBuffer(self: *const Self) Error!*c.SDL_GPUCommandBuffer 
 pub fn waitForGPUIdle(self: *const Self) Error!void {
     try h.check(c.SDL_WaitForGPUIdle(self.gpu_device));
 }
+
+pub fn beginRenderPass(cmd_buf: *c.SDL_GPUCommandBuffer, color_target: *c.SDL_GPUColorTargetInfo, color_target_count: u32, depth_stencil_target: ?*c.SDL_GPUDepthStencilTargetInfo) Error!*c.SDL_GPURenderPass {
+    return try h.check(c.SDL_BeginGPURenderPass(cmd_buf, color_target, color_target_count, depth_stencil_target));
+}
+
+pub fn submitCommandBuffer(cmd_buf: *c.SDL_GPUCommandBuffer) Error!void {
+    try h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf));
+}
+
+pub fn acquireSwapchainTexture(cmd_buf: *c.SDL_GPUCommandBuffer, window: *c.SDL_Window, swapchain_texture: *?*c.SDL_GPUTexture, width: [*c]u32, height: [*c]u32) bool {
+    return c.SDL_AcquireGPUSwapchainTexture(cmd_buf, window, swapchain_texture, width, height);
+}
