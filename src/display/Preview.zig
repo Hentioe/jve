@@ -31,7 +31,6 @@ pub fn init(allocator: std.mem.Allocator, external_state: *State) Error!Self {
     try renderer.setRenderVSync(1);
     // 记录外部状态
     external_state.image_shape = image.shape;
-    external_state.current_mode = .pewview;
 
     return Self{
         .window = window,
