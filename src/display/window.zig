@@ -26,14 +26,14 @@ overflow: Overflow = .none, // 图片超出窗口最大限制的方向
 mod_key_pressed: bool = false, // 是否按下了 Mod 键
 dirty: bool = false,
 
-const Options = struct {
+pub const Options = struct {
     windowed: bool,
     mode: Mode = .pewview,
 };
 
 pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*Self {
     // 获取主显示器尺寸
-    const display_mode = c.SDL_GetCurrentDisplayMode(c.SDL_GetPrimaryDisplay());
+    const display_mode = try h.check(c.SDL_GetCurrentDisplayMode(c.SDL_GetPrimaryDisplay()));
     const display_width = display_mode.*.w;
     const display_height = display_mode.*.h;
     // 创建窗口标识
@@ -64,9 +64,9 @@ pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*
     try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, @intCast(flags)));
     // 创建 SDL 窗口
     const sdl_window = try h.check(c.SDL_CreateWindowWithProperties(props));
-    const self_ptr = try allocator.create(Self);
+    const ptr = try allocator.create(Self);
     // 构造结构体
-    self_ptr.* = Self{
+    ptr.* = Self{
         .allocator = allocator,
         .windowed = options.windowed,
         .overflow = overflow,
@@ -77,10 +77,10 @@ pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*
         .sdl_window = sdl_window,
     };
     // 支持拖动窗口
-    const callback_data = @constCast(self_ptr); // 把 self 指针作为 callback_data 传递给 hitTestCallback
+    const callback_data = @constCast(ptr); // 把 self 指针作为 callback_data 传递给 hitTestCallback
     try h.check(c.SDL_SetWindowHitTest(sdl_window, hitTestCallback, callback_data));
     // 返回指针
-    return self_ptr;
+    return ptr;
 }
 
 pub fn destroy(self: *Self) void {

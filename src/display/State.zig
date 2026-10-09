@@ -81,6 +81,7 @@ pub fn startRendering(self: *Self, image: *const LImage, mode: Mode) Error!void 
         errdefer window.destroy();
         // 创建 GPU
         var gpu = try sdl.Gpu.create();
+        errdefer gpu.destroy();
         // 绑定窗口到 GPU 设备
         try gpu.claimWindow(window.sdl_window);
         // 关闭垂直同步（修改交换链的 Present Mode）
