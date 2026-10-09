@@ -28,6 +28,7 @@ is_grayscale: bool = false, // 是否灰阶化
 brightness: f32 = 0, // 亮度调整值（暂未实现）
 contrast: f32 = 1, // 对比度调整值（暂未实现）
 gamma: f32 = 1, // Gamma 校正值（暂未实现）
+channel: i32 = 0, // 0: 正常全彩, 1: R, 2: G, 3: B, 4: A
 // 截图
 save_screenshot: bool = false,
 copy_screenshot: bool = false,

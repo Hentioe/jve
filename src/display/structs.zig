@@ -22,7 +22,8 @@ pub const BaseUniforms = extern struct {
     brightness: f32, // 0.0 为正常，正数为增亮，负数为变暗
     contrast: f32, // 1.0 为正常，>1.0 增加对比度
     gamma: f32, // 1.0 为正常
-    _padding: [3]f32 = .{ 0.0, 0.0, 0.0 }, // 补齐 16 字节对齐 (5 * 4 = 20 字节，加 12 字节凑齐 32 字节)
+    channel: i32, // 0: 正常全彩, 1: R, 2: G, 3: B, 4: A
+    _padding: [2]f32 = .{ 0.0, 0.0 }, // 补齐 16 字节对齐 (5 * 4 = 20 字节，加 12 字节凑齐 32 字节)
 };
 
 // 锐化片段着色器 Uniforms

@@ -43,6 +43,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         .contrast = state.contrast,
         .gamma = state.gamma,
         .grayscale = if (state.is_grayscale) 1.0 else 0.0,
+        .channel = state.channel,
     };
     // 将参数推送到片段着色器的 slot 0
     sdl.c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &base_uniforms, @sizeOf(BaseUniforms));

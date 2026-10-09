@@ -1,10 +1,11 @@
 tasks {
-    run {
+    show "zig build run"
+    show:gpu {
         - "zig build run -- -c config.toml {path}"
-        opt path=image.png
+        opt path="assets/image.png"
     }
-    show:preview "zig build run -- -d preview -c config.toml image.png"
-    show:welcome "zig build run"
+    show:preview "zig build run -- -d preview -c config.toml assets/image.png"
+    show:channel "zig build run -- -d gpu -c config.toml assets/channel-test.png"
     supports "zig build run -- --supports"
     format {
         - "zig fmt ."

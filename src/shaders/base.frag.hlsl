@@ -1,11 +1,12 @@
 cbuffer BaseUniforms : register(b0, space3)
 {
     float u_invert;      // 0.0 为正常，1.0 为反色
-    float u_grayscale;   // 0.0 为全彩，1.0 为完全灰阶（0.5 为半去色）
+    float u_grayscale;   // 0.0 为全彩，1.0 为完全灰阶
     float u_brightness;  // 0.0 为正常，正增亮，负变暗
     float u_contrast;    // 1.0 为正常，>1.0 增加对比度
     float u_gamma;       // 1.0 为正常
-    float3 padding;      // 补齐 16 字节对齐 (5 * 4 = 20 字节，加 12 字节凑齐 32 字节)
+    int   u_channel;     // 0: 正常全彩, 1: R, 2: G, 3: B, 4: A
+    float2 padding;      // 补齐 16 字节对齐 (6 * 4 = 24 字节，加 8 字节凑齐 32 字节)
 };
 
 Texture2D Texture : register(t0, space2);
@@ -33,6 +34,15 @@ float4 main(float2 uv : TEXCOORD0) : SV_Target {
 
     // 5. Gamma 校正
     color.rgb = pow(max(color.rgb, 0.0), u_gamma);
+
+    // 6. 单通道查看
+    switch (u_channel) {
+        case 1: color = float4(color.rrr, 1.0); break;  // 显示 R 通道灰阶（强制不透明）
+        case 2: color = float4(color.ggg, 1.0); break;  // 显示 G 通道灰阶（强制不透明）
+        case 3: color = float4(color.bbb, 1.0); break;  // 显示 B 通道灰阶（强制不透明）
+        case 4: color = float4(color.aaa, 1.0); break;  // 显示 A 通道灰阶（强制不透明）
+        default: break;                                 // 正常全彩（保留原 Alpha）
+    }
 
     return color;
 }

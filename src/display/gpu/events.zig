@@ -24,6 +24,7 @@ pub const EventAction = union(enum) {
     slide_start: struct { button: u8 },
     slide_stop: struct { button: u8 },
     sliding: struct { xrel: f32 },
+    channel_change: i32,
     marker: struct { x: f32, y: f32 },
 };
 
@@ -87,6 +88,10 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
             state.slide_value += payload.xrel / slide_sensitivity;
             std.log.debug("Horizontal value updated: {}", .{state.slide_value});
         },
+        .channel_change => |channel| {
+            state.channel = channel;
+            std.log.debug("Channel changed to: {}", .{state.channel});
+        },
         .marker => |payload| {
             var removed = false;
             if (state.marker_pos) |prev| {
@@ -147,6 +152,8 @@ fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: Act
         action.* = .{ .slide_stop = .{ .button = event.button.button } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_MOTION and deps.is_sliding) { // 滑动中
         handleSlidingEvent(event, action);
+    } else if (isChannelChangeEvent(event)) {
+        if (mapKeyToChannel(event.key.key)) |channel| action.* = .{ .channel_change = channel };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_LEFT) { // 鼠标左键单击，获取位置
         action.* = .{ .marker = .{ .x = event.button.x, .y = event.button.y } };
     }
@@ -155,6 +162,26 @@ fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: Act
 // 是否是切换事件
 fn isToggleEvent(event: sdl.c.SDL_Event) bool {
     return event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_RIGHT; // 右键
+}
+
+fn isChannelChangeEvent(event: sdl.c.SDL_Event) bool {
+    if ((event.key.mod & sdl.c.SDL_KMOD_RALT) == 0) return false; // 判断右 alt 是否按下
+    return event.key.key == sdl.c.SDLK_0 or
+        event.key.key == sdl.c.SDLK_1 or
+        event.key.key == sdl.c.SDLK_2 or
+        event.key.key == sdl.c.SDLK_3 or
+        event.key.key == sdl.c.SDLK_4;
+}
+
+fn mapKeyToChannel(key: sdl.c.SDL_Keycode) ?u8 {
+    return switch (key) {
+        sdl.c.SDLK_0 => 0,
+        sdl.c.SDLK_1 => 1,
+        sdl.c.SDLK_2 => 2,
+        sdl.c.SDLK_3 => 3,
+        sdl.c.SDLK_4 => 4,
+        else => null,
+    };
 }
 
 fn handleSlidingEvent(event: sdl.c.SDL_Event, action: *EventAction) void {
