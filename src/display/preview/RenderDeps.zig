@@ -9,11 +9,11 @@ const Self = @This();
 window: *Window,
 renderer: *sdl.Renderer,
 image: LImage,
-texture: *sdl.c.SDL_Texture,
+texture: *sdl.Texture,
 
 pub fn init(window: *Window, renderer: *sdl.Renderer, image: LImage) Error!Self {
     // 创建纹理（先尝试从外部状态缓存中读取模式切换时保留的结果）
-    const texture = if (try readTexture(renderer)) |tex|
+    const texture = if (try app_env.writer().readTexture(renderer)) |tex|
         tex
     else
         try createTexture(renderer, &image);
@@ -38,36 +38,7 @@ pub fn setImage(self: *Self, image: LImage) Error!void {
     self.texture = try createTexture(self.renderer, &image);
 }
 
-// 从全局缓存中读取已提取的像素数据创建纹理（模式切换返回预览时复用）
-fn readTexture(renderer: *sdl.Renderer) Error!?*sdl.c.SDL_Texture {
-    const env = app_env.writer();
-    if (env.extracted) |*extracted| {
-        defer {
-            extracted.deinit(); // 读取后释放下载数据
-            env.extracted = null; // 清除缓存，避免 deinit 重复释放
-        }
-        const shape = env.image_shape;
-        const pitch = shape.w * shape.c; // 计算 pitch
-        std.log.info("Pitch: {d}", .{pitch});
-        // 创建图片纹理
-        const texture = try renderer.createTexture(
-            sdl.c.SDL_PIXELFORMAT_RGBA32,
-            sdl.c.SDL_TEXTUREACCESS_STATIC,
-            shape.w,
-            shape.h,
-        );
-        // 开启纹理混合模式
-        try sdl.Renderer.setTextureBlendMode(texture, sdl.c.SDL_BLENDMODE_BLEND);
-        // 上传纹理
-        try sdl.Renderer.updateTexture(texture, null, extracted.pixels_slice.ptr, pitch);
-
-        return texture;
-    }
-
-    return null;
-}
-
-fn createTexture(renderer: *sdl.Renderer, image: *const LImage) Error!*sdl.c.SDL_Texture {
+fn createTexture(renderer: *sdl.Renderer, image: *const LImage) Error!*sdl.Texture {
     // 计算 pitch
     const pitch = image.shape.w * image.shape.c;
     std.log.info("Pitch: {d}", .{pitch});

@@ -13,7 +13,7 @@ pub fn parse(allocator: Allocator, output_ptr: *anyopaque, shape: IShape(i32), f
         std.debug.assert(normalized and format == .FLOAT); // 目前仅支持转换归一化的浮点格式数据
         // 转换为 NCHW 布局
         const u_shape = shape.to(u32);
-        const src = @as([*]f32, @ptrCast(@alignCast(output_ptr)))[0..u_shape.calcSize(1)];
+        const src = @as([*]f32, @ptrCast(@alignCast(output_ptr)))[0..u_shape.calcSize(f32)];
         const data = try buildNHWC(allocator, src, u_shape, apply_sigmoid);
         defer allocator.free(data);
         image = try Image.init(data.ptr, shape, .UCHAR);

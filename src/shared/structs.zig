@@ -42,8 +42,8 @@ pub fn IShape(comptime T: type) type {
         }
 
         /// 计算数据大小
-        pub fn calcSize(self: *const Self, byte_size: usize) usize {
-            return @as(usize, @intCast(self.w * self.h * self.c)) * byte_size;
+        pub fn calcSize(self: *const Self, comptime U: type) usize {
+            return @as(usize, @intCast(self.w * self.h * self.c)) * @sizeOf(U);
         }
 
         pub fn format(self: *const Self, writer: *std.Io.Writer) std.Io.Writer.Error!void {

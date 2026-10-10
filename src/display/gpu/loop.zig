@@ -47,9 +47,11 @@ pub fn run(deps: *RenderDeps) Error!ExitAction {
     try deps.window.hide();
     // 切换模式时，把纹理写入全局缓存
     if (state.toggle) {
-        app_env.writer().writeTexture(deps.device, state.tex_src) catch |err| {
-            std.log.err("Failed to write texture to state: {}", .{err});
-        };
+        app_env.writer().writeTexture(
+            deps.allocator,
+            deps.device,
+            state.tex_src,
+        ) catch |err| std.log.err("Failed to write texture: {}", .{err});
     }
 
     return if (state.toggle) .toggle else .quit;

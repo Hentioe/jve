@@ -9,7 +9,7 @@ const Error = @import("errors.zig").Error;
 const IShape = shared.IShape;
 const Point = shared.Point(f32);
 const Image = vips.Image;
-const Extractor = @import("../Extractor.zig");
+const extractor = @import("../extractor.zig");
 const Gpu = @import("sdl").Gpu;
 const OrtRunner = ai.OrtRunner;
 const remover = ai.remover;
@@ -43,7 +43,7 @@ const Result = union(enum) {
 allocator: Allocator,
 state: atomic.Value(State) = .init(.running),
 thread: std.Thread = undefined,
-extracted: ?Extractor = null,
+extracted: ?extractor.Extracted = null,
 result: ?Result = null,
 
 pub fn start(allocator: Allocator, gpu: *const Gpu, texture: ?*c.SDL_GPUTexture, input: Input) Error!*Self {
@@ -71,23 +71,18 @@ fn run(
     self.state.store(.done, .release);
 }
 
-fn execute(
-    self: *Self,
-    gpu: *const Gpu,
-    texture: ?*c.SDL_GPUTexture,
-    input: Input,
-) !void {
+fn execute(self: *Self, gpu: *const Gpu, texture: ?*c.SDL_GPUTexture, input: Input) !void {
     std.log.info("Task is running", .{});
     // 提取像素数据
-    self.extracted = try Extractor.extract(self.allocator, gpu, texture, input.shape);
+    const shape = input.shape.to(u32);
+    self.extracted = try extractor.extract(self.allocator, gpu, texture, shape);
     // 选择模型：如果存在点击座标，则用 MagicTouch 否则用 BiRefNet
     const model: OrtRunner.Model = if (input.click != null) .magic_touch else .birefnet;
-    const data_ptr = self.extracted.?.pixels_slice.ptr;
-    const u_shape = input.shape.to(u32);
+    const data_ptr = self.extracted.?.data.ptr;
     const click_position: ?Point = if (input.click) |click| .{ .x = click.x, .y = click.y } else null;
     const model_input: ai.Input = .{
         .data_ptr = data_ptr,
-        .shape = u_shape,
+        .shape = shape,
         .click_position = click_position,
     };
     // 运行模型推理

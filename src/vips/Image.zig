@@ -35,10 +35,10 @@ format: Format,
 _in: *c.VipsImage,
 
 pub fn init(input_ptr: *const anyopaque, shape: IShape(i32), format: Format) Error!Self {
-    const byte_size: usize = if (format == .FLOAT) @sizeOf(f32) else @sizeOf(u8);
+    const size = if (format == .FLOAT) shape.calcSize(f32) else shape.calcSize(u8);
     const in = try h.check(c.vips_image_new_from_memory_copy(
         input_ptr,
-        shape.calcSize(byte_size),
+        size,
         shape.w,
         shape.h,
         shape.c,

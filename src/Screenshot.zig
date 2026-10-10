@@ -6,26 +6,23 @@ const writer = vips.writer;
 const LImage = vips.LImage;
 const clipboard = @import("clipboard.zig");
 const Allocator = std.mem.Allocator;
-const Extractor = @import("Extractor.zig");
+const extractor = @import("extractor.zig");
 const Gpu = @import("sdl").Gpu;
 const Self = @This();
 
-pub const Error = Extractor.Error || vips.Error || config.Error || std.mem.Allocator.Error || error{CreateScreenshotDirFailed};
+pub const Error = extractor.Error || vips.Error || config.Error || std.mem.Allocator.Error || error{CreateScreenshotDirFailed};
 
 allocator: Allocator,
-extracted: Extractor,
+extracted: extractor.Extracted,
 image: *const LImage,
 
 pub fn init(allocator: std.mem.Allocator, gpu: *const Gpu, texture: ?*c.SDL_GPUTexture, image: *const LImage) Error!Self {
-    // 创建下载器
-    var extractor = Extractor.init(allocator, gpu, image.shape);
-    errdefer extractor.deinit();
-    // 下载纹理
-    try extractor.downloadTexture(texture);
+    // 提取并下载纹理像素数据
+    const extracted = try extractor.extract(allocator, gpu, texture, image.shape.to(u32));
 
     return Self{
         .allocator = allocator,
-        .extracted = extractor,
+        .extracted = extracted,
         .image = image,
     };
 }
@@ -44,18 +41,14 @@ pub fn saveToFile(self: *const Self) Error!void {
     defer sfa.free(out_filename);
     const filename = try sfa.dupeZ(u8, out_filename);
     // 写入到文件
-    try writer.savePixelsToFile(self.extracted.pixels_slice.ptr, self.image.shape, filename);
-    std.log.info("Screenshot saved, size: {d}", .{self.extracted.buffer_size});
+    try writer.savePixelsToFile(self.extracted.data.ptr, self.image.shape, filename);
+    std.log.info("Screenshot saved, size: {d}", .{self.extracted.data.len});
 }
 
 // todo: 不要在函数内部输出日志，直接返回错误
 /// 复制到剪切板
 pub fn copyToClipboard(self: *const Self) void {
-    if (!self.extracted.downloaded) {
-        std.log.err("Screenshot not downloaded yet", .{});
-        return;
-    }
-    const pixels_ptr = self.extracted.pixels_slice.ptr;
+    const pixels_ptr = self.extracted.data.ptr;
     // 创建编码器
     var encoder = writer.Encoder.init(pixels_ptr, self.image.shape);
     defer encoder.deinit();

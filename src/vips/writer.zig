@@ -8,7 +8,7 @@ const IShape = shared.IShape;
 
 /// 保存像素到图像文件，预设为 8 位无符号整数 (0-255) 的像素数据
 pub fn savePixelsToFile(pixels_ptr: *anyopaque, shape: IShape(i32), filename: [:0]const u8) Error!void {
-    const size = shape.calcSize(1);
+    const size = shape.calcSize(u8);
     // 从像素数据指针创建 VipsImage
     const in = try h.check(c.vips_image_new_from_memory(
         pixels_ptr,
@@ -39,7 +39,7 @@ pub const Encoder = struct {
 
     pub fn encode(self: *Self) Error!void {
         // 假设像素数据为 8 位无符号整数 (0-255)
-        const size: usize = self.shape.calcSize(1);
+        const size: usize = self.shape.calcSize(u8);
         // 从像素数据指针创建 VipsImage
         const in = try h.check(c.vips_image_new_from_memory(
             self.pixels_ptr,
