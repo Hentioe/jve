@@ -8,8 +8,9 @@ const clipboard = @import("clipboard.zig");
 const Allocator = std.mem.Allocator;
 const Extractor = @import("Extractor.zig");
 const Gpu = @import("sdl").Gpu;
-const Error = @import("errors.zig").Error;
 const Self = @This();
+
+pub const Error = Extractor.Error || vips.Error || config.Error || std.mem.Allocator.Error || error{CreateScreenshotDirFailed};
 
 allocator: Allocator,
 extracted: Extractor,

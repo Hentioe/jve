@@ -2,11 +2,12 @@ const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
-const Error = @import("display/errors.zig").Error;
 const IShape = shared.IShape;
 const Point = shared.Point(f32);
-const Extractor = @import("display/Extractor.zig");
+const Extractor = @import("Extractor.zig");
 const Self = @This();
+
+pub const Error = sdl.Error || std.mem.Allocator.Error;
 
 // 应用唯一的全局数据缓存，由 root 在初始化/反初始化时管理生命周期。
 // 不持有显示相关的资源（Viewer、GPU 设备、窗口等），因此释放顺序无强依赖。

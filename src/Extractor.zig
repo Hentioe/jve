@@ -1,11 +1,13 @@
 const std = @import("std");
-const c = @import("sdl").c;
-const h = @import("sdl").h;
+const sdl = @import("sdl");
+const c = sdl.c;
+const h = sdl.h;
 const shared = @import("shared");
-const Error = @import("errors.zig").Error;
-const Gpu = @import("sdl").Gpu;
+const Gpu = sdl.Gpu;
 const IShape = shared.IShape;
 const Self = @This();
+
+pub const Error = sdl.Error || std.mem.Allocator.Error;
 
 allocator: std.mem.Allocator,
 gpu: *const Gpu,
@@ -80,9 +82,9 @@ pub fn extract(allocator: std.mem.Allocator, gpu: *const Gpu, texture: ?*c.SDL_G
 }
 
 // todo 有待删除
-pub fn getAndCheckDataPtr(self: *const Self) Error!*anyopaque {
+pub fn getAndCheckDataPtr(self: *const Self) error{NotDownloaded}!*anyopaque {
     if (self.downloaded == false) {
-        return Error.NotDownloaded;
+        return error.NotDownloaded;
     }
     return self.pixels_slice.ptr;
 }
