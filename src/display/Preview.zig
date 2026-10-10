@@ -2,7 +2,7 @@ const std = @import("std");
 const sdl = @import("sdl");
 const gallery = @import("../gallery.zig");
 const Window = @import("window.zig");
-const State = @import("State.zig");
+const app_env = @import("../app_env.zig");
 const RenderDeps = @import("preview/RenderDeps.zig");
 const loop = @import("preview/loop.zig");
 const ExitAction = @import("enums.zig").ExitAction;
@@ -11,9 +11,8 @@ const Self = @This();
 
 window: *Window,
 renderer: sdl.Renderer,
-external_state: *State,
 
-pub fn init(allocator: std.mem.Allocator, external_state: *State) Error!Self {
+pub fn init(allocator: std.mem.Allocator) Error!Self {
     // 初始化「预览」模式
     std.log.info("Initializing preview mode", .{});
     const image = try gallery.current();
@@ -29,13 +28,12 @@ pub fn init(allocator: std.mem.Allocator, external_state: *State) Error!Self {
     errdefer renderer.destroy();
     // 开启垂直同步
     try renderer.setRenderVSync(1);
-    // 记录外部状态
-    external_state.image_shape = image.shape;
+    // 记录图片形状
+    app_env.writer().image_shape = image.shape;
 
     return Self{
         .window = window,
         .renderer = renderer,
-        .external_state = external_state,
     };
 }
 
@@ -48,7 +46,7 @@ pub fn deinit(self: *Self) void {
 
 pub fn show(self: *Self) Error!ExitAction {
     const image = try gallery.current();
-    var deps = try RenderDeps.init(self.window, &self.renderer, self.external_state, image);
+    var deps = try RenderDeps.init(self.window, &self.renderer, image);
     errdefer deps.deinit();
 
     // 更新窗口标题

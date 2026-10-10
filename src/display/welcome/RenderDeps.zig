@@ -10,12 +10,12 @@ const Error = @import("../errors.zig").Error;
 const Self = @This();
 
 window: *Window,
-gpu: *sdl.Gpu,
+gpu: *const sdl.Gpu,
 pipeline: Pipeline,
 verts_buffer: *sdl.c.SDL_GPUBuffer,
 verts_binding: sdl.c.SDL_GPUBufferBinding,
 
-pub fn init(allocator: std.mem.Allocator, window: *Window, gpu: *sdl.Gpu) Error!Self {
+pub fn init(allocator: std.mem.Allocator, window: *Window, gpu: *const sdl.Gpu) Error!Self {
     const vert_shader = try shader_loader.load(gpu, @embedFile("base.vert.spv"), "main", .vertex, 0, 0);
     const frag_shader = try shader_loader.load(gpu, @embedFile("welcome.frag.spv"), "main", .fragment, 0, 0);
     // todo: 把整个基础顶点数据提取成公共部分

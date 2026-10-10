@@ -5,13 +5,13 @@ const Gpu = @import("sdl").Gpu;
 const Window = @import("window.zig");
 const Self = @This();
 
-gpu: *Gpu,
+gpu: *const Gpu,
 pipeline: *c.SDL_GPUGraphicsPipeline,
 vert_shader: *c.SDL_GPUShader,
 frag_shader: *c.SDL_GPUShader,
 render_pass: ?*c.SDL_GPURenderPass = null,
 
-pub fn init(gpu: *Gpu, window: *Window) Error!Self {
+pub fn init(gpu: *const Gpu, window: *Window) Error!Self {
     // 构造棋盘格管线
     const vert_shader = try shader_loader.load(gpu, @embedFile("checker.vert.spv"), "main", .vertex, 0, 0);
     const frag_shader = try shader_loader.load(gpu, @embedFile("checker.frag.spv"), "main", .fragment, 0, 0);

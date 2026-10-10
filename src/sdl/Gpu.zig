@@ -26,6 +26,11 @@ pub fn claimWindow(self: *const Self, window: *c.SDL_Window) Error!void {
     try h.check(c.SDL_ClaimWindowForGPUDevice(self.gpu_device, window));
 }
 
+// 窗口销毁前必须先从设备解绑。
+pub fn releaseWindow(self: *const Self, window: *c.SDL_Window) void {
+    c.SDL_ReleaseWindowFromGPUDevice(self.gpu_device, window);
+}
+
 pub fn getGPUSwapchainTextureFormat(self: *const Self, window: *c.SDL_Window) c.SDL_GPUTextureFormat {
     return c.SDL_GetGPUSwapchainTextureFormat(self.gpu_device, window);
 }

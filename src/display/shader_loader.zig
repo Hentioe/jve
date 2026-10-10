@@ -12,7 +12,7 @@ const Stage = enum(c_uint) {
 // todo: 两个 num 参数合并成一个结构体
 pub fn loadHlslFile(
     allocator: std.mem.Allocator,
-    gpu: *Gpu,
+    gpu: *const Gpu,
     file_path: []const u8,
     entrypoint: [*:0]const u8,
     stage: Stage,
@@ -66,7 +66,7 @@ pub fn loadHlslFile(
 }
 
 pub fn load(
-    gpu: *Gpu,
+    gpu: *const Gpu,
     bytes: []const u8,
     entrypoint: [*:0]const u8,
     stage: Stage,

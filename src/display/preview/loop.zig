@@ -1,4 +1,5 @@
 const sdl = @import("sdl");
+const app_env = @import("../../app_env.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const events = @import("events.zig");
 const Delta = @import("../Delta.zig");
@@ -33,9 +34,10 @@ pub fn run(deps: *RenderDeps) Error!ExitAction {
     }
 
     // 缓存控制参数
-    state.external_state.target_angle = state.angle.target;
-    state.external_state.target_scale = state.scale.target;
-    state.external_state.move_offset = state.move_offset;
+    const env = app_env.writer();
+    env.target_angle = state.angle.target;
+    env.target_scale = state.scale.target;
+    env.move_offset = state.move_offset;
     // 通知状态停止渲染
     try deps.window.hide();
 

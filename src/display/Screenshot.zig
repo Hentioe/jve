@@ -15,7 +15,7 @@ allocator: Allocator,
 extracted: Extractor,
 image: *const LImage,
 
-pub fn init(allocator: std.mem.Allocator, gpu: *Gpu, texture: ?*c.SDL_GPUTexture, image: *const LImage) Error!Self {
+pub fn init(allocator: std.mem.Allocator, gpu: *const Gpu, texture: ?*c.SDL_GPUTexture, image: *const LImage) Error!Self {
     // 创建下载器
     var extractor = Extractor.init(allocator, gpu, image.shape);
     errdefer extractor.deinit();

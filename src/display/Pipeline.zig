@@ -5,13 +5,13 @@ const Error = @import("errors.zig").Error;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
 
-gpu: *Gpu,
+gpu: *const Gpu,
 sdl_pipeline: *c.SDL_GPUGraphicsPipeline,
 vert_shader: *sdl.c.SDL_GPUShader,
 frag_shader: ?*sdl.c.SDL_GPUShader,
 render_pass: ?*c.SDL_GPURenderPass = null,
 
-pub fn init(gpu: *Gpu, window: *c.SDL_Window, shaders: ShaderPair, vertex_input_state: ?sdl.c.SDL_GPUVertexInputState) Error!Self {
+pub fn init(gpu: *const Gpu, window: *c.SDL_Window, shaders: ShaderPair, vertex_input_state: ?sdl.c.SDL_GPUVertexInputState) Error!Self {
     // 构造管线
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
         .format = gpu.getGPUSwapchainTextureFormat(window),

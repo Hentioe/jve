@@ -6,14 +6,11 @@ const ModKey = @import("../ModKey.zig");
 const OverflowHint = @import("../OverflowHint.zig");
 const Task = @import("../Task.zig");
 const RenderDeps = @import("RenderDeps.zig");
-const display_state = @import("../State.zig");
 const Point = shared.Point(f32);
 const Self = @This();
 
 /// 标记半径（像素），同时作为二次点击移除的判定范围
 pub const marker_radius: f32 = 18.0;
-
-external_state: *display_state, // 外部状态
 
 running: bool = true,
 delta: *const Delta,
@@ -50,7 +47,6 @@ tex_dst: *sdl.c.SDL_GPUTexture,
 
 pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     var state = Self{
-        .external_state = deps.external_state,
         .delta = delta,
         .mod_key = ModKey.init(ModKey.keycode(config.modKey())),
         .overflow_hint = OverflowHint.init(1.25, 1.25, 0.9),

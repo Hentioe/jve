@@ -8,13 +8,13 @@ const IShape = shared.IShape;
 const Self = @This();
 
 allocator: std.mem.Allocator,
-gpu: *Gpu,
+gpu: *const Gpu,
 shape: IShape(u32),
 buffer_size: u32,
 pixels_slice: []u8 = undefined,
 downloaded: bool = false,
 
-pub fn init(allocator: std.mem.Allocator, gpu: *Gpu, shape: IShape(i32)) Self {
+pub fn init(allocator: std.mem.Allocator, gpu: *const Gpu, shape: IShape(i32)) Self {
     const u_shape = shape.to(u32);
     return Self{
         .allocator = allocator,
@@ -71,7 +71,7 @@ pub fn downloadTexture(self: *Self, texture: ?*c.SDL_GPUTexture) Error!void {
     self.downloaded = true;
 }
 
-pub fn extract(allocator: std.mem.Allocator, gpu: *Gpu, texture: ?*c.SDL_GPUTexture, shape: IShape(i32)) Error!Self {
+pub fn extract(allocator: std.mem.Allocator, gpu: *const Gpu, texture: ?*c.SDL_GPUTexture, shape: IShape(i32)) Error!Self {
     var extractor = Self.init(allocator, gpu, shape);
     // 立即下载
     try extractor.downloadTexture(texture);

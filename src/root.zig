@@ -2,13 +2,13 @@ const std = @import("std");
 const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 
+pub const app_env = @import("app_env.zig");
 pub const config = @import("config");
 pub const vips = @import("vips");
 pub const display = @import("display.zig");
 pub const gallery = @import("gallery.zig");
 pub const clipboard = @import("clipboard.zig");
 pub const remover = @import("ai").remover;
-pub const State = display.State;
 pub const LoadError = errors.LoadError;
 
 const DisplayMode = display.Viewer.Mode;
@@ -22,6 +22,7 @@ extern "c" fn mallopt(param: c_int, value: c_int) c_int;
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8, config_path: ?[]const u8) !void {
     // 限制 malloc arena 数量，避免工作线程造成的内存滞留
     if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
+    app_env.init(allocator);
     try config.init(allocator, config_path); // todo: 支持手动传递配置
     try vips.init(allocator);
     try gallery.init(allocator, file_path);
@@ -35,6 +36,7 @@ pub fn deinit() void {
     gallery.deinit();
     vips.deinit();
     config.deinit();
+    app_env.deinit();
 }
 
 pub fn vips_init(allocator: Allocator) !void {
@@ -69,7 +71,7 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
     return try vips.loader.load(allocator, file_path);
 }
 
-pub fn show(allocator: Allocator, display_mode: []const u8) !void {
+pub fn show(display_mode: []const u8) !void {
     std.log.info("Display mode: {s}", .{display_mode});
     const mode: DisplayMode = if (std.mem.eql(u8, display_mode, "preview"))
         .preview
@@ -80,7 +82,7 @@ pub fn show(allocator: Allocator, display_mode: []const u8) !void {
         return error.UnknownDisplayMode;
     };
 
-    try display.show(mode, allocator);
+    try display.show(mode);
 }
 
 pub fn showWelcome(allocator: Allocator) !void {

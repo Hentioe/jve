@@ -7,12 +7,10 @@ const Animated = @import("../Animated.zig");
 const SlideIn = @import("../SlideIn.zig");
 const Window = @import("../window.zig");
 const RenderDeps = @import("RenderDeps.zig");
-const display_state = @import("../State.zig");
+const app_env = @import("../../app_env.zig");
 const Size2D = shared.Size2D;
 const Point = shared.Point(f32);
 const Self = @This();
-
-external_state: *display_state, // 外部状态
 
 running: bool = true,
 delta: *const Delta,
@@ -27,17 +25,16 @@ toggle: bool = false,
 dirty: bool = true,
 
 pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
-    const external_state = deps.external_state;
-    // 缩放/角度从外部状态缓存的目标值出发
+    const env = app_env.reader();
+    // 缩放/角度从全局缓存的目标值开始
     var scale = Animated.init(1.0, 1.0, 15);
-    scale.updateTarget(external_state.target_scale);
+    scale.updateTarget(env.target_scale);
     var angle = Animated.init(0.0, 0.0, 15);
-    angle.updateTargetAngular(external_state.target_angle);
+    angle.updateTargetAngular(env.target_angle);
     var state = Self{
-        .external_state = external_state,
         .delta = delta,
         .mod_key = ModKey.init(ModKey.keycode(config.modKey())),
-        .move_offset = external_state.move_offset,
+        .move_offset = env.move_offset,
         .scale = scale,
         .angle = angle,
         .slide = SlideIn.init(1.0, 20.0, 1.0),

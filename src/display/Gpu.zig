@@ -4,7 +4,8 @@ const shared = @import("shared");
 const config = @import("config");
 const gallery = @import("../gallery.zig");
 const Window = @import("window.zig");
-const State = @import("State.zig");
+const Device = @import("Device.zig");
+const app_env = @import("../app_env.zig");
 const ShaderScanner = @import("ShaderScanner.zig");
 const RenderDeps = @import("gpu/RenderDeps.zig");
 const loop = @import("gpu/loop.zig");
@@ -15,27 +16,22 @@ const Self = @This();
 
 allocator: std.mem.Allocator,
 window: *Window,
-device: sdl.Gpu,
+device: *const sdl.Gpu,
 shaders: ?Shaders,
-external_state: *State,
 
-pub fn init(allocator: std.mem.Allocator, external_state: *State) Error!Self {
+pub fn init(allocator: std.mem.Allocator) Error!Self {
     // 初始化 GPU 模式
     std.log.info("Initializing GPU mode", .{});
     const image = try gallery.current();
     const image_size = image.shape.toSize2D(i32);
     // 创建窗口
-    const window = try Window.create(
-        allocator,
-        image_size,
-        .{ .windowed = true, .mode = .gpu },
-    );
+    const window = try Window.create(allocator, image_size, .{ .windowed = true, .mode = .gpu });
     errdefer window.destroy();
-    // 创建 GPU
-    var device = try sdl.Gpu.create();
-    errdefer device.destroy();
+    // 获取显示层共享的 GPU 设备
+    const device = try Device.get();
     // 绑定窗口到 GPU 设备
     try device.claimWindow(window.sdl_window);
+    window.gpu_device = device;
     // 关闭垂直同步（修改交换链的 Present Mode）
     // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
     // 注意：目前垂直同步关闭已被取消，sdl_gpu 仍然是默认状态。
@@ -62,21 +58,20 @@ pub fn init(allocator: std.mem.Allocator, external_state: *State) Error!Self {
             defer shader_scanner.deinit();
             std.log.info("Scanning shaders in directory: {s}", .{full_path});
             try shader_scanner.scan();
-            shaders = try shader_scanner.compileShaders(allocator, &device);
+            shaders = try shader_scanner.compileShaders(allocator, device);
         } else {
             std.log.warn("Shader directory does not exist: {s}", .{full_path});
         }
     };
 
-    // 记录外部状态
-    external_state.image_shape = image.shape;
+    // 记录图片形状
+    app_env.writer().image_shape = image.shape;
 
     return Self{
         .allocator = allocator,
         .window = window,
         .device = device,
         .shaders = shaders,
-        .external_state = external_state,
     };
 }
 
@@ -86,7 +81,6 @@ pub fn deinit(self: *Self) void {
         for (shaders.items) |shader| self.device.releaseGPUShader(shader);
         shaders.deinit(self.allocator);
     }
-    self.device.destroy();
     self.window.destroy();
     self.* = undefined;
 }
@@ -94,13 +88,13 @@ pub fn deinit(self: *Self) void {
 pub fn show(self: *Self) Error!ExitAction {
     const image = try gallery.current();
     // 当来自于模式切换（预览 -> GPU），立即释放内存
-    if (self.external_state.has(.preview)) shared.heap.mallocTrim();
+    if (app_env.reader().preview_initialized) shared.heap.mallocTrim();
     const shaders: ?[]const *sdl.c.SDL_GPUShader = if (self.shaders) |*s| s.items else null;
-    var deps = try RenderDeps.init(self.allocator, self.window, &self.device, self.external_state, shaders, image);
+    var deps = try RenderDeps.init(self.allocator, self.window, self.device, shaders, image);
     errdefer deps.deinit();
 
-    // 更新外部状态与窗口
-    self.external_state.image_shape = image.shape;
+    // 更新图片形状
+    app_env.writer().image_shape = image.shape;
     try self.window.setTitle(image.file_name);
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     try self.window.show();

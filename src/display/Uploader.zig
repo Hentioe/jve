@@ -56,10 +56,10 @@ const UploadTask = union(enum) {
 };
 
 allocator: Allocator,
-gpu: *Gpu,
+gpu: *const Gpu,
 tasks: std.ArrayListUnmanaged(UploadTask),
 
-pub fn init(allocator: Allocator, gpu: *Gpu) Self {
+pub fn init(allocator: Allocator, gpu: *const Gpu) Self {
     return .{
         .gpu = gpu,
         .allocator = allocator,

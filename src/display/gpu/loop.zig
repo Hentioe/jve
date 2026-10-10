@@ -1,5 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const app_env = @import("../../app_env.zig");
 const Delta = @import("../Delta.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const events = @import("events.zig");
@@ -44,9 +45,9 @@ pub fn run(deps: *RenderDeps) Error!ExitAction {
 
     // 通知状态停止渲染
     try deps.window.hide();
-    // 切换模式时，把纹理写入外部状态缓存
+    // 切换模式时，把纹理写入全局缓存
     if (state.toggle) {
-        state.external_state.writeTexture(deps.device, state.tex_src) catch |err| {
+        app_env.writer().writeTexture(deps.device, state.tex_src) catch |err| {
             std.log.err("Failed to write texture to state: {}", .{err});
         };
     }

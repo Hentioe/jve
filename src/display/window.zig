@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("sdl").c;
 const h = @import("sdl").h;
+const Gpu = @import("sdl").Gpu;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
@@ -21,6 +22,7 @@ image_height: i32,
 display_width: i32,
 display_height: i32,
 sdl_window: *c.SDL_Window,
+gpu_device: ?*const Gpu = null, // 绑定到的 GPU 设备（仅 GPU 模式窗口非空），销毁前需解绑
 windowed: bool, // 是否窗口化
 overflow: Overflow = .none, // 图片超出窗口最大限制的方向
 mod_key_pressed: bool = false, // 是否按下了 Mod 键
@@ -84,6 +86,8 @@ pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*
 }
 
 pub fn destroy(self: *Self) void {
+    // 若窗口已绑定到 GPU 设备，销毁前必须先解绑
+    if (self.gpu_device) |device| device.releaseWindow(self.sdl_window);
     // 隐藏窗口
     h.check(c.SDL_HideWindow(self.sdl_window)) catch {}; // 出错不影响窗口关闭，忽略返回值
     c.SDL_DestroyWindow(self.sdl_window);

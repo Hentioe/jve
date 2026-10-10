@@ -27,7 +27,7 @@ pub fn scan(self: *Self) Error!void {
     try self.scanner.scan();
 }
 
-pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *Gpu) Error!ArrayList(*c.SDL_GPUShader) {
+pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const Gpu) Error!ArrayList(*c.SDL_GPUShader) {
     const base_dir = self.scanner.dir_path;
     const files = self.scanner.items();
     var shaders = try ArrayList(*c.SDL_GPUShader).initCapacity(allocator, 0);

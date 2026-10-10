@@ -17,13 +17,13 @@ const EffectType = enum {
 };
 
 pub const Builder = struct {
-    gpu: *Gpu,
+    gpu: *const Gpu,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 
     pub fn init(
-        gpu: *Gpu,
+        gpu: *const Gpu,
         vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
         vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
         color_target_desc: *const c.SDL_GPUColorTargetDescription,
@@ -54,7 +54,7 @@ render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(
     effect: EffectType,
-    gpu: *Gpu,
+    gpu: *const Gpu,
     shader_pair: ShaderPair,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
@@ -73,7 +73,7 @@ pub fn init(
     };
 }
 
-pub fn deinit(self: *Self, gpu: *Gpu) void {
+pub fn deinit(self: *Self, gpu: *const Gpu) void {
     gpu.releaseGPUGraphicsPipeline(self.pipeline);
     self.* = undefined;
 }

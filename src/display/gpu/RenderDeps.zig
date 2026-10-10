@@ -4,7 +4,6 @@ const consts = @import("../consts.zig");
 const structs = @import("../structs.zig");
 const LImage = @import("vips").LImage;
 const Window = @import("../window.zig");
-const State = @import("../State.zig");
 const Uploader = @import("../Uploader.zig");
 const shader_loader = @import("../shader_loader.zig");
 const Checkerboard = @import("../checkerboard_gpu.zig");
@@ -17,8 +16,7 @@ const Self = @This();
 
 allocator: std.mem.Allocator,
 window: *Window,
-device: *sdl.Gpu,
-external_state: *State,
+device: *const sdl.Gpu,
 image: LImage,
 uploader: Uploader,
 texture: *sdl.c.SDL_GPUTexture,
@@ -56,8 +54,7 @@ custom: std.ArrayList(*PostPipeline),
 pub fn init(
     allocator: std.mem.Allocator,
     window: *Window,
-    device: *sdl.Gpu,
-    external_state: *State,
+    device: *const sdl.Gpu,
     shaders: ?[]const *sdl.c.SDL_GPUShader,
     image: LImage,
 ) Error!Self {
@@ -186,7 +183,6 @@ pub fn init(
         .allocator = allocator,
         .window = window,
         .device = device,
-        .external_state = external_state,
         .image = image,
         .uploader = uploader,
         .texture = texture,

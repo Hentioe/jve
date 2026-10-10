@@ -31,7 +31,7 @@ pub fn main() !void {
         // 显示模式
         const display_mode: []const u8 = res.args.display orelse jve.config.get().display_mode;
         // 显示图像
-        try jve.show(allocator, display_mode);
+        try jve.show(display_mode);
     } else {
         try jve.display_init();
         defer jve.display_deinit();

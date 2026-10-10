@@ -10,7 +10,7 @@ pipeline: *c.SDL_GPUGraphicsPipeline,
 render_pass: *c.SDL_GPURenderPass = undefined,
 
 pub fn init(
-    gpu: *Gpu,
+    gpu: *const Gpu,
     vert_shader: *c.SDL_GPUShader,
     vert_buffer_desc: *const c.SDL_GPUVertexBufferDescription,
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,

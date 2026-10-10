@@ -46,7 +46,7 @@ thread: std.Thread = undefined,
 extracted: ?Extractor = null,
 result: ?Result = null,
 
-pub fn start(allocator: Allocator, gpu: *Gpu, texture: ?*c.SDL_GPUTexture, input: Input) Error!*Self {
+pub fn start(allocator: Allocator, gpu: *const Gpu, texture: ?*c.SDL_GPUTexture, input: Input) Error!*Self {
     // 申请内存分配自身
     const self_ptr = try allocator.create(Self);
     errdefer allocator.destroy(self_ptr);
@@ -61,7 +61,7 @@ pub fn start(allocator: Allocator, gpu: *Gpu, texture: ?*c.SDL_GPUTexture, input
 
 fn run(
     self: *Self,
-    gpu: *Gpu,
+    gpu: *const Gpu,
     texture: ?*c.SDL_GPUTexture,
     input: Input,
 ) void {
@@ -73,7 +73,7 @@ fn run(
 
 fn execute(
     self: *Self,
-    gpu: *Gpu,
+    gpu: *const Gpu,
     texture: ?*c.SDL_GPUTexture,
     input: Input,
 ) !void {
