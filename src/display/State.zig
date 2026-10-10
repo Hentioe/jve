@@ -5,8 +5,7 @@ const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
 const IShape = shared.IShape;
 const Point = shared.Point(f32);
-const Preview = @import("Preview.zig");
-const Gpu = @import("Gpu.zig");
+const Viewer = @import("Viewer.zig");
 const Extractor = @import("Extractor.zig");
 const Self = @This();
 
@@ -15,8 +14,8 @@ image_shape: IShape(i32) = undefined,
 target_angle: f64 = 0.0,
 target_scale: f64 = 1.0,
 move_offset: Point = .{},
-preview: ?Preview = null,
-gpu: ?Gpu = null,
+preview_viewer: ?Viewer = null,
+gpu_viewer: ?Viewer = null,
 extracted: ?Extractor = null,
 
 pub fn init(allocator: Allocator) Error!Self {
@@ -24,10 +23,28 @@ pub fn init(allocator: Allocator) Error!Self {
 }
 
 pub fn deinit(self: *Self) void {
-    if (self.preview) |*preview| preview.deinit();
-    if (self.gpu) |*gpu| gpu.deinit();
+    if (self.preview_viewer) |preview| preview.destroy();
+    if (self.gpu_viewer) |gpu| gpu.destroy();
     if (self.extracted) |*extractor| extractor.deinit();
     self.* = undefined;
+}
+
+// 指定模式的 Viewer 实例是否已创建。
+pub fn has(self: *Self, mode: Viewer.Mode) bool {
+    return switch (mode) {
+        .preview => self.preview_viewer != null,
+        .gpu => self.gpu_viewer != null,
+    };
+}
+
+// 惰性初始化并返回指定模式的 Viewer 实例，跨模式切换时复用。
+pub fn viewer(self: *Self, mode: Viewer.Mode) Error!*Viewer {
+    const slot = switch (mode) {
+        .preview => &self.preview_viewer,
+        .gpu => &self.gpu_viewer,
+    };
+    if (slot.* == null) slot.* = try Viewer.create(self.allocator, mode, self);
+    return &slot.*.?;
 }
 
 pub fn writeTexture(self: *Self, device: *sdl.Gpu, gpu_texture: ?*sdl.c.SDL_GPUTexture) Error!void {

@@ -1,48 +1,27 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const Allocator = std.mem.Allocator;
-const Preview = @import("display/Preview.zig");
-const Gpu = @import("display/Gpu.zig");
 
+pub const Viewer = @import("display/Viewer.zig");
 pub const State = @import("display/State.zig");
-pub const Mode = @import("display/enums.zig").Mode;
 pub const Welcome = @import("display/Welcome.zig");
 pub const Error = @import("display/errors.zig").Error;
-const ExitAction = @import("display/enums.zig").ExitAction;
 
-// 初始化外部状态，从初始模式开始，并响应退出/切换动作
-pub fn show(mode: Mode, allocator: Allocator) Error!void {
+pub fn show(mode: Viewer.Mode, allocator: Allocator) Error!void {
     var state = try State.init(allocator);
     defer state.deinit();
 
     var current = mode;
     while (true) {
-        const action = try showMode(current, allocator, &state);
-        current = switch (action) {
-            // 退出
-            .quit => return,
-            // 切换到另一个模式
-            .toggle => switch (current) {
-                .pewview => .gpu,
-                .gpu => .pewview,
+        // 窗口、渲染器、GPU 等资源会按需惰性创建，并在模式切换间复用。
+        const viewer = try state.viewer(current);
+        current = switch (try viewer.show()) {
+            .quit => return, // 退出
+            .toggle => switch (current) { // 切换到另一个模式
+                .preview => .gpu,
+                .gpu => .preview,
             },
         };
-    }
-}
-
-// 展示指定模式。窗口、渲染器等资源按需惰性创建，并在模式切换间复用。
-fn showMode(mode: Mode, allocator: Allocator, state: *State) Error!ExitAction {
-    switch (mode) {
-        .pewview => {
-            if (state.preview == null)
-                state.preview = try Preview.init(allocator, state);
-            return try state.preview.?.show();
-        },
-        .gpu => {
-            if (state.gpu == null)
-                state.gpu = try Gpu.init(allocator, state);
-            return try state.gpu.?.show();
-        },
     }
 }
 

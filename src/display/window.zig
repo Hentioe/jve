@@ -4,7 +4,7 @@ const h = @import("sdl").h;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Error = @import("errors.zig").Error;
-const Mode = @import("enums.zig").Mode;
+const Mode = @import("Viewer.zig").Mode;
 const Overflow = @import("enums.zig").Overflow;
 const ISize = shared.Size2D(i32); // 图片尺寸
 const WSize = shared.Size2D(i32); // 窗口尺寸
@@ -28,7 +28,7 @@ dirty: bool = false,
 
 pub const Options = struct {
     windowed: bool,
-    mode: Mode = .pewview,
+    mode: Mode = .preview,
 };
 
 pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*Self {
@@ -43,7 +43,7 @@ pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*
     defer c.SDL_DestroyProperties(props);
     // 创建时隐藏
     try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, 1));
-    if (options.mode == .pewview) {
+    if (options.mode == .preview) {
         flags |= c.SDL_WINDOW_TRANSPARENT; // 透明背景
     }
     var overflow: Overflow = .none;

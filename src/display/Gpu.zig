@@ -94,7 +94,7 @@ pub fn deinit(self: *Self) void {
 pub fn show(self: *Self) Error!ExitAction {
     const image = try gallery.current();
     // 当来自于模式切换（预览 -> GPU），立即释放内存
-    if (self.external_state.preview != null) shared.heap.mallocTrim();
+    if (self.external_state.has(.preview)) shared.heap.mallocTrim();
     const shaders: ?[]const *sdl.c.SDL_GPUShader = if (self.shaders) |*s| s.items else null;
     var deps = try RenderDeps.init(self.allocator, self.window, &self.device, self.external_state, shaders, image);
     errdefer deps.deinit();

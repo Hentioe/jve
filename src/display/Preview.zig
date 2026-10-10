@@ -21,7 +21,7 @@ pub fn init(allocator: std.mem.Allocator, external_state: *State) Error!Self {
     const window = try Window.create(
         allocator,
         image.shape.toSize2D(i32),
-        .{ .windowed = false, .mode = .pewview },
+        .{ .windowed = false, .mode = .preview },
     );
     errdefer window.destroy();
     // 创建渲染器

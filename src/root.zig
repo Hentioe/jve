@@ -11,7 +11,7 @@ pub const remover = @import("ai").remover;
 pub const State = display.State;
 pub const LoadError = errors.LoadError;
 
-const DisplayMode = display.Mode;
+const DisplayMode = display.Viewer.Mode;
 
 // glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
 // 内存会滞留在各自的 arena 中不归还操作系统，导致轮换图片时 RSS 持续上涨。
@@ -72,7 +72,7 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
 pub fn show(allocator: Allocator, display_mode: []const u8) !void {
     std.log.info("Display mode: {s}", .{display_mode});
     const mode: DisplayMode = if (std.mem.eql(u8, display_mode, "preview"))
-        .pewview
+        .preview
     else if (std.mem.eql(u8, display_mode, "gpu"))
         .gpu
     else {
