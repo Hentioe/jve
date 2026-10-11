@@ -32,6 +32,7 @@ mkShell {
     glib # VIPS 依赖
     libGL # SDL 依赖
     vulkan-loader # Vulkan
+    libass # 文字支持
   ];
 
   ZVM_SET_CU = 1; # 禁止 zvm 升级检查

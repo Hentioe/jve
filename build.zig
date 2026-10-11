@@ -37,6 +37,14 @@ pub fn build(b: *std.Build) void {
     sdl_wrapper_mod.linkLibrary(sdl_test_lib); // 让 sdl_wrapper 链接到 sdl_test
     const sdl_wrapper_import: Import = .{ .name = "sdl", .module = sdl_wrapper_mod };
 
+    // libass
+    const libass_mod = b.addModule("libass", .{
+        .root_source_file = b.path("src/ass.zig"),
+        .target = target,
+    });
+    libass_mod.linkSystemLibrary("libass", .{});
+    const libass_import: Import = .{ .name = "ass", .module = libass_mod };
+
     // TOML 依赖
     const toml_dep = b.dependency("toml", .{});
     const toml_import: Import = .{ .name = "toml", .module = toml_dep.module("toml") };
@@ -99,6 +107,7 @@ pub fn build(b: *std.Build) void {
             ai_import,
             sdl_wrapper_import,
             sdl_shadercross_import,
+            libass_import,
         },
     });
     const root_import: Import = .{ .name = "jve", .module = root_mod };
@@ -164,6 +173,7 @@ pub fn build(b: *std.Build) void {
         .{ .file = "onscreen.frag.hlsl", .stage = .fragment },
         .{ .file = "overflow.frag.hlsl", .stage = .fragment },
         .{ .file = "sharpen.frag.hlsl", .stage = .fragment },
+        .{ .file = "text.frag.hlsl", .stage = .fragment },
         .{ .file = "welcome.frag.hlsl", .stage = .fragment },
     };
 

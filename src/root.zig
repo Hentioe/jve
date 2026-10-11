@@ -8,6 +8,7 @@ pub const vips = @import("vips");
 pub const display = @import("display.zig");
 pub const gallery = @import("gallery.zig");
 pub const clipboard = @import("clipboard.zig");
+pub const ui = @import("ui.zig");
 pub const remover = @import("ai").remover;
 pub const LoadError = errors.LoadError;
 
@@ -26,6 +27,7 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8, config_path: ?[
     try config.init(allocator, config_path); // todo: 支持手动传递配置
     try vips.init(allocator);
     try gallery.init(allocator, file_path);
+    try ui.init();
     try display.init();
 }
 
@@ -33,6 +35,7 @@ pub fn deinit() void {
     // 和 init 的顺序相反，先 deinit 后初始化的组件
     remover.deinit(); // remover 是按需延迟初始化的，无需在此处初始化
     display.deinit();
+    ui.deinit();
     gallery.deinit();
     vips.deinit();
     config.deinit();
@@ -48,11 +51,13 @@ pub fn vips_deinit() void {
 }
 
 pub fn display_init() !void {
+    try ui.init();
     try display.init();
 }
 
 pub fn display_deinit() void {
     display.deinit();
+    ui.deinit();
 }
 
 pub fn isSupported(suffix: []const u8) !bool {

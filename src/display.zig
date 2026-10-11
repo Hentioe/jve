@@ -1,4 +1,3 @@
-const std = @import("std");
 const sdl = @import("sdl");
 const app_env = @import("app_env.zig");
 const Device = @import("display/Device.zig");
@@ -46,13 +45,9 @@ pub fn init() Error!void {
     // 初始化 SDL
     try sdl.check(sdl.c.SDL_Init(sdl.c.SDL_INIT_VIDEO));
     // 设置应用元数据
-    sdl.check(sdl.c.SDL_SetAppMetadata("JVE", "0.0.0", "jve")) catch {
-        std.log.warn("Failed to set app metadata", .{});
-    };
+    try sdl.check(sdl.c.SDL_SetAppMetadata("JVE", "0.0.0", "jve"));
     // 设置应用 ID
-    sdl.check(sdl.c.SDL_SetHint(sdl.c.SDL_HINT_APP_ID, "jve")) catch {
-        std.log.warn("Failed to set app ID", .{});
-    };
+    try sdl.check(sdl.c.SDL_SetHint(sdl.c.SDL_HINT_APP_ID, "jve"));
     // 初始化 ShaderCross
     // todo: 让后端自己去初始化
     try sdl.check(sdl.c.SDL_ShaderCross_Init());

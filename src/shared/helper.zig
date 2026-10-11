@@ -20,3 +20,8 @@ pub fn pathAccessible(path: []const u8) bool {
     };
     return true;
 }
+
+pub fn strdup(s: []const u8) std.mem.Allocator.Error![*:0]u8 {
+    const buf = try std.heap.raw_c_allocator.dupeZ(u8, s);
+    return buf.ptr;
+}

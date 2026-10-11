@@ -15,6 +15,26 @@ pub const ShaderPair = struct {
     frag: *c.SDL_GPUShader,
 };
 
+// 文字片段着色器 Uniforms
+pub const TextUniforms = extern struct {
+    color: [4]f32, // RGBA
+    debug: bool, // 为 true 时输出红色背景，便于观察 quad 的位置与大小
+    _padding: [3]u8 = .{ 0, 0, 0 }, // 补齐到 4 字节，确保与 cbuffer 布局一致
+
+    // 从 libass 的 ASS_Image.color（0xRRGGBBAA，低字节为 ASS alpha：0x00 不透明）
+    // 解码为归一化 RGBA（常规 alpha：0x00 全透明）
+    pub fn fromColor(color: u32, debug: bool) TextUniforms {
+        const a: f32 = @floatFromInt(255 - (color & 0xFF));
+        const r: f32 = @floatFromInt((color >> 24) & 0xFF);
+        const g: f32 = @floatFromInt((color >> 16) & 0xFF);
+        const b: f32 = @floatFromInt((color >> 8) & 0xFF);
+        return .{
+            .color = .{ r / 255.0, g / 255.0, b / 255.0, a / 255.0 },
+            .debug = debug,
+        };
+    }
+};
+
 // 基础片段着色器 Uniforms
 pub const BaseUniforms = extern struct {
     invert: f32, // 0.0 ~ 1.0

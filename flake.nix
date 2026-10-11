@@ -58,7 +58,7 @@
           onnxruntime
           glib
           libGL
-          vulkan-loader
+          libass
         ];
 
         zigBuildFlags = [
