@@ -23,6 +23,7 @@ const WINDOW_SIZE = Size2D(i32){ .w = 1024, .h = 768 };
 const WINDOW_OPTIONS = Window.Options{ .windowed = true, .mode = .gpu };
 const LOGO_TEXT = "JVE";
 const LOGO_FONT = "Liberation Serif";
+const WELCOME_TEXT = "JVE 是一个图像查看器";
 
 const debug = builtin.mode == .Debug;
 
@@ -76,6 +77,17 @@ pub fn show(self: *Self) Error!ExitAction {
         .trim = true,
     });
     defer logo.deinit();
+    var welcome_text = try Text.init(self.allocator, &self.ass_renderer, WELCOME_TEXT);
+    defer welcome_text.deinit();
+    var welcome = try welcome_text.render(Text.Options{
+        .font_name = "Noto Sans",
+        .font_size = 13,
+        .color = 0xFFFFFF33,
+        .bold = false,
+        .spacing = 1.0,
+        .trim = true,
+    });
+    defer welcome.deinit();
     // // 生成关闭图标
     // var close_icon = try Icon.render(self.allocator, icons.close, .{ .color = 0xFFFFFF80 });
     // defer close_icon.deinit();
@@ -91,6 +103,10 @@ pub fn show(self: *Self) Error!ExitAction {
         // TextPair.init(&close_icon, TextPipeline.Options{ .position = .{ .x = 0, .y = 0 }, .debug = debug }),
         // TextPair.init(&minimize_icon, TextPipeline.Options{ .position = .{ .x = @floatFromInt(close_icon.width), .y = 0 }, .debug = debug }),
         TextPair.init(&image, TextPipeline.Options.centered(.{ .w = image.width, .h = image.height }, WINDOW_SIZE, .{ .x = 0, .y = -60 }, debug)),
+        TextPair.init(&welcome, .{ .position = .{
+            .x = @floatFromInt(WINDOW_SIZE.w / 2 - @divTrunc(@as(i32, @intCast(welcome.width)), 2)),
+            .y = @floatFromInt(@as(u32, WINDOW_SIZE.h) - 100),
+        }, .debug = debug }),
     };
 
     var render_deps = try RenderDeps.init(self.allocator, self.window, self.gpu, WINDOW_SIZE, text_pairs);
