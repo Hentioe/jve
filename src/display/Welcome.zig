@@ -16,6 +16,7 @@ const Icon = ui.Icon;
 const icons = ui.icons;
 const TextPipeline = @import("TextPipeline.zig");
 const TextPair = @import("TextPair.zig");
+const Drawable = @import("../ui/Drawable.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -67,9 +68,7 @@ pub fn show(self: *Self) Error!ExitAction {
     // 设置 ass 帧尺寸
     self.ass_renderer.setFrameSize(WINDOW_SIZE.w, WINDOW_SIZE.h);
     // 创建 logo 文字
-    var logo_text = try Text.init(self.allocator, &self.ass_renderer, LOGO_TEXT);
-    defer logo_text.deinit();
-    var logo = try logo_text.render(Text.Options{
+    var logo = try Text.init(self.allocator, &self.ass_renderer, LOGO_TEXT, .{
         .font_name = LOGO_FONT,
         .font_size = 32,
         .bold = true,
@@ -77,9 +76,9 @@ pub fn show(self: *Self) Error!ExitAction {
         .trim = true,
     });
     defer logo.deinit();
-    var welcome_text = try Text.init(self.allocator, &self.ass_renderer, WELCOME_TEXT);
-    defer welcome_text.deinit();
-    var welcome = try welcome_text.render(Text.Options{
+    logo.position(TextPipeline.Options.centered(.{ .w = logo.raster.width, .h = logo.raster.height }, WINDOW_SIZE, .{ .x = 0, .y = 60 }).position)
+        .debug(debug);
+    var welcome = try Text.init(self.allocator, &self.ass_renderer, WELCOME_TEXT, .{
         .font_name = "Noto Sans",
         .font_size = 13,
         .color = 0xFFFFFF33,
@@ -88,6 +87,10 @@ pub fn show(self: *Self) Error!ExitAction {
         .trim = true,
     });
     defer welcome.deinit();
+    welcome.position(.{
+        .x = @floatFromInt(WINDOW_SIZE.w / 2 - @divTrunc(@as(i32, @intCast(welcome.raster.width)), 2)),
+        .y = @floatFromInt(@as(u32, WINDOW_SIZE.h) - 100),
+    }).debug(debug);
     // // 生成关闭图标
     // var close_icon = try Icon.render(self.allocator, icons.close, .{ .color = 0xFFFFFF80 });
     // defer close_icon.deinit();
@@ -99,17 +102,22 @@ pub fn show(self: *Self) Error!ExitAction {
     defer image.deinit();
 
     const text_pairs = &[_]TextPair{
-        TextPair.init(&logo, TextPipeline.Options.centered(.{ .w = logo.width, .h = logo.height }, WINDOW_SIZE, .{ .x = 0, .y = 60 }, debug)),
-        // TextPair.init(&close_icon, TextPipeline.Options{ .position = .{ .x = 0, .y = 0 }, .debug = debug }),
-        // TextPair.init(&minimize_icon, TextPipeline.Options{ .position = .{ .x = @floatFromInt(close_icon.width), .y = 0 }, .debug = debug }),
-        TextPair.init(&image, TextPipeline.Options.centered(.{ .w = image.width, .h = image.height }, WINDOW_SIZE, .{ .x = 0, .y = -60 }, debug)),
-        TextPair.init(&welcome, .{ .position = .{
-            .x = @floatFromInt(WINDOW_SIZE.w / 2 - @divTrunc(@as(i32, @intCast(welcome.width)), 2)),
-            .y = @floatFromInt(@as(u32, WINDOW_SIZE.h) - 100),
-        }, .debug = debug }),
+        TextPair.init(&image, TextPipeline.Options.centered(.{ .w = image.width, .h = image.height }, WINDOW_SIZE, .{ .x = 0, .y = -60 })),
     };
 
-    var render_deps = try RenderDeps.init(self.allocator, self.window, self.gpu, WINDOW_SIZE, text_pairs);
+    var drawables = [_]Drawable{
+        try logo.toDrawable(self.window, self.gpu, WINDOW_SIZE),
+        try welcome.toDrawable(self.window, self.gpu, WINDOW_SIZE),
+    };
+
+    var render_deps = try RenderDeps.init(
+        self.allocator,
+        self.window,
+        self.gpu,
+        WINDOW_SIZE,
+        text_pairs,
+        &drawables,
+    );
     defer render_deps.deinit();
 
     try self.window.show();

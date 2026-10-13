@@ -31,6 +31,8 @@ pub fn render(deps: *RenderDeps, _: *const State) Error!void {
     sdl.c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
     // 绘制文字
     for (deps.texts) |*text| text.draw(render_pass, cmd_buf);
+    // 绘制组件
+    for (deps.drawables) |*drawable| drawable.draw(cmd_buf, render_pass);
     // 结束渲染通道
     sdl.c.SDL_EndGPURenderPass(render_pass);
     // 提交命令缓存区

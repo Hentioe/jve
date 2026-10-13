@@ -20,13 +20,14 @@ pub const Options = struct {
     debug: bool = false,
 
     /// 计算使文字在帧内居中的位置。居中不再是默认行为，需要时显式调用。
-    pub fn centered(raster_size: Size2D(u32), frame_size: Size2D(i32), offset: Point(f32), debug: bool) Options {
+    // todo: 重构为仅返回 Size2D
+    pub fn centered(raster_size: Size2D(u32), frame_size: Size2D(i32), offset: Point(f32)) Options {
         const f_rsize = raster_size.to(f32);
         const bw: f32 = f_rsize.w;
         const bh: f32 = f_rsize.h;
         const fw: f32 = @floatFromInt(frame_size.w);
         const fh: f32 = @floatFromInt(frame_size.h);
-        return .{ .position = .{ .x = (fw - bw) * 0.5 + offset.x, .y = (fh - bh) * 0.5 + offset.y }, .debug = debug };
+        return .{ .position = .{ .x = (fw - bw) * 0.5 + offset.x, .y = (fh - bh) * 0.5 + offset.y } };
     }
 };
 
@@ -41,7 +42,7 @@ uniforms: TextUniforms,
 /// 用栅格化结果建立文字渲染管线：上传覆盖率纹理、按 `options.position` 构造 quad。
 pub fn init(
     allocator: std.mem.Allocator,
-    window: *Window,
+    window: *const Window,
     gpu: *const sdl.Gpu,
     frame_size: Size2D(i32),
     raster: *const AssRendered,
@@ -59,7 +60,8 @@ pub fn init(
         .vertex_attributes = &vert_attrs,
     };
 
-    // 文字管线（复用 base.vert，片元采样覆盖率）
+    // 文字管线
+    // todo: 复用 base.vert
     const vert_shader = try shader_loader.load(gpu, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
     const frag_shader = try shader_loader.load(gpu, @embedFile("text.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     var pipeline = try Pipeline.init(gpu, window.sdl_window, .{ .vert = vert_shader, .frag = frag_shader }, vertex_input_state);

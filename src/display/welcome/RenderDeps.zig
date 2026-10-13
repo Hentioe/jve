@@ -10,23 +10,26 @@ const shader_loader = @import("../shader_loader.zig");
 const Pipeline = @import("../Pipeline.zig");
 const TextPipeline = @import("../TextPipeline.zig");
 const TextPair = @import("../TextPair.zig");
+const Drawable = @import("../../ui/Drawable.zig");
 const Error = @import("../errors.zig").Error;
 const Self = @This();
 
 allocator: Allocator,
-window: *Window,
+window: *const Window,
 gpu: *const sdl.Gpu,
 pipeline: Pipeline,
 verts_buffer: *sdl.c.SDL_GPUBuffer,
 verts_binding: sdl.c.SDL_GPUBufferBinding,
 texts: []TextPipeline,
+drawables: []Drawable,
 
 pub fn init(
     allocator: Allocator,
-    window: *Window,
+    window: *const Window,
     gpu: *const sdl.Gpu,
     frame_size: Size2D(i32),
     text_pairs: []const TextPair,
+    drawables: []Drawable,
 ) Error!Self {
     const vert_buffer_desc: sdl.c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
     const vert_attrs: [2]sdl.c.SDL_GPUVertexAttribute = .{
@@ -72,6 +75,7 @@ pub fn init(
         .verts_buffer = verts_buffer,
         .verts_binding = sdl.c.SDL_GPUBufferBinding{ .buffer = verts_buffer, .offset = 0 },
         .texts = texts,
+        .drawables = drawables,
     };
 }
 

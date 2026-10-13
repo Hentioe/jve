@@ -1,6 +1,7 @@
 const IconRenderer = @import("ui/IconRenderer.zig");
 const Error = @import("ui/errors.zig").Error;
 
+pub const text_renderer = @import("ui/text_renderer.zig");
 pub const Text = @import("ui/Text.zig");
 pub const Icon = @import("ui/Icon.zig");
 pub const icons = @import("ui/icons.zig");
