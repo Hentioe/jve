@@ -13,7 +13,8 @@ const ExitAction = @import("enums.zig").ExitAction;
 const ui = @import("../ui.zig");
 const Text = ui.Text;
 const Icon = ui.Icon;
-const TextPipeline = @import("TextPipeline.zig");
+const TextPipeline = ui.TextPipeline;
+const Uploader = @import("Uploader.zig");
 const Drawable = @import("../ui/Drawable.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
@@ -65,6 +66,12 @@ pub fn deinit(self: *Self) void {
 pub fn show(self: *Self) Error!ExitAction {
     // 设置 ass 帧尺寸
     self.ass_renderer.setFrameSize(WINDOW_SIZE.w, WINDOW_SIZE.h);
+    // 所有文字/图标组件共享的渲染管线
+    var text_pipeline = try TextPipeline.init(self.window, self.gpu);
+    defer text_pipeline.deinit();
+    // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
+    var uploader = Uploader.init(self.allocator, self.gpu);
+    defer uploader.deinit();
     // 创建 logo 文字
     var logo = try Text.init(self.allocator, &self.ass_renderer, LOGO_TEXT, .{
         .font_name = LOGO_FONT,
@@ -74,7 +81,7 @@ pub fn show(self: *Self) Error!ExitAction {
         .trim = true,
     });
     defer logo.deinit();
-    logo.position(TextPipeline.Options.centered(logo.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = 60 })).debug(debug);
+    logo.position(ui.LayoutOptions.centered(logo.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = 60 })).debug(debug);
     var welcome = try Text.init(self.allocator, &self.ass_renderer, WELCOME_TEXT, .{
         .font_name = "Noto Sans",
         .font_size = 13,
@@ -96,14 +103,16 @@ pub fn show(self: *Self) Error!ExitAction {
     // defer minimize.deinit();
     // 生成图像图标
     var image = try Icon.init(self.allocator, .image, .{ .scale = 2.5 });
-    image.position(TextPipeline.Options.centered(image.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = -60 })).debug(debug);
+    image.position(ui.LayoutOptions.centered(image.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = -60 })).debug(debug);
     defer image.deinit();
 
     var drawables = [_]Drawable{
-        try image.toDrawable(self.window, self.gpu, WINDOW_SIZE),
-        try logo.toDrawable(self.window, self.gpu, WINDOW_SIZE),
-        try welcome.toDrawable(self.window, self.gpu, WINDOW_SIZE),
+        try image.toDrawable(&uploader, WINDOW_SIZE, &text_pipeline),
+        try logo.toDrawable(&uploader, WINDOW_SIZE, &text_pipeline),
+        try welcome.toDrawable(&uploader, WINDOW_SIZE, &text_pipeline),
     };
+    // 统一提交所有组件的资源上传
+    try uploader.submit();
 
     var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &drawables);
     defer deps.deinit();
