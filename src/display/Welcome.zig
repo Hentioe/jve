@@ -13,9 +13,7 @@ const ExitAction = @import("enums.zig").ExitAction;
 const ui = @import("../ui.zig");
 const Text = ui.Text;
 const Icon = ui.Icon;
-const icons = ui.icons;
 const TextPipeline = @import("TextPipeline.zig");
-const TextPair = @import("TextPair.zig");
 const Drawable = @import("../ui/Drawable.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
@@ -76,8 +74,7 @@ pub fn show(self: *Self) Error!ExitAction {
         .trim = true,
     });
     defer logo.deinit();
-    logo.position(TextPipeline.Options.centered(.{ .w = logo.raster.width, .h = logo.raster.height }, WINDOW_SIZE, .{ .x = 0, .y = 60 }).position)
-        .debug(debug);
+    logo.position(TextPipeline.Options.centered(logo.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = 60 })).debug(debug);
     var welcome = try Text.init(self.allocator, &self.ass_renderer, WELCOME_TEXT, .{
         .font_name = "Noto Sans",
         .font_size = 13,
@@ -92,36 +89,27 @@ pub fn show(self: *Self) Error!ExitAction {
         .y = @floatFromInt(@as(u32, WINDOW_SIZE.h) - 100),
     }).debug(debug);
     // // 生成关闭图标
-    // var close_icon = try Icon.render(self.allocator, icons.close, .{ .color = 0xFFFFFF80 });
-    // defer close_icon.deinit();
+    // var close = try Icon.init(self.allocator, .close, .{ .color = 0xFFFFFF80 });
+    // defer close.deinit();
     // // 生成最小化图标
-    // var minimize_icon = try Icon.render(self.allocator, icons.minimize, .{ .color = 0xFFFFFF80 });
-    // defer minimize_icon.deinit();
+    // var minimize = try Icon.init(self.allocator, .minimize, .{ .color = 0xFFFFFF80 });
+    // defer minimize.deinit();
     // 生成图像图标
-    var image = try Icon.render(self.allocator, icons.image, .{ .scale = 2.5 });
+    var image = try Icon.init(self.allocator, .image, .{ .scale = 2.5 });
+    image.position(TextPipeline.Options.centered(image.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = -60 })).debug(debug);
     defer image.deinit();
 
-    const text_pairs = &[_]TextPair{
-        TextPair.init(&image, TextPipeline.Options.centered(.{ .w = image.width, .h = image.height }, WINDOW_SIZE, .{ .x = 0, .y = -60 })),
-    };
-
     var drawables = [_]Drawable{
+        try image.toDrawable(self.window, self.gpu, WINDOW_SIZE),
         try logo.toDrawable(self.window, self.gpu, WINDOW_SIZE),
         try welcome.toDrawable(self.window, self.gpu, WINDOW_SIZE),
     };
 
-    var render_deps = try RenderDeps.init(
-        self.allocator,
-        self.window,
-        self.gpu,
-        WINDOW_SIZE,
-        text_pairs,
-        &drawables,
-    );
-    defer render_deps.deinit();
+    var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &drawables);
+    defer deps.deinit();
 
     try self.window.show();
-    try loop.run(&render_deps);
+    try loop.run(&deps);
 
     return .quit;
 }

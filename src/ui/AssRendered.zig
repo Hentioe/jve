@@ -4,6 +4,7 @@
 /// `ass.Image`，因此文字管线无需了解 libass。
 const std = @import("std");
 const ass = @import("ass");
+const Size = @import("shared").Size2D(u32);
 const Self = @This();
 
 allocator: std.mem.Allocator,
@@ -13,6 +14,10 @@ height: u32,
 pixels: []u8, // 单通道覆盖率，长度 = width * height
 color: u32, // 来自 ASS_Image.color（RGBA 字节序）
 detect_change: c_int,
+
+pub fn size(self: *Self) Size {
+    return .{ .w = self.width, .h = self.height };
+}
 
 pub fn deinit(self: *Self) void {
     self.allocator.free(self.pixels);

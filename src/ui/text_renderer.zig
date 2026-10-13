@@ -9,8 +9,7 @@ const consts = @import("consts.zig");
 const DEFAULT_FONT = consts.DEFAULT_FONT;
 const DEFAULT_FONT_SIZE = consts.DEFAULT_FONT_SIZE;
 const AssRendered = @import("AssRendered.zig");
-
-const Error = Allocator.Error || error{AssNotRendered};
+const Error = @import("errors.zig").Error;
 
 pub const Options = struct {
     font_name: []const u8 = DEFAULT_FONT, // 默认字体: Arial
