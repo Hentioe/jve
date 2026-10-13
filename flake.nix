@@ -53,9 +53,7 @@
         buildInputs = with pkgs; [
           vips
           glib
-          shader-slang # Shader 编译
-          spirv-cross # SPIRV-Cross C API
-          directx-shader-compiler # DXC
+          shader-slang
           onnxruntime
           libass
         ];

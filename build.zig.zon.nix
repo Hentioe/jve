@@ -8,14 +8,6 @@
 
 linkFarm "zig-packages" [
   {
-    name = "SDL_shadercross-0.0.0-b_zI8tpfAgDpZOx1uc1k2SG6cpEeSt3yJfXhnnhHg4uj";
-    path = fetchgit {
-      url = "https://github.com/Hentioe/SDL_shadercross";
-      rev = "696a80fc012a5ddeb2a1d202bf240504b21adaed";
-      hash = "sha256-uCSml9Xe+XWIKGjwLiytFXUnA5JWa9p8hGyxDaZy2A0=";
-    };
-  }
-  {
     name = "clap-0.11.0-oBajB-TnAQC7yPLnZRT5WzHZ_4Ly4dX2OILskli74b9H";
     path = fetchgit {
       url = "https://github.com/Hejsil/zig-clap";

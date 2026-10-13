@@ -2,6 +2,7 @@ const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const config = @import("config");
+const slang = @import("slang");
 const gallery = @import("../gallery.zig");
 const Window = @import("window.zig");
 const Device = @import("Device.zig");
@@ -58,7 +59,11 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
             defer shader_scanner.deinit();
             std.log.info("Scanning shaders in directory: {s}", .{full_path});
             try shader_scanner.scan();
-            shaders = try shader_scanner.compileShaders(allocator, device);
+            if (shader_scanner.scanner.names.items.len > 0) { // 仅仅在扫描到着色器后才初始化 Slang
+                try slang.init();
+                shaders = try shader_scanner.compileShaders(allocator, device);
+                slang.deinit();
+            }
         } else {
             std.log.warn("Shader directory does not exist: {s}", .{full_path});
         }

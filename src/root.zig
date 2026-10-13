@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 pub const app_env = @import("app_env.zig");
 pub const config = @import("config");
 pub const vips = @import("vips");
+pub const slang = @import("slang");
 pub const display = @import("display.zig");
 pub const gallery = @import("gallery.zig");
 pub const clipboard = @import("clipboard.zig");

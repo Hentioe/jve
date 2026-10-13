@@ -1,0 +1,82 @@
+const std = @import("std");
+const shared = @import("shared");
+const c = @import("slang/c.zig").c;
+const Compiler = @import("slang/Compiler.zig");
+
+pub const Error = @import("slang/errors.zig").Error;
+
+var initialized: bool = false;
+var compiler: Compiler = undefined;
+
+pub fn init() Error!void {
+    std.debug.assert(!initialized);
+    compiler = try Compiler.init();
+    initialized = true;
+}
+
+pub fn deinit() void {
+    std.log.debug("Deinitializing Slang", .{});
+    std.debug.assert(initialized);
+    compiler.deinit();
+    compiler = undefined;
+    initialized = false;
+    shared.heap.mallocTrim(); // 编译环境相当占用内存，需立即回收
+}
+
+pub const Options = struct {
+    entry: []const u8 = "main",
+    profile: []const u8 = "spirv_1_5",
+};
+
+pub const Compiled = struct {
+    blob: c.SlangShimBlob,
+
+    pub fn deinit(self: *Compiled) void {
+        c.slang_shim_blob_release(&self.blob);
+        self.* = undefined;
+    }
+
+    pub fn bytes(self: Compiled) []const u8 {
+        const p: [*]const u8 = @ptrCast(self.blob.data.?);
+        return p[0..self.blob.size];
+    }
+};
+
+/// `name` 同时作为模块名和诊断信息里显示的文件名。
+/// 返回的 Compiled 直接引用 Slang 的内存，用完调用 deinit。
+pub fn compileToSpirv(allocator: std.mem.Allocator, name: []const u8, source: [:0]const u8, options: Options) !Compiled {
+    // 只用于临时的 NUL 结尾拷贝，函数返回前全部释放
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const name_z = try arena.dupeZ(u8, name);
+    const entry_z = try arena.dupeZ(u8, options.entry);
+    const profile_z = try arena.dupeZ(u8, options.profile);
+
+    var code: c.SlangShimBlob = .{ .data = null, .size = 0, .handle = null };
+    var diag: [*c]u8 = null;
+    defer if (diag != null) c.slang_shim_free(diag);
+
+    const rc = c.slang_shim_compile_spirv(
+        compiler.handle,
+        name_z.ptr,
+        source.ptr,
+        entry_z.ptr,
+        profile_z.ptr,
+        &code,
+        &diag,
+    );
+
+    if (diag != null) {
+        const msg = std.mem.span(diag);
+        if (rc != 0) {
+            std.log.err("slang ({d}): {s}", .{ rc, msg });
+        } else {
+            std.log.warn("slang: {s}", .{msg});
+        }
+    }
+    if (rc != 0) return Error.SlangCompileFailed;
+
+    return .{ .blob = code };
+}

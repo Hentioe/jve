@@ -112,8 +112,8 @@ pub fn init(
             .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
         },
     };
-    const vert_shader = try shader_loader.load(device, @embedFile("base.vert.spv"), "main", .vertex, 0, 0);
-    const frag_shader = try shader_loader.load(device, @embedFile("base.frag.spv"), "main", .fragment, 1, 1);
+    const vert_shader = try shader_loader.load(device, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
+    const frag_shader = try shader_loader.load(device, @embedFile("base.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const vert_buffer_desc: sdl.c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
     const pipeline_info: sdl.c.SDL_GPUGraphicsPipelineCreateInfo = .{
         .vertex_shader = vert_shader, // 编译好的顶点着色器
@@ -149,21 +149,21 @@ pub fn init(
     const onscreen = try OnscreenPipeline.init(device, vert_shader, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     // 创建内建的后处理管线
     const pl_builder = PostPipeline.Builder.init(device, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    const sharpen_frag_shader = try shader_loader.load(device, @embedFile("sharpen.frag.spv"), "main", .fragment, 1, 1);
+    const sharpen_frag_shader = try shader_loader.load(device, @embedFile("sharpen.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const sharpen = try pl_builder.build(.sharpen, .{ .vert = vert_shader, .frag = sharpen_frag_shader });
-    const blur_frag_shader = try shader_loader.load(device, @embedFile("blur.frag.spv"), "main", .fragment, 1, 1);
+    const blur_frag_shader = try shader_loader.load(device, @embedFile("blur.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const blur_x_pl = try pl_builder.build(.blur_x, .{ .vert = vert_shader, .frag = blur_frag_shader });
     const blur_y_pl = try pl_builder.build(.blur_y, .{ .vert = vert_shader, .frag = blur_frag_shader });
-    const fog_frag_shader = try shader_loader.load(device, @embedFile("fog.frag.spv"), "main", .fragment, 0, 1);
+    const fog_frag_shader = try shader_loader.load(device, @embedFile("fog.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
     const fog_pl = try pl_builder.build(.fog, .{ .vert = vert_shader, .frag = fog_frag_shader });
     // 构造超出提示管线（图片过大被限制尺寸时，在屏幕边缘显示提示）
-    const overflow_frag_shader = try shader_loader.load(device, @embedFile("overflow.frag.spv"), "main", .fragment, 0, 1);
+    const overflow_frag_shader = try shader_loader.load(device, @embedFile("overflow.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
     const overflow_pl = try pl_builder.build(.overflow, .{ .vert = vert_shader, .frag = overflow_frag_shader });
-    const mask_frag_shader = try shader_loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, 2, 0);
+    const mask_frag_shader = try shader_loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, .{ .samplers = 2, .buffers = 0 });
     const mask_pl = try pl_builder.build(.mask, .{ .vert = vert_shader, .frag = mask_frag_shader });
     // 构造标记管线
-    const marker_vert_shader = try shader_loader.load(device, @embedFile("marker.vert.spv"), "main", .vertex, 0, 1);
-    const marker_frag_shader = try shader_loader.load(device, @embedFile("marker.frag.spv"), "main", .fragment, 0, 1);
+    const marker_vert_shader = try shader_loader.load(device, @embedFile("marker.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 1 });
+    const marker_frag_shader = try shader_loader.load(device, @embedFile("marker.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
     const marker_pl = try Pipeline.init(device, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader }, null);
 
     // 添加自定义管线

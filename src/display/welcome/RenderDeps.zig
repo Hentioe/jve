@@ -41,8 +41,8 @@ pub fn init(
     };
 
     // 全屏日食管线
-    const vert_shader = try shader_loader.load(gpu, @embedFile("base.vert.spv"), "main", .vertex, 0, 0);
-    const frag_shader = try shader_loader.load(gpu, @embedFile("welcome.frag.spv"), "main", .fragment, 0, 0);
+    const vert_shader = try shader_loader.load(gpu, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
+    const frag_shader = try shader_loader.load(gpu, @embedFile("welcome.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
     const pipeline = try Pipeline.init(gpu, window.sdl_window, .{ .vert = vert_shader, .frag = frag_shader }, vertex_input_state);
 
     // 文字管线（Logo、图标）

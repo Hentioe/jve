@@ -60,8 +60,8 @@ pub fn init(
     };
 
     // 文字管线（复用 base.vert，片元采样覆盖率）
-    const vert_shader = try shader_loader.load(gpu, @embedFile("base.vert.spv"), "main", .vertex, 0, 0);
-    const frag_shader = try shader_loader.load(gpu, @embedFile("text.frag.spv"), "main", .fragment, 1, 1);
+    const vert_shader = try shader_loader.load(gpu, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
+    const frag_shader = try shader_loader.load(gpu, @embedFile("text.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     var pipeline = try Pipeline.init(gpu, window.sdl_window, .{ .vert = vert_shader, .frag = frag_shader }, vertex_input_state);
     errdefer pipeline.deinit();
     var uploader = Uploader.init(allocator, gpu);

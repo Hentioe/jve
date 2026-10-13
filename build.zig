@@ -28,22 +28,11 @@ pub fn build(b: *std.Build) void {
     const sdl_lib = sdl_dep.artifact("SDL3");
     const sdl_test_lib = sdl_dep.artifact("SDL3_test");
 
-    // SDL_shadercross 依赖
-    const sdl_shadercross_dep = b.dependency("SDL_shadercross", .{
-        .target = target,
-        .optimize = optimize,
-        .link_system_sdl = false, // 已由外部提供 SDL，禁用系统回退
-    });
-    const sdl_shadercross_mod = sdl_shadercross_dep.module("SDL_shadercross");
-    const sdl_shadercross_import: Import = .{ .name = "SDL_shadercross", .module = sdl_shadercross_mod };
-    sdl_shadercross_mod.linkLibrary(sdl_lib); // 让 sdl_shadercross 链接到 sdl
-
     // SDL 包装模块
     const sdl_wrapper_mod = b.addModule("sdl", .{
         .root_source_file = b.path("src/sdl.zig"),
         .target = target,
     });
-    sdl_wrapper_mod.addIncludePath(sdl_shadercross_dep.path("include")); // 包含 SDL_shadercross 的头文件
     sdl_wrapper_mod.linkLibrary(sdl_lib); // 让 sdl_wrapper 链接到 sdl
     sdl_wrapper_mod.linkLibrary(sdl_test_lib); // 让 sdl_wrapper 链接到 sdl_test
     const sdl_wrapper_import: Import = .{ .name = "sdl", .module = sdl_wrapper_mod };
@@ -55,6 +44,18 @@ pub fn build(b: *std.Build) void {
     });
     libass_mod.linkSystemLibrary("libass", .{});
     const libass_import: Import = .{ .name = "ass", .module = libass_mod };
+
+    // slang
+    const slang_mod = b.addModule("slang", .{
+        .root_source_file = b.path("src/slang.zig"),
+        .target = target,
+        .imports = &.{shared_import},
+        .link_libcpp = true,
+    });
+    slang_mod.linkSystemLibrary("slang", .{}); // 链接系统 slang 库
+    slang_mod.addCSourceFile(.{ .file = b.path("src/slang/shim.cpp"), .flags = &.{"-std=c++17"} }); // 用 shim.cpp 简化接口
+    slang_mod.addIncludePath(b.path("include")); // 包含 slang_shim.h 的自定义头文件路径
+    const slang_import: Import = .{ .name = "slang", .module = slang_mod };
 
     // TOML 依赖
     const toml_dep = b.dependency("toml", .{});
@@ -107,8 +108,8 @@ pub fn build(b: *std.Build) void {
             vips_import,
             ort_import,
             ai_import,
+            slang_import,
             sdl_wrapper_import,
-            sdl_shadercross_import,
             libass_import,
         },
     });

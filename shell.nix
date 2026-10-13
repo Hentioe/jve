@@ -29,8 +29,6 @@ mkShell {
     vips # 图像解码
     glib # VIPS 依赖
     shader-slang # Shader 编译（Slang+HLSL）
-    spirv-cross # SPIRV-Cross C API（SDL_shadercross 依赖）
-    directx-shader-compiler # DXC（SDL_shadercross 依赖）
     onnxruntime-rocm # ONNX 推理引擎
     libass # 文字支持
   ];

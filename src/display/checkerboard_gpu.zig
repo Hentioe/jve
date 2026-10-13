@@ -13,8 +13,8 @@ render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(gpu: *const Gpu, window: *Window) Error!Self {
     // 构造棋盘格管线
-    const vert_shader = try shader_loader.load(gpu, @embedFile("checker.vert.spv"), "main", .vertex, 0, 0);
-    const frag_shader = try shader_loader.load(gpu, @embedFile("checker.frag.spv"), "main", .fragment, 0, 0);
+    const vert_shader = try shader_loader.load(gpu, @embedFile("checker.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
+    const frag_shader = try shader_loader.load(gpu, @embedFile("checker.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{ .format = gpu.getGPUSwapchainTextureFormat(window.sdl_window) };
     const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
         .vertex_shader = vert_shader, // 编译好的顶点着色器

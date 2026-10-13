@@ -16,7 +16,7 @@ pub fn init(
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 ) Error!Self {
-    const frag_sharder = try shader_loader.load(gpu, @embedFile("onscreen.frag.spv"), "main", .fragment, 1, 0);
+    const frag_sharder = try shader_loader.load(gpu, @embedFile("onscreen.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 0 });
     const pipeline = try post_util.createPipeline(
         gpu,
         .{ .vert = vert_shader, .frag = frag_sharder },

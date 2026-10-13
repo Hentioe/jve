@@ -48,9 +48,6 @@ pub fn init() Error!void {
     try sdl.check(sdl.c.SDL_SetAppMetadata("JVE", "0.0.0", "jve"));
     // 设置应用 ID
     try sdl.check(sdl.c.SDL_SetHint(sdl.c.SDL_HINT_APP_ID, "jve"));
-    // 初始化 ShaderCross
-    // todo: 让后端自己去初始化
-    try sdl.check(sdl.c.SDL_ShaderCross_Init());
 }
 
 pub fn deinit() void {
