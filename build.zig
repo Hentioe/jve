@@ -164,6 +164,7 @@ pub fn build(b: *std.Build) void {
     const shaders = [_][]const u8{
         "base.frag.slang",
         "base.vert.slang",
+        "banner.frag.slang",
         "blur.frag.slang",
         "fog.frag.slang",
         "checker.frag.slang",

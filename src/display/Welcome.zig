@@ -14,6 +14,8 @@ const ui = @import("../ui.zig");
 const Text = ui.Text;
 const Icon = ui.Icon;
 const TextPipeline = ui.TextPipeline;
+const BannerPipeline = ui.BannerPipeline;
+const TextBanner = ui.TextBanner;
 const Uploader = @import("Uploader.zig");
 const Drawable = @import("../ui/Drawable.zig");
 const Error = @import("errors.zig").Error;
@@ -69,6 +71,10 @@ pub fn show(self: *Self) Error!ExitAction {
     // 所有文字/图标组件共享的渲染管线
     var text_pipeline = try TextPipeline.init(self.window, self.gpu);
     defer text_pipeline.deinit();
+    // 横幅背景共享的渲染管线
+    // todo: 单例化 banner 管线，在 banner 组件中直接获取
+    var banner_pipeline = try BannerPipeline.init(self.window, self.gpu);
+    defer banner_pipeline.deinit();
     // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
     var uploader = Uploader.init(self.allocator, self.gpu);
     defer uploader.deinit();
@@ -82,19 +88,6 @@ pub fn show(self: *Self) Error!ExitAction {
     });
     defer logo.deinit();
     logo.position(ui.LayoutOptions.centered(logo.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = 60 })).debug(debug);
-    var welcome = try Text.init(self.allocator, &self.ass_renderer, WELCOME_TEXT, .{
-        .font_name = "Noto Sans",
-        .font_size = 13,
-        .color = 0xFFFFFF33,
-        .bold = false,
-        .spacing = 1.0,
-        .trim = true,
-    });
-    defer welcome.deinit();
-    welcome.position(.{
-        .x = @floatFromInt(WINDOW_SIZE.w / 2 - @divTrunc(@as(i32, @intCast(welcome.raster.width)), 2)),
-        .y = @floatFromInt(@as(u32, WINDOW_SIZE.h) - 100),
-    }).debug(debug);
     // // 生成关闭图标
     // var close = try Icon.init(self.allocator, .close, .{ .color = 0xFFFFFF80 });
     // defer close.deinit();
@@ -109,12 +102,18 @@ pub fn show(self: *Self) Error!ExitAction {
     var drawables = [_]Drawable{
         try image.toDrawable(&uploader, WINDOW_SIZE, &text_pipeline),
         try logo.toDrawable(&uploader, WINDOW_SIZE, &text_pipeline),
-        try welcome.toDrawable(&uploader, WINDOW_SIZE, &text_pipeline),
     };
     // 统一提交所有组件的资源上传
     try uploader.submit();
 
-    var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &drawables);
+    // 底部横幅（背景默认红色，测试文本）；帧渲染中一直显示
+    var banner = try TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &uploader, &text_pipeline, &banner_pipeline, .{
+        .color = .{ 1.0, 1.0, 1.0, 0.15 }, // 半透明白色
+    });
+    defer banner.deinit();
+    try banner.setText(WELCOME_TEXT);
+
+    var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &drawables, &banner);
     defer deps.deinit();
 
     try self.window.show();

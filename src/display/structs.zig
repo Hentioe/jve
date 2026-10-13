@@ -35,6 +35,14 @@ pub const TextUniforms = extern struct {
     }
 };
 
+// 横幅背景片段着色器 Uniforms
+pub const BannerUniforms = extern struct {
+    color: [4]f32, // RGBA
+    band: [2]f32, // uv 空间可见区间：x=上边, y=下边
+    debug: bool, // 为 true 时输出红色背景
+    _padding: [3]u8 = .{ 0, 0, 0 }, // 补齐到 4 字节，确保与 cbuffer 布局一致
+};
+
 // 基础片段着色器 Uniforms
 pub const BaseUniforms = extern struct {
     invert: f32, // 0.0 ~ 1.0
