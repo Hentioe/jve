@@ -69,8 +69,7 @@
           ln -s ${
             pkgs.callPackage ./build.zig.zon.nix {
               # zon2nix 用 `nix flake prefetch` 计算 hash（不会拉取 git 子模块），
-              # 而 nixpkgs 的 fetchgit 默认 fetchSubmodules = true，遇到带子模块的
-              # 依赖（如 SDL_shadercross）时 hash 会对不上，故显式关闭以对齐。
+              # 而 nixpkgs 的 fetchgit 默认 fetchSubmodules = true，遇到带子模块的依赖（目前还没有）时 hash 会对不上，故显式关闭以对齐。
               fetchgit = args: pkgs.fetchgit (args // { fetchSubmodules = false; });
             }
           } $ZIG_GLOBAL_CACHE_DIR/p
