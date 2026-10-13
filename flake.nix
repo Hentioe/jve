@@ -47,17 +47,16 @@
         nativeBuildInputs = with pkgs; [
           zig_0_15
           pkg-config
-          sdl3-shadercross # 提供 shadercross 命令
           makeBinaryWrapper # 用于 postFixup 里的 wrapProgram
         ];
 
         buildInputs = with pkgs; [
           vips
-          spirv-cross # SPIRV-Cross C API（SDL_shadercross 依赖）
-          directx-shader-compiler # DXC（SDL_shadercross 依赖）
-          onnxruntime
           glib
-          libGL
+          shader-slang # Shader 编译
+          spirv-cross # SPIRV-Cross C API
+          directx-shader-compiler # DXC
+          onnxruntime
           libass
         ];
 

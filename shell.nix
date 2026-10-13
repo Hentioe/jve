@@ -8,7 +8,6 @@ let
   nativeTools = [
     custom-zig # 受 zvm 管理的 Zig
     zon2nix # 转换 Zig 依赖为 Nix 依赖
-    sdl3-shadercross # 提供 shadercross 命令
     pkg-config # 系统库搜索
   ];
   # 运行时所需工具
@@ -19,6 +18,8 @@ let
   # 运行时所需库
   runtimeLibs = [
     libxcursor # X11 光标库（避免回退成黑色小光标）
+    libGL # SDL 依赖
+    vulkan-loader # Vulkan
   ];
 in
 mkShell {
@@ -26,12 +27,11 @@ mkShell {
 
   buildInputs = [
     vips # 图像解码
+    glib # VIPS 依赖
+    shader-slang # Shader 编译（Slang+HLSL）
     spirv-cross # SPIRV-Cross C API（SDL_shadercross 依赖）
     directx-shader-compiler # DXC（SDL_shadercross 依赖）
     onnxruntime-rocm # ONNX 推理引擎
-    glib # VIPS 依赖
-    libGL # SDL 依赖
-    vulkan-loader # Vulkan
     libass # 文字支持
   ];
 
