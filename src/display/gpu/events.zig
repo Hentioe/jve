@@ -4,7 +4,61 @@ const Task = @import("../Task.zig");
 const ModKey = @import("../ModKey.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");
+const ui = @import("../../ui.zig");
 const Error = @import("../errors.zig").Error;
+
+pub fn build(event: *const sdl.Event) ?ui.Event {
+    return switch (event.type) {
+        sdl.c.SDL_EVENT_MOUSE_MOTION => .{
+            .mouse_x = event.motion.x,
+            .mouse_y = event.motion.y,
+        },
+        sdl.EVENT_MOUSE_BUTTON_DOWN, sdl.EVENT_MOUSE_BUTTON_UP => .{
+            .click = if (event.type == sdl.EVENT_MOUSE_BUTTON_DOWN) .down else .up,
+            .mouse_x = event.button.x,
+            .mouse_y = event.button.y,
+        },
+        else => null,
+    };
+}
+
+pub const Context = struct {
+    deps: *RenderDeps,
+    title_bar: *ui.TitleBar,
+    state: *State = undefined,
+
+    const Self = @This();
+
+    pub fn init(deps: *RenderDeps, title_bar: *ui.TitleBar) Self {
+        return Self{
+            .deps = deps,
+            .title_bar = title_bar,
+        };
+    }
+
+    /// 绑定事件
+    pub fn bindEvents(self: *Self, state: *State) void {
+        self.state = state;
+        self.title_bar.on_close = ui.Event.Callback(void).bind(self, Self.close);
+        self.title_bar.on_minimize = ui.Event.Callback(void).bind(self, Self.minimize);
+        self.title_bar.on_button_hover = ui.Event.Callback(bool).bind(self, Self.titleBarButtonHover);
+    }
+
+    pub fn titleBarButtonHover(self: *Self, is_hover: bool) void {
+        std.log.debug("Title bar button hover state changed: {any}", .{is_hover});
+        self.deps.window.is_draggable = !is_hover; // 当鼠标悬停在标题栏按钮上时，窗口不可拖动（避免丢失点击事件）
+    }
+
+    pub fn close(self: *Self, _: void) void {
+        std.log.debug("Close button clicked", .{});
+        self.state.running = false;
+    }
+
+    pub fn minimize(self: *Self, _: void) void {
+        std.log.debug("Minimize button clicked", .{});
+        self.deps.window.minimize() catch |err| std.log.err("Failed to minimize window: {any}", .{err});
+    }
+};
 
 const EventType = @FieldType(sdl.c.union_SDL_Event, "type");
 const slide_sensitivity = 100; // 横向滑动灵敏度
@@ -35,7 +89,7 @@ const ActionDeps = struct {
 };
 
 // 从事件中更新动作（可跨多个事件累积）
-pub fn handle(event: *sdl.c.SDL_Event, action: *EventAction, state: *State) void {
+pub fn handle(event: *sdl.Event, action: *EventAction, state: *State) void {
     const deps: ActionDeps = .{
         .mod_key = &state.mod_key,
         .is_sliding = state.is_sliding,
@@ -55,7 +109,7 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
         },
         .mod_key => |event_type| {
             state.mod_key.input(event_type); // 根据类型，自动管理按下状态
-            deps.window.mod_key_pressed = state.mod_key.pressed; // 更新窗口的 Mod 键按下状态
+            deps.window.is_draggable = !state.mod_key.pressed; // Mod 键盘没有按下时才能拖动
         },
         .invert => state.is_inverted = !state.is_inverted,
         .grayscale => state.is_grayscale = !state.is_grayscale,
@@ -154,7 +208,7 @@ fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: Act
         handleSlidingEvent(event, action);
     } else if (isChannelChangeEvent(event)) {
         if (mapKeyToChannel(event.key.key)) |channel| action.* = .{ .channel_change = channel };
-    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_LEFT) { // 鼠标左键单击，获取位置
+    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_LEFT and deps.mod_key.pressed) { // Mod + 鼠标左键单击，获取位置
         action.* = .{ .marker = .{ .x = event.button.x, .y = event.button.y } };
     }
 }

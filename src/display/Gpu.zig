@@ -3,12 +3,19 @@ const sdl = @import("sdl");
 const shared = @import("shared");
 const config = @import("config");
 const slang = @import("slang");
+const ui = @import("../ui.zig");
 const gallery = @import("../gallery.zig");
 const Window = @import("window.zig");
 const Device = @import("Device.zig");
 const app_env = @import("../app_env.zig");
 const ShaderScanner = @import("ShaderScanner.zig");
 const RenderDeps = @import("gpu/RenderDeps.zig");
+const events = @import("gpu/events.zig");
+const Uploader = @import("Uploader.zig");
+const Widget = ui.Widget;
+const TextPipeline = ui.TextPipeline;
+const RectPipeline = ui.RectPipeline;
+const TitleBar = ui.TitleBar;
 const loop = @import("gpu/loop.zig");
 const ExitAction = @import("enums.zig").ExitAction;
 const Error = @import("errors.zig").Error;
@@ -26,7 +33,7 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
     const image = try gallery.current();
     const image_size = image.shape.toSize2D(i32);
     // 创建窗口
-    const window = try Window.create(allocator, image_size, .{ .windowed = true, .mode = .gpu });
+    const window = try Window.create(allocator, image_size, .{ .windowed = true, .mode = .gpu, .borderless = true });
     errdefer window.destroy();
     // 获取显示层共享的 GPU 设备
     const device = try Device.get();
@@ -95,16 +102,49 @@ pub fn show(self: *Self) Error!ExitAction {
     // 当来自于模式切换（预览 -> GPU），立即释放内存
     if (app_env.reader().preview_initialized) shared.heap.mallocTrim();
     const shaders: ?[]const *sdl.c.SDL_GPUShader = if (self.shaders) |*s| s.items else null;
-    var deps = try RenderDeps.init(self.allocator, self.window, self.device, shaders, image);
-    errdefer deps.deinit();
-
-    // 更新图片形状
+    // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
+    var uploader = Uploader.init(self.allocator, self.device);
+    defer uploader.deinit();
+    // 纯色矩形背景（Button / TitleBar）共享的渲染管线
+    var rect_pipeline = try RectPipeline.init(self.window, self.device);
+    defer rect_pipeline.deinit();
+    // 所有文字/图标组件共享的渲染管线
+    var text_pipeline = try TextPipeline.init(self.window, self.device);
+    defer text_pipeline.deinit();
+    // 更新窗口尺寸
     app_env.writer().image_shape = image.shape;
     try self.window.setTitle(image.file_name);
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
-    try self.window.show();
+    self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
+    // 顶部标题栏（自带 close / minimize 按钮）
+    const window_size = self.window.fit_size;
+    var title_bar = try TitleBar.init(self.allocator, &uploader, &text_pipeline, &rect_pipeline, window_size, .{
+        .color = .rgba(0.0, 0.0, 0.0, 0.25),
+    });
+    defer title_bar.deinit();
+    title_bar.bindEvents();
 
-    const action = try loop.run(&deps);
+    var widgets = [_]Widget{
+        title_bar.toWidget(),
+    };
+
+    try uploader.submit();
+
+    var deps = try RenderDeps.init(
+        self.allocator,
+        self.window,
+        self.device,
+        shaders,
+        image,
+        &widgets,
+    );
+    errdefer deps.deinit();
+
+    var context = events.Context.init(&deps, &title_bar);
+    // 显示窗口
+    try self.window.show();
+    // 启动循环
+    const action = try loop.run(&deps, &context);
     // 正常退出时释放本次会话的渲染依赖
     deps.deinit();
     return action;

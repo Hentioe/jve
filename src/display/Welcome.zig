@@ -3,26 +3,29 @@ const sdl = @import("sdl");
 const ass = @import("ass");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
-const AssLibrary = @import("../ui/AssLibrary.zig");
 const Size2D = @import("shared").Size2D;
 const Window = @import("window.zig");
 const Device = @import("Device.zig");
-const RenderDeps = @import("welcome/RenderDeps.zig");
-const loop = @import("welcome/loop.zig");
-const ExitAction = @import("enums.zig").ExitAction;
 const ui = @import("../ui.zig");
+const AssLibrary = ui.AssLibrary;
 const Text = ui.Text;
 const Icon = ui.Icon;
+const Widget = ui.Widget;
 const TextPipeline = ui.TextPipeline;
 const BannerPipeline = ui.BannerPipeline;
+const RectPipeline = ui.RectPipeline;
 const TextBanner = ui.TextBanner;
+const TitleBar = ui.TitleBar;
 const Uploader = @import("Uploader.zig");
-const Drawable = @import("../ui/Drawable.zig");
+const ExitAction = @import("enums.zig").ExitAction;
+const RenderDeps = @import("welcome/RenderDeps.zig");
+const loop = @import("welcome/loop.zig");
+const events = @import("welcome/events.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
 const WINDOW_SIZE = Size2D(i32){ .w = 1024, .h = 768 };
-const WINDOW_OPTIONS = Window.Options{ .windowed = true, .mode = .gpu };
+const WINDOW_OPTIONS = Window.Options{ .windowed = true, .mode = .gpu, .borderless = true };
 const LOGO_TEXT = "JVE";
 const LOGO_FONT = "Liberation Serif";
 const WELCOME_TEXT = "JVE 是一个图像查看器";
@@ -68,16 +71,25 @@ pub fn deinit(self: *Self) void {
 pub fn show(self: *Self) Error!ExitAction {
     // 设置 ass 帧尺寸
     self.ass_renderer.setFrameSize(WINDOW_SIZE.w, WINDOW_SIZE.h);
+    // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
+    var uploader = Uploader.init(self.allocator, self.gpu);
+    defer uploader.deinit();
+    // 纯色矩形背景（Button / TitleBar）共享的渲染管线
+    var rect_pipeline = try RectPipeline.init(self.window, self.gpu);
+    defer rect_pipeline.deinit();
     // 所有文字/图标组件共享的渲染管线
     var text_pipeline = try TextPipeline.init(self.window, self.gpu);
     defer text_pipeline.deinit();
+    // 顶部标题栏（自带 close / minimize 按钮）
+    var title_bar = try TitleBar.init(self.allocator, &uploader, &text_pipeline, &rect_pipeline, WINDOW_SIZE, .{
+        .color = .rgba(0.0, 0.0, 0.0, 0.0),
+    });
+    defer title_bar.deinit();
+    title_bar.bindEvents();
     // 横幅背景共享的渲染管线
     // todo: 单例化 banner 管线，在 banner 组件中直接获取
     var banner_pipeline = try BannerPipeline.init(self.window, self.gpu);
     defer banner_pipeline.deinit();
-    // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
-    var uploader = Uploader.init(self.allocator, self.gpu);
-    defer uploader.deinit();
     // 创建 logo 文字
     var logo = try Text.init(self.allocator, &self.ass_renderer, LOGO_TEXT, .{
         .font_name = LOGO_FONT,
@@ -88,36 +100,33 @@ pub fn show(self: *Self) Error!ExitAction {
     });
     defer logo.deinit();
     logo.position(ui.LayoutOptions.centered(logo.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = 60 })).debug(debug);
-    // // 生成关闭图标
-    // var close = try Icon.init(self.allocator, .close, .{ .color = 0xFFFFFF80 });
-    // defer close.deinit();
-    // // 生成最小化图标
-    // var minimize = try Icon.init(self.allocator, .minimize, .{ .color = 0xFFFFFF80 });
-    // defer minimize.deinit();
     // 生成图像图标
     var image = try Icon.init(self.allocator, .image, .{ .scale = 2.5 });
     image.position(ui.LayoutOptions.centered(image.raster.size(), WINDOW_SIZE, .{ .x = 0, .y = -60 })).debug(debug);
     defer image.deinit();
 
-    var drawables = [_]Drawable{
-        try image.toDrawable(&uploader, WINDOW_SIZE, &text_pipeline),
-        try logo.toDrawable(&uploader, WINDOW_SIZE, &text_pipeline),
+    var widgets = [_]Widget{
+        try image.toWidget(&uploader, WINDOW_SIZE, &text_pipeline),
+        try logo.toWidget(&uploader, WINDOW_SIZE, &text_pipeline),
+        title_bar.toWidget(),
     };
     // 统一提交所有组件的资源上传
     try uploader.submit();
 
     // 底部横幅（背景默认红色，测试文本）；帧渲染中一直显示
     var banner = try TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &uploader, &text_pipeline, &banner_pipeline, .{
-        .color = .{ 1.0, 1.0, 1.0, 0.15 }, // 半透明白色
+        .color = .rgba(1.0, 1.0, 1.0, 0), // 半透明白色
     });
     defer banner.deinit();
     try banner.setText(WELCOME_TEXT);
 
-    var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &drawables, &banner);
+    var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &widgets, &banner);
     defer deps.deinit();
 
+    var context = events.Context.init(&deps, &title_bar);
+
     try self.window.show();
-    try loop.run(&deps);
+    try loop.run(&deps, &context);
 
     return .quit;
 }

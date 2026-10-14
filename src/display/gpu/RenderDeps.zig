@@ -10,6 +10,7 @@ const Checkerboard = @import("../checkerboard_gpu.zig");
 const OnscreenPipeline = @import("../onscreen_pipeline.zig");
 const PostPipeline = @import("../PostPipeline.zig");
 const Pipeline = @import("../Pipeline.zig");
+const Widget = @import("../../ui/Widget.zig");
 const Error = @import("../errors.zig").Error;
 const Vertex = structs.Vertex;
 const Self = @This();
@@ -50,6 +51,8 @@ tex_a: *sdl.c.SDL_GPUTexture,
 tex_b: *sdl.c.SDL_GPUTexture,
 // 自定义管线（堆分配，便于释放）
 custom: std.ArrayList(*PostPipeline),
+// 组件列表
+widgets: []Widget,
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -57,6 +60,7 @@ pub fn init(
     device: *const sdl.Gpu,
     shaders: ?[]const *sdl.c.SDL_GPUShader,
     image: LImage,
+    widgets: []Widget,
 ) Error!Self {
     // -- 上传器 (Uploader) --
     var uploader = Uploader.init(allocator, device);
@@ -210,6 +214,7 @@ pub fn init(
         .tex_a = tex_a,
         .tex_b = tex_b,
         .custom = custom,
+        .widgets = widgets,
     };
 }
 

@@ -1,4 +1,3 @@
-const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const Vertex = @import("../display/structs.zig").Vertex;

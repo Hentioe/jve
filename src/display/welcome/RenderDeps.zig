@@ -7,21 +7,21 @@ const Window = @import("../window.zig");
 const Uploader = @import("../Uploader.zig");
 const shader_loader = @import("../shader_loader.zig");
 const Pipeline = @import("../Pipeline.zig");
-const Drawable = @import("../../ui/Drawable.zig");
+const Widget = @import("../../ui/Widget.zig");
 const TextBanner = @import("../../ui/TextBanner.zig");
 const Error = @import("../errors.zig").Error;
 const Self = @This();
 
 allocator: Allocator,
-window: *const Window,
+window: *Window,
 gpu: *const sdl.Gpu,
 pipeline: Pipeline,
 verts_buffer: *sdl.c.SDL_GPUBuffer,
 verts_binding: sdl.c.SDL_GPUBufferBinding,
-drawables: []Drawable,
+widgets: []Widget,
 banner: *TextBanner,
 
-pub fn init(allocator: Allocator, window: *const Window, gpu: *const sdl.Gpu, drawables: []Drawable, banner: *TextBanner) Error!Self {
+pub fn init(allocator: Allocator, window: *Window, gpu: *const sdl.Gpu, widgets: []Widget, banner: *TextBanner) Error!Self {
     const vert_buffer_desc: sdl.c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
     const vert_attrs: [2]sdl.c.SDL_GPUVertexAttribute = .{
         .{ .location = 0, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = @offsetOf(Vertex, "x") }, // Position
@@ -58,7 +58,7 @@ pub fn init(allocator: Allocator, window: *const Window, gpu: *const sdl.Gpu, dr
         .pipeline = pipeline,
         .verts_buffer = verts_buffer,
         .verts_binding = sdl.c.SDL_GPUBufferBinding{ .buffer = verts_buffer, .offset = 0 },
-        .drawables = drawables,
+        .widgets = widgets,
         .banner = banner,
     };
 }

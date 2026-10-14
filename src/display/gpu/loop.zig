@@ -9,10 +9,12 @@ const frame = @import("frame.zig");
 const ExitAction = @import("../enums.zig").ExitAction;
 const Error = @import("../errors.zig").Error;
 
-pub fn run(deps: *RenderDeps) Error!ExitAction {
+pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
     var event: sdl.c.SDL_Event = undefined;
     var delta: Delta = .init();
     var state: State = .init(deps, &delta);
+    context.bindEvents(&state);
+
     var action: events.EventAction = .none;
     // 确保退出时释放任务与遮罩纹理
     defer {
@@ -30,12 +32,23 @@ pub fn run(deps: *RenderDeps) Error!ExitAction {
         state.dirty = state.is_busy or state.overflow_hint.isRunning();
 
         if (!state.dirty) {
-            var wait_event: sdl.c.SDL_Event = undefined;
-            if (sdl.c.SDL_WaitEvent(&wait_event)) events.handle(&wait_event, &action, &state);
+            var wait_event: sdl.Event = undefined;
+            if (sdl.c.SDL_WaitEvent(&wait_event)) {
+                events.handle(&wait_event, &action, &state);
+                if (events.build(&wait_event)) |ui_event| { // 阻塞唤醒的事件同样要分发给 widget
+                    for (deps.widgets) |*w| w.event(&ui_event);
+                }
+            }
             delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
         // 从事件中更新动作
-        while (sdl.c.SDL_PollEvent(&event)) events.handle(&event, &action, &state);
+        while (sdl.c.SDL_PollEvent(&event)) {
+            events.handle(&event, &action, &state);
+            if (events.build(&event)) |ui_event| { // 构造 ui 事件结构体
+                // 分发 ui 事件给所有 widget
+                for (deps.widgets) |*w| w.event(&ui_event);
+            }
+        }
 
         // 根据动作修改状态
         try events.apply(deps, &action, &state);

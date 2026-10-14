@@ -48,6 +48,8 @@ pub fn init() Error!void {
     try sdl.check(sdl.c.SDL_SetAppMetadata("JVE", "0.0.0", "jve"));
     // 设置应用 ID
     try sdl.check(sdl.c.SDL_SetHint(sdl.c.SDL_HINT_APP_ID, "jve"));
+    // 点击获得焦点时触发点击事件
+    try sdl.check(sdl.c.SDL_SetHint(sdl.HINT_MOUSE_FOCUS_CLICKTHROUGH, "1"));
 }
 
 pub fn deinit() void {

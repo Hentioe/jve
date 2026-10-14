@@ -14,3 +14,6 @@ pub const GPURenderPass = c.SDL_GPURenderPass;
 pub const GPUCommandBuffer = c.SDL_GPUCommandBuffer;
 pub const Event = c.SDL_Event;
 pub const EVENT_QUIT = c.SDL_EVENT_QUIT;
+pub const EVENT_MOUSE_BUTTON_DOWN = c.SDL_EVENT_MOUSE_BUTTON_DOWN;
+pub const EVENT_MOUSE_BUTTON_UP = c.SDL_EVENT_MOUSE_BUTTON_UP;
+pub const HINT_MOUSE_FOCUS_CLICKTHROUGH = c.SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH;

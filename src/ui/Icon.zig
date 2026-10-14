@@ -12,7 +12,8 @@ const TextPipeline = @import("TextPipeline.zig");
 const TextDrawer = @import("TextDrawer.zig");
 const LayoutOptions = @import("options.zig").LayoutOptions;
 const Position = @import("shared").Point(f32);
-const Drawable = @import("Drawable.zig");
+const Widget = @import("Widget.zig");
+const Event = @import("Event.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -59,17 +60,21 @@ pub fn debug(self: *Self, value: bool) void {
     self.options.debug = value;
 }
 
-pub fn toDrawable(self: *Self, uploader: *Uploader, frame_size: FrameSize, pipeline: *TextPipeline) Error!Drawable {
+pub fn toWidget(self: *Self, uploader: *Uploader, frame_size: FrameSize, pipeline: *TextPipeline) Error!Widget {
     std.debug.assert(!self.is_drawable);
     self.drawer = try TextDrawer.init(self.allocator, uploader, pipeline, frame_size, &self.raster, self.options);
     self.is_drawable = true;
 
     return .{
         .ptr = @ptrCast(self),
-        .vtable = Drawable.VTable.of(Self),
+        .vtable = Widget.VTable.of(Self),
     };
 }
 
 pub fn draw(self: *Self, cmd: *sdl.GPUCommandBuffer, pass: *sdl.GPURenderPass) void {
     self.drawer.draw(cmd, pass);
+}
+
+pub fn event(_: *Self, _: *const Event) void {
+    // todo: 增加 hover 事件
 }

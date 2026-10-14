@@ -12,11 +12,13 @@ const TextPipeline = @import("TextPipeline.zig");
 const TextDrawer = @import("TextDrawer.zig");
 const LayoutOptions = @import("options.zig").LayoutOptions;
 const Position = @import("shared").Point(f32);
-const Drawable = @import("Drawable.zig");
+const Widget = @import("Widget.zig");
+const Event = @import("Event.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
 allocator: Allocator,
+value: []const u8,
 raster: AssRendered,
 options: LayoutOptions = .{},
 drawer: TextDrawer = undefined,
@@ -26,6 +28,7 @@ pub fn init(allocator: Allocator, renderer: *const ass.Renderer, value: []const 
     const raster = try text_renderer.render(allocator, renderer, value, options);
     return Self{
         .allocator = allocator,
+        .value = value,
         .raster = raster,
     };
 }
@@ -45,17 +48,21 @@ pub fn debug(self: *Self, value: bool) void {
     self.options.debug = value;
 }
 
-pub fn toDrawable(self: *Self, uploader: *Uploader, frame_size: Size2D(i32), pipeline: *TextPipeline) Error!Drawable {
+pub fn toWidget(self: *Self, uploader: *Uploader, frame_size: Size2D(i32), pipeline: *TextPipeline) Error!Widget {
     std.debug.assert(!self.is_drawable);
     self.drawer = try TextDrawer.init(self.allocator, uploader, pipeline, frame_size, &self.raster, self.options);
     self.is_drawable = true;
 
     return .{
         .ptr = @ptrCast(self),
-        .vtable = Drawable.VTable.of(Self),
+        .vtable = Widget.VTable.of(Self),
     };
 }
 
 pub fn draw(self: *Self, cmd: *sdl.GPUCommandBuffer, pass: *sdl.GPURenderPass) void {
     self.drawer.draw(cmd, pass);
+}
+
+pub fn event(_: *Self, _: *const Event) void {
+    // todo: 增加 hover 事件
 }

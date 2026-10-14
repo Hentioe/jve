@@ -43,6 +43,14 @@ pub const BannerUniforms = extern struct {
     _padding: [3]u8 = .{ 0, 0, 0 }, // 补齐到 4 字节，确保与 cbuffer 布局一致
 };
 
+// 纯色矩形背景片段着色器 Uniforms
+pub const RectUniforms = extern struct {
+    color: [4]f32, // RGBA
+    rect: [4]f32, // uv 空间矩形：左、上、右、下
+    debug: u32, // 非 0 时输出红色背景
+    _padding: [3]u32 = .{ 0, 0, 0 }, // std140：补齐到 48 字节，确保与 cbuffer 布局一致
+};
+
 // 基础片段着色器 Uniforms
 pub const BaseUniforms = extern struct {
     invert: f32, // 0.0 ~ 1.0

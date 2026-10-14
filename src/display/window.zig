@@ -4,12 +4,13 @@ const h = @import("sdl").h;
 const Gpu = @import("sdl").Gpu;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
-const Error = @import("errors.zig").Error;
 const Mode = @import("Viewer.zig").Mode;
 const Overflow = @import("enums.zig").Overflow;
 const ISize = shared.Size2D(i32); // 图片尺寸
 const WSize = shared.Size2D(i32); // 窗口尺寸
 const Point = shared.Point(f32);
+const app_env = @import("../app_env.zig");
+const Error = @import("errors.zig").Error;
 
 const Self = @This();
 
@@ -25,12 +26,14 @@ sdl_window: *c.SDL_Window,
 gpu_device: ?*const Gpu = null, // 绑定到的 GPU 设备（仅 GPU 模式窗口非空），销毁前需解绑
 windowed: bool, // 是否窗口化
 overflow: Overflow = .none, // 图片超出窗口最大限制的方向
-mod_key_pressed: bool = false, // 是否按下了 Mod 键
+fit_size: ISize, // 合适的窗口尺寸（若尺寸超出，它表示真实窗口尺寸）
+is_draggable: bool = true, // 内部任意位置是否可拖动窗口
 dirty: bool = false,
 
 pub const Options = struct {
-    windowed: bool,
     mode: Mode = .preview,
+    windowed: bool,
+    borderless: bool = false,
 };
 
 pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*Self {
@@ -49,10 +52,15 @@ pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*
         flags |= c.SDL_WINDOW_TRANSPARENT; // 透明背景
     }
     var overflow: Overflow = .none;
+    var fit_size: ISize = image_size;
+    if (options.borderless) {
+        flags |= c.SDL_WINDOW_BORDERLESS;
+    }
     if (options.windowed) {
         // 设置窗口的初始宽高：图片超出最大限制时按比例缩小，否则使用图片原始尺寸
         const fit = fitToScreen(image_size.w, image_size.h, display_width, display_height);
         overflow = fit.overflow;
+        fit_size = fit.size;
         try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, fit.size.w));
         try h.check(c.SDL_SetNumberProperty(props, c.SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, fit.size.h));
     } else {
@@ -72,6 +80,7 @@ pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*
         .allocator = allocator,
         .windowed = options.windowed,
         .overflow = overflow,
+        .fit_size = fit_size,
         .image_width = image_size.w,
         .image_height = image_size.h,
         .display_width = display_width,
@@ -98,22 +107,27 @@ pub fn hide(self: *Self) Error!void {
     try h.check(c.SDL_HideWindow(self.sdl_window));
 }
 
+pub fn updateFit(self: *Self) void {
+    const fit = fitToScreen(self.image_width, self.image_height, self.display_width, self.display_height);
+    self.overflow = fit.overflow;
+    self.fit_size = fit.size;
+}
+
 pub fn show(self: *Self) Error!void {
-    if (self.windowed and self.dirty) {
+    if (self.windowed and (self.dirty or app_env.reader().window_dirty)) {
         std.log.debug("Window is dirty, updating size and position", .{});
-        // 重新调整窗口到图片大小：超出最大限制时按比例缩小，并记录超出方向
-        const fit = fitToScreen(self.image_width, self.image_height, self.display_width, self.display_height);
-        self.overflow = fit.overflow;
-        h.check(c.SDL_SetWindowSize(self.sdl_window, fit.size.w, fit.size.h)) catch {
-            std.log.warn("Failed to set window size to {d}x{d}", .{ fit.size.w, fit.size.h });
-        };
+        // 更新窗口尺寸
+        try h.check(c.SDL_SetWindowSize(self.sdl_window, self.fit_size.w, self.fit_size.h)); // 注意：已假设外部已调用 updateFit
         // 窗口位置重新居中
-        h.check(c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED)) catch {
-            std.log.warn("Failed to set window position to centered", .{});
-        };
+        try h.check(c.SDL_SetWindowPosition(self.sdl_window, c.SDL_WINDOWPOS_CENTERED, c.SDL_WINDOWPOS_CENTERED));
         self.dirty = false;
+        app_env.writer().window_dirty = false;
     }
     try h.check(c.SDL_ShowWindow(self.sdl_window));
+}
+
+pub fn minimize(self: *Self) Error!void {
+    try h.check(c.SDL_MinimizeWindow(self.sdl_window));
 }
 
 pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
@@ -185,7 +199,7 @@ fn fitToScreen(image_width: i32, image_height: i32, display_width: i32, display_
 
 fn hitTestCallback(_: ?*c.SDL_Window, _: [*c]const c.SDL_Point, ctx: ?*anyopaque) callconv(.c) c_uint {
     const self: *Self = @ptrCast(@alignCast(ctx));
-    if (self.windowed and !self.mod_key_pressed) {
+    if (self.windowed and self.is_draggable) {
         return c.SDL_HITTEST_DRAGGABLE; // 允许通过拖动窗口的任意位置来移动窗口
     } else {
         return c.SDL_HITTEST_NORMAL; // 如果无边框，不支持拖动

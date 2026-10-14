@@ -30,7 +30,7 @@ pub fn render(deps: *RenderDeps, _: *const State) Error!void {
     // 绘制矩形 (绘制 6 个顶点 = 2 个三角形)
     sdl.c.SDL_DrawGPUPrimitives(pass, 6, 1, 0, 0);
     // 绘制组件
-    for (deps.drawables) |*drawable| drawable.draw(cmd, pass);
+    for (deps.widgets) |*widget| widget.draw(cmd, pass);
     // 绘制底部横幅（一直显示）
     deps.banner.draw(cmd, pass);
     // 结束渲染通道

@@ -20,7 +20,7 @@ const OverflowUniforms = structs.OverflowUniforms;
 pub fn render(deps: *RenderDeps, state: *State) Error!void {
     const device = deps.device;
     // 获取当前帧的 Command Buffer
-    const cmd_buf = try device.acquireGPUCommandBuffer();
+    const cmd = try device.acquireGPUCommandBuffer();
     // 开启 Render Pass
     const base_color_target: sdl.c.SDL_GPUColorTargetInfo = .{
         .texture = state.tex_src,
@@ -28,7 +28,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         .store_op = sdl.c.SDL_GPU_STOREOP_STORE,
         .clear_color = .{ .r = 0, .g = 0, .b = 0, .a = 0 },
     };
-    const render_pass = sdl.c.SDL_BeginGPURenderPass(cmd_buf, &base_color_target, 1, null);
+    const render_pass = sdl.c.SDL_BeginGPURenderPass(cmd, &base_color_target, 1, null);
     // 绑定图形管线
     sdl.c.SDL_BindGPUGraphicsPipeline(render_pass, deps.base_pipeline);
     // 绑定顶点缓冲区
@@ -46,7 +46,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         .channel = state.channel,
     };
     // 将参数推送到片段着色器的 slot 0
-    sdl.c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &base_uniforms, @sizeOf(BaseUniforms));
+    sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &base_uniforms, @sizeOf(BaseUniforms));
     // 绘制矩形 (绘制 6 个顶点 = 2 个三角形)
     sdl.c.SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
     // 结束渲染通道
@@ -89,9 +89,9 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         if (pl.effect == .mask and state.tex_mask == null) continue; // 没有有效的 mask，跳过
         // 绑定管线
         if (pl.effect == .mask) {
-            pl.bindWithMaskTex(cmd_buf, state.tex_dst, state.tex_src, state.tex_mask, deps.sampler, &deps.verts_binding);
+            pl.bindWithMaskTex(cmd, state.tex_dst, state.tex_src, state.tex_mask, deps.sampler, &deps.verts_binding);
         } else {
-            pl.bind(cmd_buf, state.tex_dst, state.tex_src, deps.sampler, &deps.verts_binding);
+            pl.bind(cmd, state.tex_dst, state.tex_src, deps.sampler, &deps.verts_binding);
         }
         if (pl.effect == .sharpen) {
             // 传递锐化参数
@@ -99,7 +99,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 .strength = state.slide_value,
                 .texture_size = .{ @floatFromInt(deps.image.shape.w), @floatFromInt(deps.image.shape.h) },
             };
-            sdl.c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &uniforms, @sizeOf(SharpenUniforms));
+            sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &uniforms, @sizeOf(SharpenUniforms));
         } else if (pl.effect == .blur_x or pl.effect == .blur_y) {
             // 传递模糊参数
             const uniforms: BlurUniforms = .{
@@ -107,7 +107,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 .texel_size = .{ texel_size_w, texel_size_h },
                 .direction = if (pl.effect == .blur_x) hor_float2 else ver_float2, // 横向或纵向模糊
             };
-            sdl.c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &uniforms, @sizeOf(BlurUniforms));
+            sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &uniforms, @sizeOf(BlurUniforms));
         }
 
         // 绘制管线内容
@@ -121,7 +121,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     // 自定义管线
     if (state.custom_shader_enabled) {
         for (deps.custom.items) |pl| {
-            pl.bind(cmd_buf, state.tex_dst, state.tex_src, deps.sampler, &deps.verts_binding);
+            pl.bind(cmd, state.tex_dst, state.tex_src, deps.sampler, &deps.verts_binding);
             pl.draw();
             pl.end();
             const tmp = state.tex_src;
@@ -132,10 +132,10 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
 
     // 获取当前帧的 Swapchain 纹理
     var swapchain_texture: ?*sdl.c.SDL_GPUTexture = null;
-    if (sdl.c.SDL_WaitAndAcquireGPUSwapchainTexture(cmd_buf, deps.window.sdl_window, @constCast(&swapchain_texture), null, null)) {
+    if (sdl.c.SDL_WaitAndAcquireGPUSwapchainTexture(cmd, deps.window.sdl_window, @constCast(&swapchain_texture), null, null)) {
         if (swapchain_texture != null) {
             // 开启屏幕渲染
-            try deps.onscreen.begin(cmd_buf, swapchain_texture);
+            try deps.onscreen.begin(cmd, swapchain_texture);
             // 绘制棋盘格
             deps.checkerboard.bind(deps.onscreen.render_pass); // 绑定到屏幕通道
             deps.checkerboard.draw();
@@ -149,10 +149,10 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 // 传递标记位置：事件坐标基于视口（可能是缩放后的窗口），不可直接用图片尺寸算 NDC
                 const viewport_size = try deps.window.currentSize();
                 const marker_loc_uniforms: MarkerVertUniforms = .fromViewportPoint(pos.x, pos.y, viewport_size.w, viewport_size.h);
-                deps.marker.pushVertexUniforms(cmd_buf, 0, &marker_loc_uniforms, @sizeOf(MarkerVertUniforms));
+                deps.marker.pushVertexUniforms(cmd, 0, &marker_loc_uniforms, @sizeOf(MarkerVertUniforms));
                 // 传递标记大小
                 const marker_size_uniforms: MarkerFragUniforms = .{ .radius = State.marker_radius, .border_width = 2.0 };
-                deps.marker.pushFragmentUniforms(cmd_buf, 0, &marker_size_uniforms, @sizeOf(MarkerFragUniforms));
+                deps.marker.pushFragmentUniforms(cmd, 0, &marker_size_uniforms, @sizeOf(MarkerFragUniforms));
                 // 绘制标记
                 deps.marker.draw();
             }
@@ -160,21 +160,23 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 // 在雾效果之前绘制超出提示（屏幕边缘的红色渐变）
                 deps.overflow.bindScreen(deps.onscreen.render_pass, &deps.verts_binding);
                 const overflow_uniforms = OverflowUniforms.init(deps.window.overflow, state.overflow_hint.alpha);
-                sdl.c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &overflow_uniforms, @sizeOf(OverflowUniforms));
+                sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &overflow_uniforms, @sizeOf(OverflowUniforms));
                 deps.overflow.draw();
             }
             if (state.is_busy) {
                 // 显示雾（不采样纹理，仅使用 uniform）
                 deps.fog.bindScreen(deps.onscreen.render_pass, &deps.verts_binding);
                 const fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(sdl.c.SDL_GetTicks())) / 1000.0 };
-                sdl.c.SDL_PushGPUFragmentUniformData(cmd_buf, 0, &fog_uniforms, @sizeOf(FogUniforms));
+                sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &fog_uniforms, @sizeOf(FogUniforms));
                 deps.fog.draw();
             }
+            // 绘制组件
+            for (deps.widgets) |*widget| widget.draw(cmd, deps.onscreen.render_pass);
             deps.onscreen.end();
         }
     }
     // 提交命令，渲染到屏幕
-    try h.check(sdl.c.SDL_SubmitGPUCommandBuffer(cmd_buf));
+    try h.check(sdl.c.SDL_SubmitGPUCommandBuffer(cmd));
 
     // 处理截图保存和复制
     if (state.save_screenshot or state.copy_screenshot) {

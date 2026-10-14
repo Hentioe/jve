@@ -19,6 +19,7 @@ target_angle: f64 = 0.0,
 target_scale: f64 = 1.0,
 move_offset: Point = .{},
 preview_initialized: bool = false,
+window_dirty: bool = false, // 窗口状态已脏（如预览模式轮换）
 extracted: ?extractor.Extracted = null,
 
 pub fn init(allocator: Allocator) void {

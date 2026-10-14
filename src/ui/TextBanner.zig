@@ -10,7 +10,9 @@ const BannerPipeline = @import("BannerPipeline.zig");
 const BannerDrawer = @import("BannerDrawer.zig");
 const text_renderer = @import("text_renderer.zig");
 const Uploader = @import("../display/Uploader.zig");
-const Drawable = @import("Drawable.zig");
+const Widget = @import("Widget.zig");
+const Event = @import("Event.zig");
+const Color = @import("Color.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -20,7 +22,7 @@ const Self = @This();
 /// 显示与否由外部决定：不调用 `draw` 即自然消失，因此通常作为独立字段传递。
 pub const Options = struct {
     /// 背景色（RGBA，0..1）。
-    color: [4]f32 = .{ 1.0, 0.0, 0.0, 1.0 },
+    color: Color = .rgba(1.0, 0.0, 0.0, 1.0),
     /// 文字距横幅上下边缘的留白（像素）。
     padding_y: f32 = 8.0,
     /// 横幅底边距视口底部的距离（像素）。
@@ -46,6 +48,12 @@ text: ?Text = null,
 rect_top: f32 = 0,
 rect_height: f32 = 0,
 
+on_hover: ?Event.Callback(bool) = null,
+on_click: ?Event.Callback(void) = null,
+
+last_hover: bool = false,
+last_click: Event.ClickState = .none,
+
 pub fn init(
     allocator: Allocator,
     renderer: *const ass.Renderer,
@@ -58,7 +66,7 @@ pub fn init(
     // 尚无文字时先给一个高度为 0 的横幅（不可见），`setText` 会按文字尺寸重建
     const fh: f32 = @floatFromInt(window_size.h);
     const top = fh - options.margin_bottom;
-    const background = try BannerDrawer.init(uploader, banner_pipeline, window_size, top, 0, options.color, options.debug);
+    const background = try BannerDrawer.init(uploader, banner_pipeline, window_size, top, 0, options.color.value(), options.debug);
     return Self{
         .allocator = allocator,
         .renderer = renderer,
@@ -101,7 +109,7 @@ pub fn setText(self: *Self, message: []const u8) Error!void {
     self.rect_height = banner_h;
 
     // 容器尺寸变化 → 更新背景 uniform（普通 uniform，代价可忽略）
-    self.background.update(self.window_size, top, banner_h, self.options.color, self.options.debug);
+    self.background.update(self.window_size, top, banner_h, self.options.color.value(), self.options.debug);
 
     // 文字在容器内居中
     t.position(.{
@@ -110,33 +118,45 @@ pub fn setText(self: *Self, message: []const u8) Error!void {
     }).debug(self.options.debug);
 
     // 立即生成文字的渲染依赖并提交上传
-    _ = try t.toDrawable(self.uploader, self.window_size, self.text_pipeline);
+    _ = try t.toWidget(self.uploader, self.window_size, self.text_pipeline);
     try self.uploader.submit();
 }
 
 /// 设置背景色。
-pub fn setColor(self: *Self, color: [4]f32) *Self {
+pub fn setColor(self: *Self, color: Color) void {
     self.options.color = color;
-    self.background.update(self.window_size, self.rect_top, self.rect_height, color, self.options.debug);
-    return self;
+    self.background.update(self.window_size, self.rect_top, self.rect_height, color.value(), self.options.debug);
 }
 
 /// 调试开关：为背景与文字叠加红色。
 pub fn debug(self: *Self, value: bool) *Self {
     self.options.debug = value;
-    self.background.update(self.window_size, self.rect_top, self.rect_height, self.options.color, value);
+    self.background.update(self.window_size, self.rect_top, self.rect_height, self.options.color.value(), value);
     if (self.text) |*t| t.debug(value);
     return self;
 }
 
-pub fn toDrawable(self: *Self) Drawable {
+pub fn toWidget(self: *Self) Widget {
     return .{
         .ptr = @ptrCast(self),
-        .vtable = Drawable.VTable.of(Self),
+        .vtable = Widget.VTable.of(Self),
     };
 }
 
 pub fn draw(self: *Self, cmd: *sdl.GPUCommandBuffer, pass: *sdl.GPURenderPass) void {
     self.background.draw(cmd, pass);
     if (self.text) |*t| t.draw(cmd, pass);
+}
+
+pub fn event(self: *Self, e: *const Event) void {
+    const mouse_y = e.mouse_y;
+    const is_hover = mouse_y >= self.rect_top and mouse_y <= (self.rect_top + self.rect_height);
+    if (self.on_hover) |cb| if (is_hover != self.last_hover) {
+        cb.call(is_hover);
+        self.last_hover = is_hover;
+    };
+    if (self.on_click) |cb| if (is_hover and e.click != .none and e.click != self.last_click) {
+        if (e.click == .down) cb.call({});
+        self.last_click = e.click;
+    };
 }

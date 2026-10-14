@@ -5,6 +5,7 @@ const gallery = @import("../../gallery.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");
 const ModKey = @import("../ModKey.zig");
+const app_env = @import("../../app_env.zig");
 const Error = @import("../errors.zig").Error;
 
 const EventType = @FieldType(sdl.c.union_SDL_Event, "type");
@@ -76,6 +77,7 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
             if (gallery.deleteCurrentGetNext()) |next_image| {
                 try deps.setImage(next_image);
                 state.dirty = true; // 动画触发 dst_rect 更新
+                app_env.writer().window_dirty = true; // 图片已轮换，标记窗口状态已脏
             } else |err| {
                 if (err == gallery.Error.GalleryNoImageLeft) {
                     state.running = false; // 没有图片了，退出循环
@@ -110,6 +112,7 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
             };
             if (crrent) |new_image| {
                 try deps.setImage(new_image);
+                app_env.writer().window_dirty = true; // 图片已轮换，标记窗口状态已脏
             }
             if (slide_animation) {
                 // 从屏幕外滑入：下一张自左侧边缘（顺时针），上一张自右侧边缘（逆时针）

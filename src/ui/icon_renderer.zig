@@ -15,10 +15,15 @@ pub const Options = struct {
     scale: f32 = 1.0, // 缩放比例
 };
 
+/// 图标按 `scale` 缩放后的输出边长（像素），与 `render` 的帧尺寸一致。
+pub fn frameSize(options: Options) u32 {
+    return @intFromFloat(@round(@as(f32, @floatFromInt(IconRenderer.BASE_SIZE)) * options.scale));
+}
+
 pub fn render(allocator: Allocator, value: []const u8, options: Options) Error!AssRendered {
     const renderer = IconRenderer.get();
     // 输出边长：scale = 1 时为 BASE_SIZE，随 scale 线性缩放。
-    const frame: u32 = @intFromFloat(@round(@as(f32, @floatFromInt(IconRenderer.BASE_SIZE)) * options.scale));
+    const frame = frameSize(options);
     renderer.setFrameSize(@intCast(frame), @intCast(frame));
     const track = renderer.library.newTrack();
     track.PlayResX = IconRenderer.PLAY_RES;

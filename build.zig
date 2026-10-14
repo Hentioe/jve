@@ -174,6 +174,7 @@ pub fn build(b: *std.Build) void {
         "mask.frag.slang",
         "onscreen.frag.slang",
         "overflow.frag.slang",
+        "rect.frag.slang",
         "sharpen.frag.slang",
         "text.frag.slang",
         "welcome.frag.slang",
