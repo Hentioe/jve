@@ -1,20 +1,26 @@
 const c = @import("sdl").c;
-const shader_loader = @import("shader_loader.zig");
-const Error = @import("errors.zig").Error;
 const Gpu = @import("sdl").Gpu;
 const Window = @import("window.zig");
+const shader_loader = @import("shader_loader.zig");
+const Device = @import("Device.zig");
+const Error = @import("errors.zig").Error;
 const Self = @This();
 
 gpu: *const Gpu,
 pipeline: *c.SDL_GPUGraphicsPipeline,
 vert_shader: *c.SDL_GPUShader,
 frag_shader: *c.SDL_GPUShader,
+frag_from_user: bool,
 render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(gpu: *const Gpu, window: *Window) Error!Self {
+    var frag_from_user = false;
     // 构造棋盘格管线
     const vert_shader = try shader_loader.load(gpu, @embedFile("checker.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
-    const frag_shader = try shader_loader.load(gpu, @embedFile("checker.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
+    const frag_shader = if (Device.getBackgroundShader()) |shader| blk: {
+        frag_from_user = true;
+        break :blk shader;
+    } else try shader_loader.load(gpu, @embedFile("checker.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{ .format = gpu.getGPUSwapchainTextureFormat(window.sdl_window) };
     const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
         .vertex_shader = vert_shader, // 编译好的顶点着色器
@@ -28,13 +34,14 @@ pub fn init(gpu: *const Gpu, window: *Window) Error!Self {
         .pipeline = try gpu.createGPUGraphicsPipeline(&pipeline_info),
         .vert_shader = vert_shader,
         .frag_shader = frag_shader,
+        .frag_from_user = frag_from_user,
     };
 }
 
 pub fn deinit(self: *Self) void {
     self.gpu.releaseGPUGraphicsPipeline(self.pipeline);
     self.gpu.releaseGPUShader(self.vert_shader);
-    self.gpu.releaseGPUShader(self.frag_shader);
+    if (!self.frag_from_user) self.gpu.releaseGPUShader(self.frag_shader);
     self.* = undefined;
 }
 

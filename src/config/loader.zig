@@ -11,6 +11,7 @@ pub const AnimationConfig = struct {
 
 pub const ShadersConfig = struct {
     dir: []const u8, // 着色器目录
+    background: ?[]const u8 = null, // 背景着色器
 };
 
 pub const ModelsConfig = struct {

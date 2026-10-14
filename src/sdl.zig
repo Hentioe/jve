@@ -9,6 +9,7 @@ pub const Error = errors.Error;
 
 // -- 类型别名 --
 pub const Texture = c.SDL_Texture;
+pub const GPUShader = c.SDL_GPUShader;
 pub const GPUTexture = c.SDL_GPUTexture;
 pub const GPURenderPass = c.SDL_GPURenderPass;
 pub const GPUCommandBuffer = c.SDL_GPUCommandBuffer;

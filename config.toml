@@ -12,6 +12,7 @@ image_switch = true
 
 [shaders]
 dir = "shaders"
+background = "background.slang"
 
 [models]
 dir = "models"
