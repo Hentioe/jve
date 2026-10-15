@@ -135,6 +135,7 @@ pub fn show(self: *Self) Error!ExitAction {
     // 组件数量是动态的，预先分配已知上限的数组
     var widgets: [MAX_WIDGETS]Widget = undefined;
     if (title_bar) |*tb| {
+        if (!config.get().no_title_text) try tb.setText(image.file_name);
         widgets[widget_count] = tb.toWidget();
         widget_count += 1;
     }

@@ -12,17 +12,27 @@ const AssRendered = @import("AssRendered.zig");
 const Error = @import("errors.zig").Error;
 
 pub const Options = struct {
-    font_name: []const u8 = DEFAULT_FONT, // 默认字体: Arial
-    font_size: f64 = DEFAULT_FONT_SIZE, // 默认字体大小: 12
+    font_name: []const u8 = DEFAULT_FONT, // 默认字体
+    font_size: f64 = DEFAULT_FONT_SIZE, // 默认字体大小
     bold: bool = false, // 默认不加粗
     color: u32 = 0xFFFFFF00, // ASS 颜色（0xRRGGBBAA，低字节 ASS alpha：0x00 不透明），默认不透明白
     spacing: f64 = 0, // 默认无间距
     trim: bool = true, // 是否按墨迹包围盒裁剪，去掉 libass 光栅化留下的 padding
+    /// 最大宽度（像素）。为 null 时不限制；超出时由 `Text` 截断为「头…尾」。
+    max_width: ?f32 = null,
 };
+
+/// libass 的固定参考分辨率（脚本坐标）。文字的实际像素大小 = 该参考相对渲染器
+/// 帧尺寸的缩放：`有效像素 = font_size × frame_h / PLAY_RES_Y`。显式写出这个
+/// 已知参考值，便于计算，而不依赖 libass 的隐式回退（回退值即 384×288）。
+pub const PLAY_RES_X = 384;
+pub const PLAY_RES_Y = 288;
 
 pub fn render(allocator: Allocator, renderer: *const ass.Renderer, value: []const u8, options: Options) Error!AssRendered {
     const track = renderer.library.newTrack();
     errdefer ass.c.ass_free_track(track);
+    track.PlayResX = PLAY_RES_X;
+    track.PlayResY = PLAY_RES_Y;
     const style_id = ass.Library.allocStyle(track);
     const style = &track.*.styles[@intCast(style_id)];
     style.*.Name = try strdup("Default");

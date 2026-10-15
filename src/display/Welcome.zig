@@ -69,7 +69,7 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn show(self: *Self) Error!ExitAction {
-    // 设置 ass 帧尺寸
+    // 设置 ass 帧尺寸（文字据此相对 PLAY_RES 缩放）
     self.ass_renderer.setFrameSize(WINDOW_SIZE.w, WINDOW_SIZE.h);
     // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
     var uploader = Uploader.init(self.allocator, self.gpu);

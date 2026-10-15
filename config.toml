@@ -8,6 +8,8 @@ sort = "name"
 screenshot_dir = "screenshots"
 # 是否无边框
 borderless = true
+# 是否不显示标题文字（仅对无边框生效）
+no_title_text = false
 
 [animation]
 image_switch = true

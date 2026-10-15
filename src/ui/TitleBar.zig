@@ -1,9 +1,14 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const ass = @import("ass");
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const FrameSize = shared.Size2D(i32);
 const icon_renderer = @import("icon_renderer.zig");
+const text_renderer = @import("text_renderer.zig");
+const consts = @import("consts.zig");
+const AssLibrary = @import("AssLibrary.zig");
+const Text = @import("Text.zig");
 const Uploader = @import("../display/Uploader.zig");
 const TextPipeline = @import("TextPipeline.zig");
 const RectPipeline = @import("RectPipeline.zig");
@@ -15,6 +20,13 @@ const Event = @import("Event.zig");
 const Color = @import("Color.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
+
+/// 标题文字单独使用的 ass 渲染画布：固定尺寸、与窗口无关。
+///
+/// 画布高取 libass 参考分辨率 `PLAY_RES_Y`，使缩放系数 `frame_h / PLAY_RES_Y = 1`：
+/// 于是「合适的文字高度」就是基准——`title.font_size` 直接写该像素高度即可。
+/// 宽度取足够大以免 libass 自动换行（缩略截断由 `Text` 按 `max_width` 负责）。
+const TITLE_FRAME = FrameSize{ .w = 4096, .h = text_renderer.PLAY_RES_Y };
 
 /// 窗口标题栏：始终位于窗口顶部、占满整宽的背景条，右侧自带 `close` 与
 /// `minimize` 两个 `Button`。
@@ -32,6 +44,11 @@ pub const Options = struct {
     height: f32 = 44.0,
     /// 内部图标的配置。图标边长应小于栏高，二者之差即为按钮四周的等边距。
     icon: icon_renderer.Options = .{ .scale = 0.5 },
+    /// 标题文字的样式（字体/字号/颜色等）。`font_size` 即文字像素高度（基准）；
+    /// `max_width` 由组件按栏宽自动计算。
+    title: text_renderer.Options = .{ .font_size = 30, .color = 0xFFFFFF20 },
+    /// 标题文字与两侧按钮之间的留白（像素）。
+    title_margin: f32 = 8.0,
     /// close 按钮悬停时的背景色（默认半透明红）。
     hover_close: Color = .rgba(1.0, 0.0, 0.0, 0.5),
     /// minimize 按钮悬停时的背景色（默认半透明灰）。
@@ -45,10 +62,14 @@ const transparent = Color.rgba(0.0, 0.0, 0.0, 0.0);
 allocator: Allocator,
 frame_size: FrameSize,
 options: Options,
+renderer: ass.Renderer,
+uploader: *Uploader,
+text_pipeline: *TextPipeline,
 background: RectDrawer,
 rect: Rect,
 close: Button,
 minimize: Button,
+title: ?Text = null,
 
 on_close: ?Event.Callback(void) = null,
 on_minimize: ?Event.Callback(void) = null,
@@ -66,6 +87,12 @@ pub fn init(
     options: Options,
 ) Error!Self {
     const fw: f32 = @floatFromInt(frame_size.w);
+
+    // 自持一个固定尺寸的 ass 渲染器专门渲染标题文字（不随窗口变化，也不与图标共用）。
+    var renderer = try ass.Renderer.init(try AssLibrary.get());
+    errdefer renderer.deinit("title bar");
+    renderer.setFonts(null, consts.DEFAULT_FONT, ass.c.ASS_FONTPROVIDER_AUTODETECT, null, 1);
+    renderer.setFrameSize(TITLE_FRAME.w, TITLE_FRAME.h);
 
     // 按钮为边长等于栏高的正方形，图标在其中居中，故四周等边距 = (栏高 - 图标边长) / 2。
     // 按钮按实际边长贴右缘排布：close 最右，minimize 在其左侧，因此二者不会重叠。
@@ -92,6 +119,9 @@ pub fn init(
         .allocator = allocator,
         .frame_size = frame_size,
         .options = options,
+        .renderer = renderer,
+        .uploader = uploader,
+        .text_pipeline = text_pipeline,
         .background = background,
         .rect = rect,
         .close = close,
@@ -100,10 +130,45 @@ pub fn init(
 }
 
 pub fn deinit(self: *Self) void {
+    self.clearTitle();
     self.close.deinit();
     self.minimize.deinit();
     self.background.deinit();
+    self.renderer.deinit("title bar");
     self.* = undefined;
+}
+
+/// 释放当前标题文字。
+fn clearTitle(self: *Self) void {
+    if (self.title) |*t| t.deinit();
+    self.title = null;
+}
+
+/// 设置（或替换）居中标题文字。过宽时由 `Text` 截断为「头…尾」。
+pub fn setText(self: *Self, value: []const u8) Error!void {
+    self.clearTitle();
+
+    const fw: f32 = @floatFromInt(self.frame_size.w);
+    // 文字按整条栏宽对称居中，左右各占 tw/2；右侧两列按钮共 2*height，
+    // 为使右缘不越过 minimize 左缘，需在两侧各预留 2*height（共 4*height）。
+    const reserved = (self.options.height * 2.0 + self.options.title_margin) * 2.0;
+    const available = @max(0.0, fw - reserved);
+    var title_options = self.options.title;
+    title_options.max_width = available;
+
+    var title = try Text.init(self.allocator, &self.renderer, value, title_options);
+    errdefer title.deinit();
+
+    const size = title.raster.size();
+    const tw: f32 = @floatFromInt(size.w);
+    const th: f32 = @floatFromInt(size.h);
+    _ = title.position(.{ .x = (fw - tw) * 0.5, .y = (self.options.height - th) * 0.5 });
+    title.debug(self.options.debug);
+
+    _ = try title.toWidget(self.uploader, self.frame_size, self.text_pipeline);
+    try self.uploader.submit();
+
+    self.title = title;
 }
 
 /// 绑定两个内部按钮的悬停/点击回调。必须在 TitleBar 位于最终地址后调用一次。
@@ -145,6 +210,7 @@ pub fn toWidget(self: *Self) Widget {
 
 pub fn draw(self: *Self, cmd: *sdl.GPUCommandBuffer, pass: *sdl.GPURenderPass) void {
     self.background.draw(cmd, pass);
+    if (self.title) |*t| t.draw(cmd, pass);
     self.close.draw(cmd, pass);
     self.minimize.draw(cmd, pass);
 }

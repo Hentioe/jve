@@ -75,6 +75,7 @@ pub const MainConfig = struct {
     sort: []const u8 = "name", // 文件排序方式
     screenshot_dir: ?[]const u8 = null, // 截图保存目录
     borderless: bool = true, // 是否无边框
+    no_title_text: bool = false, // 是否不显示标题文字
     animation: AnimationConfig = .{
         .image_switch = true,
     },
