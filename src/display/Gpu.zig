@@ -22,6 +22,9 @@ const Error = @import("errors.zig").Error;
 const Shaders = std.ArrayList(*sdl.c.SDL_GPUShader);
 const Self = @This();
 
+// 组件总量
+const MAX_WIDGETS = 1; // 当前仅有 title_bar 组件
+
 allocator: std.mem.Allocator,
 window: *Window,
 device: *const sdl.Gpu,
@@ -33,7 +36,8 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
     const image = try gallery.current();
     const image_size = image.shape.toSize2D(i32);
     // 创建窗口
-    const window = try Window.create(allocator, image_size, .{ .windowed = true, .mode = .gpu, .borderless = true });
+    const borderless = config.get().borderless;
+    const window = try Window.create(allocator, image_size, .{ .windowed = true, .mode = .gpu, .borderless = borderless });
     errdefer window.destroy();
     // 获取显示层共享的 GPU 设备
     const device = try Device.get();
@@ -117,16 +121,23 @@ pub fn show(self: *Self) Error!ExitAction {
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
     // 顶部标题栏（自带 close / minimize 按钮）
-    const window_size = self.window.fit_size;
-    var title_bar = try TitleBar.init(self.allocator, &uploader, &text_pipeline, &rect_pipeline, window_size, .{
-        .color = .rgba(0.0, 0.0, 0.0, 0.25),
-    });
-    defer title_bar.deinit();
-    title_bar.bindEvents();
+    var title_bar: ?TitleBar = null;
+    if (self.window.borderless) {
+        const window_size = self.window.fit_size;
+        title_bar = try TitleBar.init(self.allocator, &uploader, &text_pipeline, &rect_pipeline, window_size, .{
+            .color = .rgba(0.0, 0.0, 0.0, 0.25),
+        });
+        title_bar.?.bindEvents();
+    }
+    defer if (title_bar) |*tb| tb.deinit();
 
-    var widgets = [_]Widget{
-        title_bar.toWidget(),
-    };
+    var widget_count: usize = 0;
+    // 组件数量是动态的，预先分配已知上限的数组
+    var widgets: [MAX_WIDGETS]Widget = undefined;
+    if (title_bar) |*tb| {
+        widgets[widget_count] = tb.toWidget();
+        widget_count += 1;
+    }
 
     try uploader.submit();
 
@@ -136,7 +147,7 @@ pub fn show(self: *Self) Error!ExitAction {
         self.device,
         shaders,
         image,
-        &widgets,
+        widgets[0..widget_count],
     );
     errdefer deps.deinit();
 

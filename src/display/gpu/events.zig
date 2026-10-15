@@ -24,12 +24,12 @@ pub fn build(event: *const sdl.Event) ?ui.Event {
 
 pub const Context = struct {
     deps: *RenderDeps,
-    title_bar: *ui.TitleBar,
+    title_bar: *?ui.TitleBar,
     state: *State = undefined,
 
     const Self = @This();
 
-    pub fn init(deps: *RenderDeps, title_bar: *ui.TitleBar) Self {
+    pub fn init(deps: *RenderDeps, title_bar: *?ui.TitleBar) Self {
         return Self{
             .deps = deps,
             .title_bar = title_bar,
@@ -39,9 +39,11 @@ pub const Context = struct {
     /// 绑定事件
     pub fn bindEvents(self: *Self, state: *State) void {
         self.state = state;
-        self.title_bar.on_close = ui.Event.Callback(void).bind(self, Self.close);
-        self.title_bar.on_minimize = ui.Event.Callback(void).bind(self, Self.minimize);
-        self.title_bar.on_button_hover = ui.Event.Callback(bool).bind(self, Self.titleBarButtonHover);
+        if (self.title_bar.*) |*title_bar| {
+            title_bar.on_close = ui.Event.Callback(void).bind(self, Self.close);
+            title_bar.on_minimize = ui.Event.Callback(void).bind(self, Self.minimize);
+            title_bar.on_button_hover = ui.Event.Callback(bool).bind(self, Self.titleBarButtonHover);
+        }
     }
 
     pub fn titleBarButtonHover(self: *Self, is_hover: bool) void {

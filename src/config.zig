@@ -8,32 +8,32 @@ pub const Error = @import("config/errors.zig").Error;
 pub const Sort = loader.Sort;
 
 var initialized: bool = false;
-var cache: loader.Loaded = undefined;
+var instance: loader.Loaded = undefined;
 
 pub fn init(allocator: Allocator, config_path: ?[]const u8) Error!void {
-    cache = try loader.load(allocator, config_path);
+    instance = try loader.load(allocator, config_path);
     initialized = true;
 }
 
 pub fn deinit() void {
     if (!initialized) return;
-    cache.deinit();
-    cache = undefined;
+    instance.deinit();
+    instance = undefined;
     initialized = false;
 }
 
 pub inline fn get() *const loader.MainConfig {
-    return cache.get();
+    return instance.get();
 }
 
 /// 已解析且保证有效的 Mod 键，外部无需再做错误或空值处理
 pub inline fn modKey() loader.ModKey {
-    return cache.mod_key;
+    return instance.mod_key;
 }
 
 /// 已解析且保证有效的排序方式，外部无需再做错误或空值处理
 pub inline fn sort() loader.Sort {
-    return cache.sort;
+    return instance.sort;
 }
 
 /// 将配置目录和输入路径组合，创建完整路径。

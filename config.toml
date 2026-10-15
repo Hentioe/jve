@@ -6,6 +6,8 @@ mod_key = "left_alt"
 # 排序方式: name | created_desc | created_asc | modified_desc | modified_asc
 sort = "name"
 screenshot_dir = "screenshots"
+# 是否无边框
+borderless = true
 
 [animation]
 image_switch = true

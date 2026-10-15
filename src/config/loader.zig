@@ -74,6 +74,7 @@ pub const MainConfig = struct {
     mod_key: []const u8 = "left_alt", // 组合键的 Mod 键
     sort: []const u8 = "name", // 文件排序方式
     screenshot_dir: ?[]const u8 = null, // 截图保存目录
+    borderless: bool = true, // 是否无边框
     animation: AnimationConfig = .{
         .image_switch = true,
     },

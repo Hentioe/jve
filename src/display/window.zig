@@ -28,6 +28,7 @@ windowed: bool, // 是否窗口化
 overflow: Overflow = .none, // 图片超出窗口最大限制的方向
 fit_size: ISize, // 合适的窗口尺寸（若尺寸超出，它表示真实窗口尺寸）
 is_draggable: bool = true, // 内部任意位置是否可拖动窗口
+borderless: bool = false,
 dirty: bool = false,
 
 pub const Options = struct {
@@ -85,6 +86,7 @@ pub fn create(allocator: Allocator, image_size: ISize, options: Options) Error!*
         .image_height = image_size.h,
         .display_width = display_width,
         .display_height = display_height,
+        .borderless = options.borderless,
         .sdl_window = sdl_window,
     };
     // 支持拖动窗口
