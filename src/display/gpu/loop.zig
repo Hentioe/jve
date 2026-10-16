@@ -1,6 +1,7 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const app_env = @import("../../app_env.zig");
+const ui = @import("../../ui.zig");
 const Delta = @import("../Delta.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const events = @import("events.zig");
@@ -35,7 +36,7 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
             var wait_event: sdl.Event = undefined;
             if (sdl.c.SDL_WaitEvent(&wait_event)) {
                 events.handle(&wait_event, &action, &state);
-                if (events.build(&wait_event)) |ui_event| { // 阻塞唤醒的事件同样要分发给 widget
+                if (ui.Event.fromSdl(&wait_event)) |ui_event| { // 阻塞唤醒的事件同样要分发给 widget
                     for (deps.widgets) |*w| w.event(&ui_event);
                 }
             }
@@ -44,7 +45,7 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         // 从事件中更新动作
         while (sdl.c.SDL_PollEvent(&event)) {
             events.handle(&event, &action, &state);
-            if (events.build(&event)) |ui_event| { // 构造 ui 事件结构体
+            if (ui.Event.fromSdl(&event)) |ui_event| { // 构造 ui 事件结构体
                 // 分发 ui 事件给所有 widget
                 for (deps.widgets) |*w| w.event(&ui_event);
             }

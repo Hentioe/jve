@@ -8,21 +8,6 @@ pub fn handle(event: *sdl.Event, state: *State) void {
     if (event.type == sdl.EVENT_QUIT) state.running = false;
 }
 
-pub fn build(event: *sdl.Event) ?ui.Event {
-    return switch (event.type) {
-        sdl.c.SDL_EVENT_MOUSE_MOTION => .{
-            .mouse_x = event.motion.x,
-            .mouse_y = event.motion.y,
-        },
-        sdl.EVENT_MOUSE_BUTTON_DOWN, sdl.EVENT_MOUSE_BUTTON_UP => .{
-            .click = if (event.type == sdl.EVENT_MOUSE_BUTTON_DOWN) .down else .up,
-            .mouse_x = event.button.x,
-            .mouse_y = event.button.y,
-        },
-        else => null,
-    };
-}
-
 pub const Context = struct {
     deps: *RenderDeps,
     title_bar: *ui.TitleBar,
