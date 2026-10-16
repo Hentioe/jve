@@ -8,6 +8,80 @@
 
 linkFarm "zig-packages" [
   {
+    name = "N-V-__8AABDbCAAZOSLwPsdRuIfOsTJRKEV6tQLeR-wsqe7o";
+    path = fetchgit {
+      url = "https://github.com/fastfloat/fast_float";
+      rev = "e0b53eaf63c6d00e0725788ef1dbb759aa321d79";
+      hash = "sha256-Ks3ChZ54PnVb1NOyXRMXB9GUUQs4zAN6HL2aRFrYGbY=";
+    };
+  }
+  {
+    name = "N-V-__8AACnqlwFCGjkuVKKh0Mtky-bMQSwcP6r7VF9YLl9W";
+    path = fetchgit {
+      url = "https://github.com/KhronosGroup/SPIRV-Tools";
+      rev = "7a88476ddf5f541ba553cbe009227d7510d258eb";
+      hash = "sha256-zpbG8ijMFuOsj2hDCmJYy9slMvJqjEpSSrqREGLgHgs=";
+    };
+  }
+  {
+    name = "N-V-__8AAFdJPQAl6CxKMHf2wXdxBdN-vipngsh6Tg1JLY1I";
+    path = fetchgit {
+      url = "https://github.com/martinus/unordered_dense";
+      rev = "73f3cbb237e84d483afafc743f1f14ec53e12314";
+      hash = "sha256-TfbW+Pu8jKS+2oKldA6sE4Xzt0R+VBPitGv89OWxUjs=";
+    };
+  }
+  {
+    name = "N-V-__8AAHjlPwChqOB01fulYNDe8oV7RcO-heJYxpd0z0_E";
+    path = fetchgit {
+      url = "https://github.com/KhronosGroup/SPIRV-Headers";
+      rev = "cb42dec3830d3ac67fa449ecdc0c0f73d5e74498";
+      hash = "sha256-hZ2+H9M55rdvu/MZrrOsZCUXDWbLMDMHyUjDWz/1L7I=";
+    };
+  }
+  {
+    name = "N-V-__8AAKFVFgB7o-RH9Wi2JmIurGztJwj1ZJnXqj7pbqMW";
+    path = fetchgit {
+      url = "https://github.com/richgel999/miniz";
+      rev = "6ef6c68f4fcbb8287aa8edf9c6670804932f41c6";
+      hash = "sha256-2BvVr8Bbi52A+PJJFGjwZZhgLXlyDZ4mLvpqm+v2Ufs=";
+    };
+  }
+  {
+    name = "N-V-__8AALiZGQDddaUgdV3uhZrNpEB06U-GnqDxD3KCIsMG";
+    path = fetchgit {
+      url = "https://github.com/lua/lua";
+      rev = "3fe7be956f23385aa1950dc31e2f25127ccfc0ea";
+      hash = "sha256-tKkJJD9CsU+S5WQm6wlyGPNOFf7M5TthqOl9LlMlr0g=";
+    };
+  }
+  {
+    name = "N-V-__8AAMdrngKlYKjXbAGa1iJd7vYImgKRz4cWFFEh9sKx";
+    path = fetchgit {
+      url = "https://github.com/KhronosGroup/glslang";
+      rev = "d1f52c8993a501bd52d4fbd044bfeb9ecdceb9f4";
+      hash = "sha256-VBEJ/lhyKqKjVrFVgWPiKD3iXlY+7ofcQCXOm7uwFAg=";
+    };
+  }
+  {
+    name = "N-V-__8AANI7GADWD8lBBrRPWDH6xoyiUZ5_Fx9x_3yVoAXy";
+    path = fetchgit {
+      url = "https://github.com/swiftlang/swift-cmark";
+      rev = "924936d0427cb25a61169739a7660230bffa6ea6";
+      hash = "sha256-0pyZ5yQRsbiKwz2XT8N6dMwCLcmM28qQOrxHcV6uH7g=";
+    };
+  }
+  {
+    name = "N-V-__8AAP-yGQAy2Cxpgf_sINTVgcT8XA_4C0Zeh9cJR4_G";
+    path = fetchgit {
+      url = "https://github.com/lz4/lz4";
+      rev = "7f71be01f2c6f6b2c3cddb67eef8c38eab12ffd4";
+      # 此处 hash 经过修正，此前 zon2nix 生成的错误 hash 是：
+      # sha256-p+pwRvMa/uPvIKdZN49DFo1NQO/RyJXSfAiVNs8HEhY=
+      hash = "sha256-GDQmfzAGjUpgJmZeD3RegVeD6P2fgQTUyPXnIxxAH8Q=";
+    };
+  }
+  {
     name = "clap-0.11.0-oBajB-TnAQC7yPLnZRT5WzHZ_4Ly4dX2OILskli74b9H";
     path = fetchgit {
       url = "https://github.com/Hejsil/zig-clap";
@@ -29,6 +103,14 @@ linkFarm "zig-packages" [
       url = "https://github.com/castholm/SDL_linux_deps";
       rev = "fd349940b9dbaa0f221703b05df826d745d7ce2a";
       hash = "sha256-sgaGfevW0iUweBYFlce749UERP3j56wj32YMp6Kl4lw=";
+    };
+  }
+  {
+    name = "slang-0.0.0-mZrlVu0NhAEJDJAZ0h6K4r-3CY4-ikkNuDwQci8nD0kJ";
+    path = fetchgit {
+      url = "https://github.com/Hentioe/slang";
+      rev = "638bad20478c33282f90c4641b32ba60187102cb";
+      hash = "sha256-bq3EYRJIGrQicYMF6s9I0kAHhSvVnVmP7FRVgmwkpbM=";
     };
   }
   {

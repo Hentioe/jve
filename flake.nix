@@ -46,6 +46,7 @@
 
         nativeBuildInputs = with pkgs; [
           zig_0_15
+          shader-slang # 提供 slangc（用于编译内建着色器）
           pkg-config
           makeBinaryWrapper # 用于 postFixup 里的 wrapProgram
         ];
@@ -53,10 +54,19 @@
         buildInputs = with pkgs; [
           vips
           glib
-          shader-slang
           onnxruntime
           libass
         ];
+
+        # 解决 slang 的构建问题：
+        # - p 目录是链接，解析问题导致 slang-fiddle: FileNotFound
+        # - unable to open file for writing: source/slang/core.meta.slang.temp.h
+        preBuild = ''
+          p="$ZIG_GLOBAL_CACHE_DIR/p"
+          cp -rL --no-preserve=mode "$(readlink -f "$p")" "$p.new"
+          rm -rf "$p"
+          mv "$p.new" "$p"
+        '';
 
         zigBuildFlags = [
           "-Dcpu=baseline"

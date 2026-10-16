@@ -1,4 +1,4 @@
-#include "slang_shim.h"
+#include "shim.h"
 #include <slang.h>
 #include <slang-com-ptr.h>
 #include <cstdlib>
@@ -77,12 +77,15 @@ int compile(slang::IGlobalSession* global,
 
 } // namespace
 
+extern "C" void slang_glslang_install_embedded(void* globalSession); // 经过改造后 glslang 是嵌入的
+
 extern "C" SlangShimCompiler* slang_shim_compiler_create(void) {
     auto* c = new SlangShimCompiler;
     if (SLANG_FAILED(slang_createGlobalSession(SLANG_API_VERSION, c->global.writeRef()))) {
         delete c;
         return nullptr;
     }
+    slang_glslang_install_embedded(c->global.get()); // 避免运行时加载
     return c;
 }
 

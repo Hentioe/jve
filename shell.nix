@@ -8,6 +8,7 @@ let
   nativeTools = [
     custom-zig # 受 zvm 管理的 Zig
     zon2nix # 转换 Zig 依赖为 Nix 依赖
+    shader-slang # 提供 slangc（用于编译内建着色器）
     pkg-config # 系统库搜索
   ];
   # 运行时所需工具
@@ -28,7 +29,6 @@ mkShell {
   buildInputs = [
     vips # 图像解码
     glib # VIPS 依赖
-    shader-slang # Shader 编译（Slang+HLSL）
     onnxruntime-rocm # ONNX 推理引擎
     libass # 文字支持
   ];

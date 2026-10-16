@@ -16,6 +16,10 @@
             .url = "git+https://github.com/sam701/zig-toml#475b03c630c802f8b6bd3e239d8fc2279b4fadb8",
             .hash = "toml-0.3.0-bV14BfV7AQD8DkuQI7skP8ekQTaBYKTO0MY_35Cw_EXo",
         },
+        .slang = .{ // 此提交特用于 0.15
+            .url = "git+https://github.com/Hentioe/slang#638bad20478c33282f90c4641b32ba60187102cb",
+            .hash = "slang-0.0.0-mZrlVu0NhAEJDJAZ0h6K4r-3CY4-ikkNuDwQci8nD0kJ",
+        },
     },
     .paths = .{
         "build.zig",

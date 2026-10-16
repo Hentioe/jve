@@ -5,6 +5,11 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const c_dep_optimize = switch (optimize) {
+        .Debug => .ReleaseFast, // 在 debug 模式，c 库始终 fast 编译
+        else => optimize,
+    };
+
     // 共享使用的基础模块
     const shared_mod = b.addModule("shared", .{
         .root_source_file = b.path("src/shared.zig"),
@@ -14,7 +19,7 @@ pub fn build(b: *std.Build) void {
 
     const sdl_dep = b.dependency("sdl", .{
         .target = target,
-        .optimize = optimize,
+        .optimize = c_dep_optimize,
         //.preferred_linkage = .static,
         //.strip = null,
         //.sanitize_c = null,
@@ -46,16 +51,25 @@ pub fn build(b: *std.Build) void {
     const libass_import: Import = .{ .name = "ass", .module = libass_mod };
 
     // slang
-    const slang_mod = b.addModule("slang", .{
+    const slang_dep = b.dependency("slang", .{
+        .target = target,
+        .optimize = c_dep_optimize,
+    });
+
+    // slang_shim
+    const slang_shim = b.addModule("slang_shim", .{
         .root_source_file = b.path("src/slang.zig"),
         .target = target,
         .imports = &.{shared_import},
         .link_libcpp = true,
+        .link_libc = true,
     });
-    slang_mod.linkSystemLibrary("slang", .{}); // 链接系统 slang 库
-    slang_mod.addCSourceFile(.{ .file = b.path("src/slang/shim.cpp"), .flags = &.{"-std=c++17"} }); // 用 shim.cpp 简化接口
-    slang_mod.addIncludePath(b.path("include")); // 包含 slang_shim.h 的自定义头文件路径
-    const slang_import: Import = .{ .name = "slang", .module = slang_mod };
+    slang_shim.addIncludePath(slang_dep.path("include"));
+    slang_shim.addIncludePath(b.path("src/slang")); // 包含 shim.h
+    slang_shim.addCSourceFile(.{ .file = b.path("src/slang/shim.cpp"), .flags = &.{"-std=c++20"} }); // 用 shim.cpp 简化接口
+    slang_shim.linkLibrary(slang_dep.artifact("slang-compiler")); // 链接 slang-compiler
+    slang_shim.linkLibrary(slang_dep.artifact("slang-glslang")); // 链接 slang-glslang
+    const slang_import: Import = .{ .name = "slang", .module = slang_shim };
 
     // TOML 依赖
     const toml_dep = b.dependency("toml", .{});
@@ -158,9 +172,8 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
 
-    // --- Shader 编译 ---
-    // 阶段（vertex/fragment）由源文件中的 [shader("...")] 属性推断，
-    // 目标格式由输出文件的 .spv 扩展名推断，故无需额外编译参数。
+    // -- Shader 编译 --
+    // stage 由源文件中的 [shader("...")] 属性推断，目标格式由输出文件的 .spv 扩展名推断，故无需额外编译参数。
     const shaders = [_][]const u8{
         "base.frag.slang",
         "base.vert.slang",
