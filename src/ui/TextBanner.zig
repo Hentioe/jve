@@ -52,7 +52,6 @@ on_hover: ?Event.Callback(bool) = null,
 on_click: ?Event.Callback(void) = null,
 
 last_hover: bool = false,
-last_click: Event.ClickState = .none,
 
 pub fn init(
     allocator: Allocator,
@@ -155,8 +154,5 @@ pub fn event(self: *Self, e: *const Event) void {
         cb.call(is_hover);
         self.last_hover = is_hover;
     };
-    if (self.on_click) |cb| if (is_hover and e.click != .none and e.click != self.last_click) {
-        if (e.click == .down) cb.call({});
-        self.last_click = e.click;
-    };
+    if (self.on_click) |cb| if (is_hover and e.click == .down) cb.call({});
 }
