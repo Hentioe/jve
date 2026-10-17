@@ -1,9 +1,9 @@
 /.direnv/
 /.zig-cache/
 /zig-out/
-/shaders/
 /images/
 /models/
 /screenshots/
+/shaders/user/
 # Nix build
 /result

@@ -15,7 +15,7 @@ no_title_text = false
 image_switch = true
 
 [shaders]
-dir = "shaders"
+dir = "shaders/user"
 background = "background.slang"
 
 [models]

@@ -197,7 +197,7 @@ pub fn build(b: *std.Build) void {
     const update_shaders = b.addUpdateSourceFiles();
 
     for (shaders) |shader| {
-        const src_path = b.pathJoin(&.{ "src", "shaders", shader });
+        const src_path = b.pathJoin(&.{ "shaders", shader });
         const compile = b.addSystemCommand(&.{"slangc"});
 
         // 输入文件
