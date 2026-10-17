@@ -35,17 +35,37 @@ pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu) Er
     for (files) |file| {
         const full_path = try std.fs.path.join(allocator, &[_][]const u8{ base_dir, file });
         defer allocator.free(full_path);
-        // 如果着色器文件名和背景着色器文件名相同，则不添加进列表，
-        // 否则作为后处理管线的一部分
-        if (config.get().shaders.background) |background| if (std.mem.eql(u8, file, background)) {
-            std.log.info("Found background shader: {s}", .{file});
-            // 注意：背景着色器不需要采样器
-            const sharder = try loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 0, .buffers = 0 });
-            Device.setBackgroundShader(sharder);
-        } else {
-            const sharder = try loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 1, .buffers = 0 });
-            try shaders.append(allocator, sharder);
-        };
+        // 如果着色器文件名和背景着色器配置名相同，直接跳过。
+        if (config.get().shaders.background) |name| if (std.mem.eql(u8, file, name)) continue;
+        // 否则作为普通着色器添加进列表。
+        std.log.info("Loading user shader: {s}", .{file});
+        const sharder = try loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 1, .buffers = 0 });
+        try shaders.append(allocator, sharder);
     }
     return shaders;
+}
+
+/// 内建背景着色器的名字和 @embedFile 的映射
+pub const BUILTIN_BG_SHADERS = std.StaticStringMap([]const u8).initComptime(.{
+    .{ "classic", @embedFile("checker_bg.frag.spv") },
+    .{ "rainbow", @embedFile("rainbow_bg.frag.spv") },
+});
+
+/// 加载背景着色器，仅允许调用一次
+pub fn loadBackground(allocator: Allocator, gpu: *const sdl.Gpu) Error!void {
+    std.debug.assert(Device.getBackgroundShader() == null);
+    if (config.get().shaders.background) |name| {
+        // 先从内建背景着色器中查找
+        if (BUILTIN_BG_SHADERS.get(name)) |shader_data| {
+            std.log.info("Loading built-in background shader: {s}", .{name});
+            const shader = try loader.load(gpu, shader_data, "main", .fragment, .{ .samplers = 0, .buffers = 0 });
+            Device.setBackgroundShader(shader);
+            return;
+        }
+        // 再尝试加载文件
+        const full_path = try config.allocFullPath(allocator, name);
+        defer allocator.free(full_path);
+        const sharder = try loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 0, .buffers = 0 });
+        Device.setBackgroundShader(sharder);
+    }
 }

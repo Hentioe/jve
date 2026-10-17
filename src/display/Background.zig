@@ -20,7 +20,7 @@ pub fn init(gpu: *const Gpu, window: *Window) Error!Self {
     const frag_shader = if (Device.getBackgroundShader()) |shader| blk: {
         frag_from_user = true;
         break :blk shader;
-    } else try shader_loader.load(gpu, @embedFile("checker.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
+    } else try shader_loader.load(gpu, @embedFile("checker_bg.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{ .format = gpu.getGPUSwapchainTextureFormat(window.sdl_window) };
     const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
         .vertex_shader = vert_shader, // 编译好的顶点着色器

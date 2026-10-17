@@ -16,7 +16,9 @@ image_switch = true
 
 [shaders]
 dir = "shaders/user"
-background = "background.slang"
+# 预设: classic | rainbow
+# 或自定义 .slang
+background = "classic"
 
 [models]
 dir = "models"

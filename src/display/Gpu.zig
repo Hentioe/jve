@@ -58,7 +58,9 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
     //     std.log.warn("IMMEDIATE Present Mode not supported", .{});
     // }
 
-    // 扫描和编译着色器
+    // 加载背景着色器
+    try shader.Scanner.loadBackground(allocator, device);
+    // 扫描并编译用户着色器
     var shaders: ?Shaders = null;
     if (config.get().base_dir) |base_dir| if (shared.pathExists(base_dir)) {
         var sf = std.heap.stackFallback(256, allocator);

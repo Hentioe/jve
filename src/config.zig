@@ -4,8 +4,8 @@ const Allocator = std.mem.Allocator;
 
 pub const paths = @import("config/paths.zig");
 pub const loader = @import("config/loader.zig");
-pub const Error = @import("config/errors.zig").Error;
 pub const Sort = loader.Sort;
+pub const Error = @import("config/errors.zig").Error;
 
 var initialized: bool = false;
 var instance: loader.Loaded = undefined;

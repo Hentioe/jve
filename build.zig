@@ -190,7 +190,8 @@ pub fn build(b: *std.Build) void {
         "sharpen.frag.slang",
         "text.frag.slang",
         "welcome.frag.slang",
-        "checker.frag.slang", // 经典背景
+        "checker_bg.frag.slang", // 经典背景
+        "rainbow_bg.frag.slang", // 彩虹背景
     };
 
     const shaders_step = b.step("shaders", "Compile Slang shaders to SPIR-V");
