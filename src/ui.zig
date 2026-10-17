@@ -1,3 +1,4 @@
+const consts = @import("ui/consts.zig");
 const IconRenderer = @import("ui/IconRenderer.zig");
 const Error = @import("ui/errors.zig").Error;
 
@@ -19,6 +20,8 @@ pub const TextBanner = @import("ui/TextBanner.zig");
 pub const Button = @import("ui/Button.zig");
 pub const TitleBar = @import("ui/TitleBar.zig");
 pub const CustomError = @import("ui/errors.zig").CustomError;
+
+pub const DEFAULT_FONT = consts.DEFAULT_FONT;
 
 pub fn init() Error!void {
     try IconRenderer.init();

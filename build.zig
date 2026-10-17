@@ -190,6 +190,7 @@ pub fn build(b: *std.Build) void {
         "sharpen.frag.slang",
         "text.frag.slang",
         "welcome.frag.slang",
+        "diag.frag.slang",
         "checker_bg.frag.slang", // 经典背景
         "rainbow_bg.frag.slang", // 彩虹背景
     };

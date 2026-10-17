@@ -4,6 +4,7 @@ const Device = @import("Device.zig");
 
 pub const Viewer = @import("display/Viewer.zig");
 pub const Welcome = @import("display/Welcome.zig");
+pub const Diag = @import("display/Diag.zig");
 pub const Error = @import("display/errors.zig").Error;
 
 // 显示模式的 Viewer 缓存：窗口、渲染器、GPU 等资源会按需惰性创建，并在模式切换间复用。

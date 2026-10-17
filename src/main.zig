@@ -35,6 +35,6 @@ pub fn main() !void {
     } else {
         try jve.display_init();
         defer jve.display_deinit();
-        try jve.showWelcome(allocator);
+        try jve.showDiag(allocator);
     }
 }

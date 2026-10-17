@@ -97,3 +97,10 @@ pub fn showWelcome(allocator: Allocator) !void {
 
     std.debug.assert(try welcome.show() == .quit);
 }
+
+pub fn showDiag(allocator: Allocator) !void {
+    var diag = try display.Diag.init(allocator);
+    defer diag.deinit();
+
+    std.debug.assert(try diag.show() == .quit);
+}
