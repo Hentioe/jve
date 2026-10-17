@@ -66,8 +66,12 @@ pub fn show(self: *Self) Error!ExitAction {
     var banner_pipeline = try ui.BannerPipeline.init(self.window, self.gpu);
     defer banner_pipeline.deinit();
     var widgets = [_]ui.Widget{};
-    // 底部横幅
-    var banner = try ui.TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &uploader, &text_pipeline, &banner_pipeline, .{});
+    // 错误消息横幅
+    var banner = try ui.TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &uploader, &text_pipeline, &banner_pipeline, .{
+        .placement = .center,
+        .color = .rgba(0.5, 0.0, 0.0, 0.5),
+        .padding_y = 10.0,
+    });
     defer banner.deinit();
     try banner.setText("你好");
     // 统一提交所有组件的资源上传

@@ -16,8 +16,12 @@ const Color = @import("Color.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
-/// 视口底部全宽横幅：背景由 `BannerPipeline`/`BannerDrawer` 绘制，文字是即时的
-/// `Text` 组件。横幅高度随文字高度自适应，文字在容器内居中，位置无需外部提供。
+/// 横幅在视口内的纵向落点。
+pub const Placement = enum { top, bottom, center };
+
+/// 视口全宽横幅：背景由 `BannerPipeline`/`BannerDrawer` 绘制，文字是即时的
+/// `Text` 组件。横幅高度随文字高度自适应，文字在容器内居中，纵向位置由
+/// `Placement` 决定。
 ///
 /// 显示与否由外部决定：不调用 `draw` 即自然消失，因此通常作为独立字段传递。
 pub const Options = struct {
@@ -25,16 +29,14 @@ pub const Options = struct {
     color: Color = .rgba(1.0, 0.0, 0.0, 1.0),
     /// 文字距横幅上下边缘的留白（像素）。
     padding_y: f32 = 8.0,
-    /// 横幅底边距视口底部的距离（像素）。
-    margin_bottom: f32 = 24.0,
+    /// 纵向落点。
+    placement: Placement = .bottom,
+    /// 顶部/底部时，横幅对应边距视口边缘的距离（像素）；`center` 时忽略。
+    margin: f32 = 24.0,
     /// 调试开关：把背景强制成红色。
     debug: bool = false,
     /// 内部文字组件的样式。
-    text: text_renderer.Options = .{
-        .font_name = "Noto Sans",
-        .font_size = 12,
-        .spacing = 0.75,
-    },
+    text: text_renderer.Options = .{ .spacing = 0.75 },
 };
 
 allocator: Allocator,
@@ -53,6 +55,16 @@ on_click: ?Event.Callback(void) = null,
 
 last_hover: bool = false,
 
+/// 依据落点计算横幅顶边的像素 y 坐标（帧左上角原点）。
+fn bannerTop(window_size: WindowSize, placement: Placement, margin: f32, banner_h: f32) f32 {
+    const fh: f32 = @floatFromInt(window_size.h);
+    return switch (placement) {
+        .top => margin,
+        .bottom => fh - margin - banner_h,
+        .center => (fh - banner_h) * 0.5,
+    };
+}
+
 pub fn init(
     allocator: Allocator,
     renderer: *const ass.Renderer,
@@ -63,8 +75,7 @@ pub fn init(
     options: Options,
 ) Error!Self {
     // 尚无文字时先给一个高度为 0 的横幅（不可见），`setText` 会按文字尺寸重建
-    const fh: f32 = @floatFromInt(window_size.h);
-    const top = fh - options.margin_bottom;
+    const top = bannerTop(window_size, options.placement, options.margin, 0);
     const background = try BannerDrawer.init(uploader, banner_pipeline, window_size, top, 0, options.color.value(), options.debug);
     return Self{
         .allocator = allocator,
@@ -96,14 +107,13 @@ pub fn setText(self: *Self, message: []const u8) Error!void {
     }
     const t = &self.text.?;
 
-    // 容器尺寸：全宽，高 = 文字高 + 上下留白，靠下
+    // 容器尺寸：全宽，高 = 文字高 + 上下留白，按落点定位
     const text_size = t.raster.size();
     const text_w: f32 = @floatFromInt(text_size.w);
     const text_h: f32 = @floatFromInt(text_size.h);
     const fw: f32 = @floatFromInt(self.window_size.w);
-    const fh: f32 = @floatFromInt(self.window_size.h);
     const banner_h = text_h + self.options.padding_y * 2.0;
-    const top = fh - self.options.margin_bottom - banner_h;
+    const top = bannerTop(self.window_size, self.options.placement, self.options.margin, banner_h);
     self.rect_top = top;
     self.rect_height = banner_h;
 
