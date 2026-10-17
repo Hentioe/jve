@@ -47,7 +47,7 @@ pub fn deinit(self: *Self) void {
 pub fn show(self: *Self) Error!ExitAction {
     const image = try gallery.current();
     var deps = try RenderDeps.init(self.window, &self.renderer, image);
-    errdefer deps.deinit();
+    defer deps.deinit();
 
     // 更新窗口标题
     try self.window.setTitle(image.file_name);

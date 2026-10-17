@@ -220,6 +220,7 @@ pub fn init(
 
 pub fn deinit(self: *Self) void {
     self.marker.deinit();
+    self.onscreen.deinit();
     self.mask.deinit(self.device);
     self.overflow.deinit(self.device);
     self.fog.deinit(self.device);

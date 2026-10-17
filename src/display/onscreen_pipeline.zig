@@ -6,7 +6,9 @@ const Error = @import("errors.zig").Error;
 const Gpu = @import("sdl").Gpu;
 const Self = @This();
 
+gpu: *const Gpu,
 pipeline: *c.SDL_GPUGraphicsPipeline,
+frag_shader: *c.SDL_GPUShader,
 render_pass: *c.SDL_GPURenderPass = undefined,
 
 pub fn init(
@@ -16,18 +18,28 @@ pub fn init(
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 ) Error!Self {
-    const frag_sharder = try shader_loader.load(gpu, @embedFile("onscreen.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 0 });
+    const frag_shader = try shader_loader.load(gpu, @embedFile("onscreen.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 0 });
     const pipeline = try post_util.createPipeline(
         gpu,
-        .{ .vert = vert_shader, .frag = frag_sharder },
+        .{ .vert = vert_shader, .frag = frag_shader },
         vert_buffer_desc,
         vert_attrs,
         color_target_desc,
     );
 
     return Self{
+        .gpu = gpu,
         .pipeline = pipeline,
+        .frag_shader = frag_shader,
     };
+}
+
+pub fn deinit(self: *Self) void {
+    // 释放本管线持有的图形管线与内部片段着色器；
+    // 顶点着色器由 RenderDeps 共享持有，不在此释放。
+    self.gpu.releaseGPUGraphicsPipeline(self.pipeline);
+    self.gpu.releaseGPUShader(self.frag_shader);
+    self.* = undefined;
 }
 
 pub fn begin(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, swapchain_texture: ?*c.SDL_GPUTexture) Error!void {
