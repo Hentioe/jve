@@ -15,7 +15,6 @@ const TextPipeline = ui.TextPipeline;
 const BannerPipeline = ui.BannerPipeline;
 const RectPipeline = ui.RectPipeline;
 const TextBanner = ui.TextBanner;
-const TitleBar = ui.TitleBar;
 const Uploader = @import("Uploader.zig");
 const ExitAction = @import("enums.zig").ExitAction;
 const RenderDeps = @import("welcome/RenderDeps.zig");
@@ -25,7 +24,7 @@ const Error = @import("errors.zig").Error;
 const Self = @This();
 
 const WINDOW_SIZE = Size2D(i32){ .w = 1024, .h = 768 };
-const WINDOW_OPTIONS = Window.Options{ .windowed = true, .mode = .gpu, .borderless = true };
+const WINDOW_OPTIONS = Window.Options{ .windowed = true, .mode = .gpu, .borderless = false };
 const LOGO_TEXT = "JVE";
 const LOGO_FONT = "Liberation Serif";
 const WELCOME_TEXT = "JVE 是一个图像查看器";
@@ -43,6 +42,7 @@ pub fn init(allocator: Allocator) Error!Self {
     // 创建窗口
     const window = try Window.create(allocator, WINDOW_SIZE, WINDOW_OPTIONS);
     errdefer window.destroy();
+    try window.setTitle("欢迎使用 - jve", .{ .include_image_size = false });
     // 获取显示层共享的 GPU 设备
     const gpu = try Device.getGpu();
     // 绑定窗口到 GPU 设备
@@ -51,7 +51,7 @@ pub fn init(allocator: Allocator) Error!Self {
     // 创建 ass 渲染器
     const ass_renderer = try ass.Renderer.init(try AssLibrary.get());
     // 设置 ass 渲染器字体
-    ass_renderer.setFonts(null, "Arial", ass.c.ASS_FONTPROVIDER_AUTODETECT, null, 1);
+    ass_renderer.setFonts(null, ui.DEFAULT_FONT, ass.c.ASS_FONTPROVIDER_AUTODETECT, null, 1);
 
     return Self{
         .allocator = allocator,
@@ -80,12 +80,6 @@ pub fn show(self: *Self) Error!ExitAction {
     // 所有文字/图标组件共享的渲染管线
     var text_pipeline = try TextPipeline.init(self.window, self.gpu);
     defer text_pipeline.deinit();
-    // 顶部标题栏（自带 close / minimize 按钮）
-    var title_bar = try TitleBar.init(self.allocator, &uploader, &text_pipeline, &rect_pipeline, WINDOW_SIZE, .{
-        .color = .rgba(0.0, 0.0, 0.0, 0.0),
-    });
-    defer title_bar.deinit();
-    title_bar.bindEvents();
     // 横幅背景共享的渲染管线
     // todo: 单例化 banner 管线，在 banner 组件中直接获取
     var banner_pipeline = try BannerPipeline.init(self.window, self.gpu);
@@ -108,7 +102,6 @@ pub fn show(self: *Self) Error!ExitAction {
     var widgets = [_]Widget{
         try image.toWidget(&uploader, WINDOW_SIZE, &text_pipeline),
         try logo.toWidget(&uploader, WINDOW_SIZE, &text_pipeline),
-        title_bar.toWidget(),
     };
     // 统一提交所有组件的资源上传
     try uploader.submit();
@@ -123,7 +116,7 @@ pub fn show(self: *Self) Error!ExitAction {
     var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &widgets, &banner);
     defer deps.deinit();
 
-    var context = events.Context.init(&deps, &title_bar);
+    var context = events.Context.init(&deps);
 
     try self.window.show();
     try loop.run(&deps, &context);
