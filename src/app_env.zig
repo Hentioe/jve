@@ -21,6 +21,8 @@ move_offset: Point = .{},
 preview_initialized: bool = false,
 window_dirty: bool = false, // 窗口状态已脏（如预览模式轮换）
 extracted: ?extractor.Extracted = null,
+fatal_mutex: std.Thread.Mutex = .{},
+fatal_slot: ?shared.Fatal = null,
 
 pub fn init(allocator: Allocator) void {
     instance = Self{ .allocator = allocator };
@@ -39,6 +41,45 @@ pub fn reader() *const Self {
 // 可变访问
 pub fn writer() *Self {
     return &instance;
+}
+
+pub fn report(err: anytype, src: std.builtin.SourceLocation, comptime fmt: []const u8, args: anytype) @TypeOf(err) {
+    instance.fatal_mutex.lock();
+    defer instance.fatal_mutex.unlock();
+    if (instance.fatal_slot != null) return err; // 只保留第一个
+
+    var f: shared.Fatal = .{ .err = err, .src = src };
+    const s = std.fmt.bufPrint(&f.msg_buf, fmt, args) catch blk: {
+        const t = "message too long";
+        @memcpy(f.msg_buf[0..t.len], t);
+        break :blk f.msg_buf[0..t.len];
+    };
+    f.msg_len = s.len;
+    instance.fatal_slot = f;
+    return err;
+}
+
+/// 顶层兜底：如果还没人记录，就至少记下错误名
+pub fn ensure_fatal(err: anyerror) void {
+    instance.fatal_mutex.lock();
+    defer instance.fatal_mutex.unlock();
+    if (instance.fatal_slot == null) {
+        var f: shared.Fatal = .{ .err = err, .src = @src() };
+        const s = std.fmt.bufPrint(&f.msg_buf, "{s}", .{@errorName(err)}) catch "";
+        f.msg_len = s.len;
+        instance.fatal_slot = f;
+    }
+}
+
+/// 诊断模式调用：取出并清空
+pub fn take_fatal(self: *Self) ?shared.Fatal {
+    self.fatal_mutex.lock();
+    defer self.fatal_mutex.unlock();
+    if (self.fatal_slot) |slot| {
+        self.fatal_slot = null;
+        return slot;
+    }
+    return null;
 }
 
 /// 提取并缓存纹理像素

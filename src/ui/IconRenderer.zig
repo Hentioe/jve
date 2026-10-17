@@ -24,7 +24,7 @@ pub fn init() Error!void {
 }
 
 pub fn deinit() void {
-    std.debug.assert(initialized);
+    if (!initialized) return;
     instance.deinit("icon renderer");
     instance = undefined;
     initialized = false;

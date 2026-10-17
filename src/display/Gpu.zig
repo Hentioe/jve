@@ -119,7 +119,7 @@ pub fn show(self: *Self) Error!ExitAction {
     defer text_pipeline.deinit();
     // 更新窗口尺寸
     app_env.writer().image_shape = image.shape;
-    try self.window.setTitle(image.file_name);
+    try self.window.setTitle(image.file_name, .{});
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
     // 顶部标题栏（自带 close / minimize 按钮）

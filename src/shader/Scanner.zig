@@ -2,6 +2,7 @@ const std = @import("std");
 const sdl = @import("sdl");
 const config = @import("config");
 const errors = @import("errors.zig");
+const app_env = @import("../app_env.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const loader = @import("loader.zig");
@@ -65,7 +66,9 @@ pub fn loadBackground(allocator: Allocator, gpu: *const sdl.Gpu) Error!void {
         // 再尝试加载文件
         const full_path = try config.allocFullPath(allocator, name);
         defer allocator.free(full_path);
-        const sharder = try loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 0, .buffers = 0 });
+        const sharder = loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 0, .buffers = 0 }) catch |err| {
+            return app_env.report(err, @src(), "背景着色器 `{s}` 加载失败", .{name});
+        };
         Device.setBackgroundShader(sharder);
     }
 }

@@ -7,3 +7,4 @@ pub const Error = @import("ass/errors.zig").Error;
 // -- 别名 --
 pub const Track = c.ASS_Track;
 pub const Image = c.ASS_Image;
+pub const FONTPROVIDER_AUTODETECT = c.ASS_FONTPROVIDER_AUTODETECT;
