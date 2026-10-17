@@ -3,6 +3,7 @@ const sdl = @import("sdl");
 const ass = @import("ass");
 const ui = @import("../ui.zig");
 const Allocator = std.mem.Allocator;
+const app_env = @import("../app_env.zig");
 const Device = @import("../Device.zig");
 const Uploader = @import("Uploader.zig");
 const Size2D = @import("shared").Size2D;
@@ -28,6 +29,7 @@ pub fn init(allocator: Allocator) Error!Self {
     // 创建窗口
     const window = try Window.create(allocator, WINDOW_SIZE, WINDOW_OPTIONS);
     errdefer window.destroy();
+    try window.setTitle("错误诊断 - jve", .{ .include_image_size = false });
     // 获取显示层共享的 GPU 设备
     const gpu = try Device.getGpu();
     // 绑定窗口到 GPU 设备
@@ -73,7 +75,8 @@ pub fn show(self: *Self) Error!ExitAction {
         .padding_y = 10.0,
     });
     defer banner.deinit();
-    try banner.setText("你好");
+    const message = if (app_env.writer().take_fatal()) |fatal| fatal.message() else "或许，没有发生错误？";
+    try banner.setText(message);
     // 统一提交所有组件的资源上传
     try uploader.submit();
 

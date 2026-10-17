@@ -50,7 +50,7 @@ pub fn show(self: *Self) Error!ExitAction {
     defer deps.deinit();
 
     // 更新窗口标题
-    try self.window.setTitle(image.file_name);
+    try self.window.setTitle(image.file_name, .{});
     // 显示窗口
     try self.window.show();
 

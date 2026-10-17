@@ -132,10 +132,17 @@ pub fn minimize(self: *Self) Error!void {
     try h.check(c.SDL_MinimizeWindow(self.sdl_window));
 }
 
-pub fn setTitle(self: *Self, file_name: []const u8) Error!void {
-    const titile = try std.fmt.allocPrintSentinel(self.allocator, "{s} ({d}x{d})", .{ file_name, self.image_width, self.image_height }, 0);
-    defer self.allocator.free(titile);
-    try h.check(c.SDL_SetWindowTitle(self.sdl_window, titile));
+const TitleOptions = struct {
+    include_image_size: bool = true,
+};
+
+pub fn setTitle(self: *Self, title: []const u8, options: TitleOptions) Error!void {
+    const titile_z = if (options.include_image_size)
+        try std.fmt.allocPrintSentinel(self.allocator, "{s} ({d}x{d})", .{ title, self.image_width, self.image_height }, 0)
+    else
+        try self.allocator.dupeZ(u8, title);
+    defer self.allocator.free(titile_z);
+    try h.check(c.SDL_SetWindowTitle(self.sdl_window, titile_z));
 }
 
 pub fn imageSizeUpdated(self: *Self, size: ISize) void {

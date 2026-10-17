@@ -51,7 +51,8 @@ pub fn vips_deinit() void {
     vips.deinit();
 }
 
-pub fn display_init() !void {
+pub fn display_init(allocator: Allocator) !void {
+    app_env.init(allocator);
     try ui.init();
     try display.init();
 }
@@ -59,6 +60,7 @@ pub fn display_init() !void {
 pub fn display_deinit() void {
     display.deinit();
     ui.deinit();
+    app_env.deinit();
 }
 
 pub fn isSupported(suffix: []const u8) !bool {
@@ -77,7 +79,7 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
     return try vips.loader.load(allocator, file_path);
 }
 
-pub fn show(display_mode: []const u8) !void {
+pub fn show(allocator: Allocator, display_mode: []const u8) !void {
     std.log.info("Display mode: {s}", .{display_mode});
     const mode: DisplayMode = if (std.mem.eql(u8, display_mode, "preview"))
         .preview
@@ -88,7 +90,10 @@ pub fn show(display_mode: []const u8) !void {
         return error.UnknownDisplayMode;
     };
 
-    try display.show(mode);
+    display.show(mode) catch |err| {
+        app_env.ensure_fatal(err);
+        try showDiag(allocator);
+    };
 }
 
 pub fn showWelcome(allocator: Allocator) !void {
