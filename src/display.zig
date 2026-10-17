@@ -1,6 +1,6 @@
 const sdl = @import("sdl");
 const app_env = @import("app_env.zig");
-const Device = @import("display/Device.zig");
+const Device = @import("Device.zig");
 
 pub const Viewer = @import("display/Viewer.zig");
 pub const Welcome = @import("display/Welcome.zig");

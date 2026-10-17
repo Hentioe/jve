@@ -18,6 +18,7 @@ pub const RectPipeline = @import("ui/RectPipeline.zig");
 pub const TextBanner = @import("ui/TextBanner.zig");
 pub const Button = @import("ui/Button.zig");
 pub const TitleBar = @import("ui/TitleBar.zig");
+pub const CustomError = @import("ui/errors.zig").CustomError;
 
 pub fn init() Error!void {
     try IconRenderer.init();

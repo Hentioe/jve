@@ -136,9 +136,9 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         if (swapchain_texture != null) {
             // 开启屏幕渲染
             try deps.onscreen.begin(cmd, swapchain_texture);
-            // 绘制棋盘格
-            deps.checkerboard.bind(deps.onscreen.render_pass); // 绑定到屏幕通道
-            deps.checkerboard.draw();
+            // 绘制背景
+            deps.background.bind(deps.onscreen.render_pass); // 绑定到屏幕通道
+            deps.background.draw();
             // 重新绑定屏幕管线，绘制内容（图片 + 后处理）
             deps.onscreen.bind();
             deps.onscreen.draw(state.tex_src, deps.sampler);

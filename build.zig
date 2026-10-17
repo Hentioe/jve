@@ -177,11 +177,10 @@ pub fn build(b: *std.Build) void {
     const shaders = [_][]const u8{
         "base.frag.slang",
         "base.vert.slang",
+        "background.vert.slang",
         "banner.frag.slang",
         "blur.frag.slang",
         "fog.frag.slang",
-        "checker.frag.slang",
-        "checker.vert.slang",
         "marker.frag.slang",
         "marker.vert.slang",
         "mask.frag.slang",
@@ -191,6 +190,7 @@ pub fn build(b: *std.Build) void {
         "sharpen.frag.slang",
         "text.frag.slang",
         "welcome.frag.slang",
+        "checker.frag.slang", // 经典背景
     };
 
     const shaders_step = b.step("shaders", "Compile Slang shaders to SPIR-V");

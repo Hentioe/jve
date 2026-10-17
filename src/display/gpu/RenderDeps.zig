@@ -5,8 +5,8 @@ const structs = @import("../structs.zig");
 const LImage = @import("vips").LImage;
 const Window = @import("../window.zig");
 const Uploader = @import("../Uploader.zig");
-const shader_loader = @import("../shader_loader.zig");
-const Checkerboard = @import("../checkerboard_gpu.zig");
+const shader_loader = @import("../../shader.zig").loader;
+const Background = @import("../Background.zig");
 const OnscreenPipeline = @import("../onscreen_pipeline.zig");
 const PostPipeline = @import("../PostPipeline.zig");
 const Pipeline = @import("../Pipeline.zig");
@@ -37,7 +37,7 @@ verts_binding: sdl.c.SDL_GPUBufferBinding,
 sampler: *sdl.c.SDL_GPUSampler,
 // 管线
 base_pipeline: *sdl.c.SDL_GPUGraphicsPipeline,
-checkerboard: Checkerboard,
+background: Background,
 onscreen: OnscreenPipeline,
 sharpen: PostPipeline,
 blur_x: PostPipeline,
@@ -133,8 +133,8 @@ pub fn init(
     };
     // 基础着色器（负责图像渲染）
     const base_pl = try device.createGPUGraphicsPipeline(&pipeline_info);
-    // 构造棋盘格（透明图片的背景）
-    const checkerboard = try Checkerboard.init(device, window);
+    // 构造背景
+    const background = try Background.init(device, window);
 
     // 创建离屏渲染纹理 A 和 B
     const offscreen_info: sdl.c.SDL_GPUTextureCreateInfo = .{
@@ -202,7 +202,7 @@ pub fn init(
         .verts_binding = verts_binding,
         .sampler = sampler,
         .base_pipeline = base_pl,
-        .checkerboard = checkerboard,
+        .background = background,
         .onscreen = onscreen,
         .sharpen = sharpen,
         .blur_x = blur_x_pl,
@@ -231,7 +231,7 @@ pub fn deinit(self: *Self) void {
         self.allocator.destroy(pl);
     }
     self.custom.deinit(self.allocator);
-    self.checkerboard.deinit();
+    self.background.deinit();
     self.device.releaseGPUGraphicsPipeline(self.base_pipeline);
     self.device.releaseGPUShader(self.mask_shader);
     self.device.releaseGPUShader(self.overflow_shader);

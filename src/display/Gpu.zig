@@ -6,9 +6,9 @@ const slang = @import("slang");
 const ui = @import("../ui.zig");
 const gallery = @import("../gallery.zig");
 const Window = @import("window.zig");
-const Device = @import("Device.zig");
+const Device = @import("../Device.zig");
 const app_env = @import("../app_env.zig");
-const ShaderScanner = @import("ShaderScanner.zig");
+const shader = @import("../shader.zig");
 const RenderDeps = @import("gpu/RenderDeps.zig");
 const events = @import("gpu/events.zig");
 const Uploader = @import("Uploader.zig");
@@ -40,7 +40,7 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
     const window = try Window.create(allocator, image_size, .{ .windowed = true, .mode = .gpu, .borderless = borderless });
     errdefer window.destroy();
     // 获取显示层共享的 GPU 设备
-    const device = try Device.get();
+    const device = try Device.getGpu();
     // 绑定窗口到 GPU 设备
     try device.claimWindow(window.sdl_window);
     window.gpu_device = device;
@@ -66,7 +66,7 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
         const full_path = try config.allocFullPath(sfa, config.get().shaders.dir);
         defer sfa.free(full_path);
         if (shared.pathExists(full_path)) {
-            var shader_scanner = try ShaderScanner.init(allocator, full_path);
+            var shader_scanner = try shader.Scanner.init(allocator, full_path);
             defer shader_scanner.deinit();
             std.log.info("Scanning shaders in directory: {s}", .{full_path});
             try shader_scanner.scan();
@@ -94,7 +94,7 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
 pub fn deinit(self: *Self) void {
     std.log.debug("Deinitializing GPU mode", .{});
     if (self.shaders) |*shaders| { // 着色器释放时依赖 gpu
-        for (shaders.items) |shader| self.device.releaseGPUShader(shader);
+        for (shaders.items) |s| self.device.releaseGPUShader(s);
         shaders.deinit(self.allocator);
     }
     self.window.destroy();

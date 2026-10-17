@@ -71,22 +71,22 @@ register(xN, spaceS)  ==>  set = S, binding = N
 
 各着色器实际绑定：
 
-| 着色器          | set 1              | set 2                                                                        | set 3                |
-| --------------- | ------------------ | ---------------------------------------------------------------------------- | -------------------- |
-| `base.vert`     |                    |                                                                              |                      |
-| `checker.vert`  |                    |                                                                              |                      |
-| `base.frag`     |                    | `Texture`=0, `Sampler`=0                                                     | `BaseUniforms`=0     |
-| `blur.frag`     |                    | `g_InputTexture`=0, `g_LinearSampler`=0                                      | `BlurUniforms`=0     |
-| `sharpen.frag`  |                    | `inputTexture`=0, `inputSampler`=0                                           | `SharpenUniforms`=0  |
-| `fog.frag`      |                    |                                                                              | `FogUniforms`=0      |
-| `overflow.frag` |                    |                                                                              | `OverflowUniforms`=0 |
-| `checker.frag`  |                    |                                                                              |                      |
-| `welcome.frag`  |                    |                                                                              |                      |
-| `marker.vert`   | `MarkerUniforms`=0 |                                                                              |                      |
-| `marker.frag`   |                    |                                                                              | `MarkerUniforms`=0   |
-| `mask.frag`     |                    | `u_MainTexture`=0 / `u_MainSampler`=0，`u_MaskTexture`=1 / `u_MaskSampler`=1 |                      |
-| `onscreen.frag` |                    | `Texture`=0, `Sampler`=0                                                     |                      |
-| `text.frag`     |                    | `Texture`=0, `Sampler`=0                                                     | `TextUniforms`=0     |
+| 着色器            | set 1              | set 2                                                                        | set 3                |
+| ----------------- | ------------------ | ---------------------------------------------------------------------------- | -------------------- |
+| `base.vert`       |                    |                                                                              |                      |
+| `background.vert` |                    |                                                                              |                      |
+| `base.frag`       |                    | `Texture`=0, `Sampler`=0                                                     | `BaseUniforms`=0     |
+| `blur.frag`       |                    | `g_InputTexture`=0, `g_LinearSampler`=0                                      | `BlurUniforms`=0     |
+| `sharpen.frag`    |                    | `inputTexture`=0, `inputSampler`=0                                           | `SharpenUniforms`=0  |
+| `fog.frag`        |                    |                                                                              | `FogUniforms`=0      |
+| `overflow.frag`   |                    |                                                                              | `OverflowUniforms`=0 |
+| `checker.frag`    |                    |                                                                              |                      |
+| `welcome.frag`    |                    |                                                                              |                      |
+| `marker.vert`     | `MarkerUniforms`=0 |                                                                              |                      |
+| `marker.frag`     |                    |                                                                              | `MarkerUniforms`=0   |
+| `mask.frag`       |                    | `u_MainTexture`=0 / `u_MainSampler`=0，`u_MaskTexture`=1 / `u_MaskSampler`=1 |                      |
+| `onscreen.frag`   |                    | `Texture`=0, `Sampler`=0                                                     |                      |
+| `text.frag`       |                    | `Texture`=0, `Sampler`=0                                                     | `TextUniforms`=0     |
 
 ## 3. SDL_GPU 的纹理 + 采样器必须共享同一个 binding（重点）
 

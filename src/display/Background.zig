@@ -1,8 +1,8 @@
 const c = @import("sdl").c;
 const Gpu = @import("sdl").Gpu;
 const Window = @import("window.zig");
-const shader_loader = @import("shader_loader.zig");
-const Device = @import("Device.zig");
+const shader_loader = @import("../shader/loader.zig");
+const Device = @import("../Device.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -15,8 +15,8 @@ render_pass: ?*c.SDL_GPURenderPass = null,
 
 pub fn init(gpu: *const Gpu, window: *Window) Error!Self {
     var frag_from_user = false;
-    // 构造棋盘格管线
-    const vert_shader = try shader_loader.load(gpu, @embedFile("checker.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
+    // 构造背景管线
+    const vert_shader = try shader_loader.load(gpu, @embedFile("background.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
     const frag_shader = if (Device.getBackgroundShader()) |shader| blk: {
         frag_from_user = true;
         break :blk shader;

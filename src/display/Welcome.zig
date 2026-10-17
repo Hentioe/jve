@@ -5,7 +5,7 @@ const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const Size2D = @import("shared").Size2D;
 const Window = @import("window.zig");
-const Device = @import("Device.zig");
+const Device = @import("../Device.zig");
 const ui = @import("../ui.zig");
 const AssLibrary = ui.AssLibrary;
 const Text = ui.Text;
@@ -44,7 +44,7 @@ pub fn init(allocator: Allocator) Error!Self {
     const window = try Window.create(allocator, WINDOW_SIZE, WINDOW_OPTIONS);
     errdefer window.destroy();
     // 获取显示层共享的 GPU 设备
-    const gpu = try Device.get();
+    const gpu = try Device.getGpu();
     // 绑定窗口到 GPU 设备
     try gpu.claimWindow(window.sdl_window);
     window.gpu_device = gpu;
