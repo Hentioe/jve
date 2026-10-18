@@ -59,7 +59,15 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
     // }
 
     // 加载背景着色器
-    try shader.Scanner.loadBackground(allocator, device);
+    var slang_initialized = false;
+    defer if (slang_initialized) slang.deinit();
+    if (config.get().shaders.background) |name| {
+        if (std.mem.endsWith(u8, name, ".slang")) {
+            try slang.init();
+            slang_initialized = true;
+        }
+        try shader.Scanner.loadBackground(allocator, device, name);
+    }
     // 扫描并编译用户着色器
     var shaders: ?Shaders = null;
     if (config.get().base_dir) |base_dir| if (shared.pathExists(base_dir)) {
@@ -72,10 +80,12 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
             defer shader_scanner.deinit();
             std.log.info("Scanning shaders in directory: {s}", .{full_path});
             try shader_scanner.scan();
-            if (shader_scanner.scanner.names.items.len > 0) { // 仅仅在扫描到着色器后才初始化 Slang
-                try slang.init();
+            if (shader_scanner.scanner.names.items.len > 0) {
+                if (!slang_initialized) {
+                    try slang.init();
+                    slang_initialized = true;
+                }
                 shaders = try shader_scanner.compileShaders(allocator, device);
-                slang.deinit();
             }
         } else {
             std.log.warn("Shader directory does not exist: {s}", .{full_path});
