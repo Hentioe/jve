@@ -46,7 +46,6 @@
 
         nativeBuildInputs = with pkgs; [
           zig_0_15
-          shader-slang # 提供 slangc（用于编译内建着色器）
           pkg-config
           makeBinaryWrapper # 用于 postFixup 里的 wrapProgram
         ];
@@ -55,6 +54,7 @@
           vips
           glib
           onnxruntime
+          shader-slang
           libass
         ];
 
@@ -71,6 +71,7 @@
         zigBuildFlags = [
           "-Dcpu=baseline"
           "-Doptimize=ReleaseFast"
+          "-Dlink_builtin_slang=false" # 不使用内建 slang，依赖系统库
         ];
         dontSetZigDefaultFlags = true;
 

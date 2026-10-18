@@ -2,6 +2,9 @@ const std = @import("std");
 const Import = std.Build.Module.Import;
 
 pub fn build(b: *std.Build) void {
+    // 是否链接内建 slang
+    const link_builtin_slang = b.option(bool, "link_builtin_slang", "Whether to link the built-in slang library") orelse false;
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -64,11 +67,18 @@ pub fn build(b: *std.Build) void {
         .link_libcpp = true,
         .link_libc = true,
     });
-    slang_shim.addIncludePath(slang_dep.path("include"));
+
+    if (link_builtin_slang) {
+        slang_shim.addCMacro("EMBEDDED_GLSLANG", "1");
+        slang_shim.addIncludePath(slang_dep.path("include"));
+        slang_shim.linkLibrary(slang_dep.artifact("slang-compiler")); // 链接 slang-compiler
+        slang_shim.linkLibrary(slang_dep.artifact("slang-glslang")); // 链接 slang-glslang
+    } else {
+        slang_shim.linkSystemLibrary("slang", .{}); // 链接系统 slang
+    }
+
     slang_shim.addIncludePath(b.path("src/slang")); // 包含 shim.h
     slang_shim.addCSourceFile(.{ .file = b.path("src/slang/shim.cpp"), .flags = &.{"-std=c++20"} }); // 用 shim.cpp 简化接口
-    slang_shim.linkLibrary(slang_dep.artifact("slang-compiler")); // 链接 slang-compiler
-    slang_shim.linkLibrary(slang_dep.artifact("slang-glslang")); // 链接 slang-glslang
     const slang_import: Import = .{ .name = "slang", .module = slang_shim };
 
     // TOML 依赖

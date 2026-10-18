@@ -77,7 +77,9 @@ int compile(slang::IGlobalSession* global,
 
 } // namespace
 
+#ifdef EMBEDDED_GLSLANG
 extern "C" void slang_glslang_install_embedded(void* globalSession); // 经过改造后 glslang 是嵌入的
+#endif
 
 extern "C" SlangShimCompiler* slang_shim_compiler_create(void) {
     auto* c = new SlangShimCompiler;
@@ -85,7 +87,9 @@ extern "C" SlangShimCompiler* slang_shim_compiler_create(void) {
         delete c;
         return nullptr;
     }
+    #ifdef EMBEDDED_GLSLANG
     slang_glslang_install_embedded(c->global.get()); // 避免运行时加载
+    #endif
     return c;
 }
 
