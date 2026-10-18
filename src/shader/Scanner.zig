@@ -1,14 +1,13 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const config = @import("config");
-const errors = @import("errors.zig");
 const app_env = @import("../app_env.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const loader = @import("loader.zig");
 const Scanner = @import("../Scanner.zig");
 const Device = @import("../Device.zig");
-const Error = errors.Error;
+const Error = @import("errors.zig").Error;
 const Self = @This();
 
 allocator: Allocator,
@@ -36,11 +35,12 @@ pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu) Er
     for (files) |file| {
         const full_path = try std.fs.path.join(allocator, &[_][]const u8{ base_dir, file });
         defer allocator.free(full_path);
-        // 如果着色器文件名和背景着色器配置名相同，直接跳过。
+        // 如果着色器文件名和背景着色器配置名相同，直接跳过
         if (config.get().shaders.background) |name| if (std.mem.eql(u8, file, name)) continue;
-        // 否则作为普通着色器添加进列表。
-        std.log.info("Loading user shader: {s}", .{file});
-        const sharder = try loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 1, .buffers = 0 });
+        // 否则作为普通着色器添加进列表
+        const sharder = loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 1, .buffers = 0 }) catch |err| {
+            return app_env.report(err, @src(), "着色器 `{s}` 加载失败", .{file});
+        };
         try shaders.append(allocator, sharder);
     }
     return shaders;
