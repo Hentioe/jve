@@ -29,7 +29,7 @@ pub fn init(allocator: Allocator) Error!Self {
     // 创建窗口
     const window = try Window.create(allocator, WINDOW_SIZE, WINDOW_OPTIONS);
     errdefer window.destroy();
-    try window.setTitle("错误诊断 - jve", .{ .include_image_size = false });
+    try window.setTitle("错误诊断", .{ .include_content_size = false });
     // 获取显示层共享的 GPU 设备
     const gpu = try Device.getGpu();
     // 绑定窗口到 GPU 设备

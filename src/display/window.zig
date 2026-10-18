@@ -132,17 +132,29 @@ pub fn minimize(self: *Self) Error!void {
     try h.check(c.SDL_MinimizeWindow(self.sdl_window));
 }
 
+const APP_NAME = "jve";
+
 const TitleOptions = struct {
-    include_image_size: bool = true,
+    include_content_size: bool = false,
+    include_app_suffix: bool = true,
 };
 
 pub fn setTitle(self: *Self, title: []const u8, options: TitleOptions) Error!void {
-    const titile_z = if (options.include_image_size)
+    const titile_z = if (options.include_content_size and options.include_app_suffix)
+        try std.fmt.allocPrintSentinel(self.allocator, "{s} ({d}x{d}) - {s}", .{ title, self.image_width, self.image_height, APP_NAME }, 0)
+    else if (options.include_content_size)
         try std.fmt.allocPrintSentinel(self.allocator, "{s} ({d}x{d})", .{ title, self.image_width, self.image_height }, 0)
+    else if (options.include_app_suffix)
+        try std.fmt.allocPrintSentinel(self.allocator, "{s} - {s}", .{ title, APP_NAME }, 0)
     else
         try self.allocator.dupeZ(u8, title);
     defer self.allocator.free(titile_z);
     try h.check(c.SDL_SetWindowTitle(self.sdl_window, titile_z));
+}
+
+pub fn getTitle(self: *Self) []const u8 {
+    const title_z = c.SDL_GetWindowTitle(self.sdl_window);
+    return std.mem.span(title_z);
 }
 
 pub fn imageSizeUpdated(self: *Self, size: ISize) void {

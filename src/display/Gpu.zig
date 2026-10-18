@@ -119,7 +119,7 @@ pub fn show(self: *Self) Error!ExitAction {
     defer text_pipeline.deinit();
     // 更新窗口尺寸
     app_env.writer().image_shape = image.shape;
-    try self.window.setTitle(image.file_name, .{});
+    try self.window.setTitle(image.file_name, .{ .include_content_size = true });
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
     // 顶部标题栏（自带 close / minimize 按钮）
@@ -129,7 +129,7 @@ pub fn show(self: *Self) Error!ExitAction {
         title_bar = try TitleBar.init(self.allocator, &uploader, &text_pipeline, &rect_pipeline, window_size, .{
             .color = .rgba(0.0, 0.0, 0.0, 0.25),
         });
-        title_bar.?.bindEvents();
+        title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量
     }
     defer if (title_bar) |*tb| tb.deinit();
 
@@ -137,7 +137,7 @@ pub fn show(self: *Self) Error!ExitAction {
     // 组件数量是动态的，预先分配已知上限的数组
     var widgets: [MAX_WIDGETS]Widget = undefined;
     if (title_bar) |*tb| {
-        if (!config.get().no_title_text) try tb.setText(image.file_name);
+        if (!config.get().no_title_text) try tb.setText(self.window.getTitle());
         widgets[widget_count] = tb.toWidget();
         widget_count += 1;
     }
