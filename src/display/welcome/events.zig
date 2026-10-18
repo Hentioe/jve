@@ -1,26 +1,40 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const shared = @import("shared");
+const Allocator = std.mem.Allocator;
 const State = @import("State.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const ui = @import("../../ui.zig");
+const Error = @import("../errors.zig").Error;
 
 pub fn handle(event: *sdl.Event, state: *State) void {
     if (event.type == sdl.EVENT_QUIT) state.running = false;
 }
 
 pub const Context = struct {
+    allocator: Allocator,
     deps: *RenderDeps,
     state: *State = undefined,
+    pointer_cursor: *sdl.Cursor,
+    default_cursor: *sdl.Cursor,
 
     initial_banner_color: ui.Color,
 
     const Self = @This();
 
-    pub fn init(deps: *RenderDeps) Self {
+    pub fn init(allocator: Allocator, deps: *RenderDeps) Error!Self {
         return Self{
+            .allocator = allocator,
             .deps = deps,
             .initial_banner_color = deps.banner.options.color,
+            .pointer_cursor = try sdl.createSystemCursor(sdl.SYSTEM_CURSOR_POINTER),
+            .default_cursor = try sdl.createSystemCursor(sdl.SYSTEM_CURSOR_DEFAULT),
         };
+    }
+
+    pub fn deinit(self: *Self) void {
+        sdl.destroyCursor(self.pointer_cursor);
+        sdl.destroyCursor(self.default_cursor);
     }
 
     /// 绑定事件
@@ -36,12 +50,19 @@ pub const Context = struct {
         const banner = self.deps.banner;
         if (is_hover) {
             banner.setColor(.rgba(1.0, 1.0, 1.0, 0.15));
+            // 切换到手型光标
+            sdl.setCursor(self.pointer_cursor) catch |err| std.log.err("Failed to set pointer cursor: {}", .{err});
         } else {
             banner.setColor(self.initial_banner_color);
+            sdl.setCursor(self.default_cursor) catch |err| std.log.err("Failed to set default cursor: {}", .{err});
         }
     }
 
-    pub fn bannerClick(_: *Self, _: void) void {
+    pub fn bannerClick(self: *Self, _: void) void {
         std.log.debug("Banner clicked", .{});
+        shared.openUrl(self.allocator, "https://github.com/Hentioe/jve") catch {
+            self.deps.banner.setText("打开仓库链接失败了") catch |err| std.log.err("Failed to set banner text: {}", .{err});
+            self.deps.banner.setColor(.rgba(1.0, 0.0, 0.0, 0.5));
+        };
     }
 };

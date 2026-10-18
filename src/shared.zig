@@ -12,3 +12,4 @@ pub const Error = errors.Error;
 pub const pathExists = helper.pathExists;
 pub const pathAccessible = helper.pathAccessible;
 pub const strdup = helper.strdup;
+pub const openUrl = helper.openUrl;

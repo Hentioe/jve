@@ -116,7 +116,8 @@ pub fn show(self: *Self) Error!ExitAction {
     var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &widgets, &banner);
     defer deps.deinit();
 
-    var context = events.Context.init(&deps);
+    var context = try events.Context.init(self.allocator, &deps);
+    defer context.deinit();
 
     try self.window.show();
     try loop.run(&deps, &context);

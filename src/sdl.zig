@@ -7,7 +7,23 @@ pub const Gpu = @import("sdl/Gpu.zig");
 pub const Renderer = @import("sdl/Renderer.zig");
 pub const Error = errors.Error;
 
+pub fn createSystemCursor(cursor: SystemCursor) Error!*Cursor {
+    return h.check(c.SDL_CreateSystemCursor(cursor));
+}
+
+pub fn destroyCursor(cursor: *Cursor) void {
+    c.SDL_DestroyCursor(cursor);
+}
+
+pub fn setCursor(cursor: *Cursor) Error!void {
+    return h.check(c.SDL_SetCursor(cursor));
+}
+
 // -- 类型别名 --
+pub const Cursor = c.SDL_Cursor;
+pub const SystemCursor = c.SDL_SystemCursor;
+pub const SYSTEM_CURSOR_DEFAULT = c.SDL_SYSTEM_CURSOR_DEFAULT;
+pub const SYSTEM_CURSOR_POINTER = c.SDL_SYSTEM_CURSOR_POINTER;
 pub const Texture = c.SDL_Texture;
 pub const GPUShader = c.SDL_GPUShader;
 pub const GPUTexture = c.SDL_GPUTexture;
