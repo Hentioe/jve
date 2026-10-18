@@ -36,7 +36,7 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
     const image = try gallery.current();
     const image_size = image.shape.toSize2D(i32);
     // 创建窗口
-    const borderless = config.get().borderless;
+    const borderless = config.get().titlebar.custom;
     const window = try Window.create(allocator, image_size, .{ .windowed = true, .mode = .gpu, .borderless = borderless });
     errdefer window.destroy();
     // 获取显示层共享的 GPU 设备
@@ -119,7 +119,10 @@ pub fn show(self: *Self) Error!ExitAction {
     defer text_pipeline.deinit();
     // 更新窗口尺寸
     app_env.writer().image_shape = image.shape;
-    try self.window.setTitle(image.file_name, .{ .include_content_size = true });
+    try self.window.setTitle(image.file_name, .{
+        .include_content_size = !(config.get().titlebar.no_size orelse false),
+        .include_app_suffix = !(config.get().titlebar.no_app orelse false),
+    });
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
     // 顶部标题栏（自带 close / minimize 按钮）
@@ -127,7 +130,7 @@ pub fn show(self: *Self) Error!ExitAction {
     if (self.window.borderless) {
         const window_size = self.window.fit_size;
         title_bar = try TitleBar.init(self.allocator, &uploader, &text_pipeline, &rect_pipeline, window_size, .{
-            .color = .rgba(0.0, 0.0, 0.0, 0.25),
+            .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity orelse 0.25),
         });
         title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量
     }
@@ -137,7 +140,7 @@ pub fn show(self: *Self) Error!ExitAction {
     // 组件数量是动态的，预先分配已知上限的数组
     var widgets: [MAX_WIDGETS]Widget = undefined;
     if (title_bar) |*tb| {
-        if (!config.get().no_title_text) try tb.setText(self.window.getTitle());
+        if (!(config.get().titlebar.no_text orelse false)) try tb.setText(self.window.getTitle());
         widgets[widget_count] = tb.toWidget();
         widget_count += 1;
     }

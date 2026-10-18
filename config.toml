@@ -6,10 +6,13 @@ mod_key = "left_alt"
 # 排序方式: name | created_desc | created_asc | modified_desc | modified_asc
 sort = "name"
 screenshot_dir = "screenshots"
-# 是否无边框
-borderless = true
-# 是否不显示标题文字（仅对无边框生效）
-no_title_text = false
+
+[titlebar]
+custom = true
+opacity = 0.25 # 取值范围 0.0 - 1.0，仅对自定义标题栏生效
+no_text = false # 仅对自定义标题栏生效
+no_size = true
+no_app = true
 
 [animation]
 image_switch = true

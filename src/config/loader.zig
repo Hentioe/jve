@@ -5,6 +5,14 @@ const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 const Error = errors.Error;
 
+pub const Titlebar = struct {
+    custom: bool, // 是否启用自定义标题栏
+    opacity: ?f32, // 标题栏透明度
+    no_text: ?bool, // 是否不显示标题文字
+    no_size: ?bool, // 是否不显示图片尺寸
+    no_app: ?bool, // 是否不显示应用后缀
+};
+
 pub const AnimationConfig = struct {
     image_switch: bool, // 是否启用图片切换动画
 };
@@ -74,8 +82,13 @@ pub const MainConfig = struct {
     mod_key: []const u8 = "left_alt", // 组合键的 Mod 键
     sort: []const u8 = "name", // 文件排序方式
     screenshot_dir: ?[]const u8 = null, // 截图保存目录
-    borderless: bool = true, // 是否无边框
-    no_title_text: bool = false, // 是否不显示标题文字
+    titlebar: Titlebar = .{
+        .custom = true,
+        .no_text = false,
+        .no_size = true,
+        .no_app = true,
+        .opacity = 0.25,
+    },
     animation: AnimationConfig = .{
         .image_switch = true,
     },
@@ -106,7 +119,7 @@ pub const Loaded = struct {
     mod_key: ModKey, // 加载后解析出的 Mod 键（保证有效）
     sort: Sort, // 加载后解析出的排序方式（保证有效）
 
-    pub fn get(self: *const Loaded) *const MainConfig {
+    pub inline fn get(self: *const Loaded) *const MainConfig {
         return self.config.get();
     }
 
