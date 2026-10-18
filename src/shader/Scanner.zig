@@ -1,10 +1,12 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const slang = @import("slang");
 const config = @import("config");
 const app_env = @import("../app_env.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const loader = @import("loader.zig");
+const Cache = @import("Cache.zig");
 const Scanner = @import("../Scanner.zig");
 const Device = @import("../Device.zig");
 const Error = @import("errors.zig").Error;
@@ -31,19 +33,80 @@ pub fn scan(self: *Self) Error!void {
 pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu) Error!ArrayList(*sdl.c.SDL_GPUShader) {
     const base_dir = self.scanner.dir_path;
     const files = self.scanner.items();
+
+    var cache = try Cache.init(allocator, slang.DEFAULT_PROFILE);
+    defer cache.deinit();
+
     var shaders = try ArrayList(*sdl.c.SDL_GPUShader).initCapacity(allocator, 0);
+    errdefer {
+        for (shaders.items) |shader| gpu.releaseGPUShader(shader);
+        shaders.deinit(allocator);
+    }
+
     for (files) |file| {
-        const full_path = try std.fs.path.join(allocator, &[_][]const u8{ base_dir, file });
-        defer allocator.free(full_path);
         // 如果着色器文件名和背景着色器配置名相同，直接跳过
         if (config.get().shaders.background) |name| if (std.mem.eql(u8, file, name)) continue;
+
+        const full_path = try std.fs.path.join(allocator, &[_][]const u8{ base_dir, file });
+        defer allocator.free(full_path);
         // 否则作为普通着色器添加进列表
-        const sharder = loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 1, .buffers = 0 }) catch |err| {
+        const bytes = try resolveSpirv(allocator, &cache, file, full_path);
+        defer allocator.free(bytes);
+
+        const shader = loader.load(gpu, bytes, "main", .fragment, .{ .samplers = 1, .buffers = 0 }) catch |err| {
             return app_env.report(err, @src(), "着色器 `{s}` 加载失败", .{file});
         };
-        try shaders.append(allocator, sharder);
+        try shaders.append(allocator, shader);
     }
+
+    try cache.save();
     return shaders;
+}
+
+/// 获取某个着色器的 SPIR-V：优先命中缓存，未命中则编译并写回。
+/// 返回的字节由调用方释放。
+fn resolveSpirv(allocator: Allocator, cache: *Cache, name: []const u8, full_path: []const u8) Error![]u8 {
+    const stat = try std.fs.cwd().statFile(full_path);
+    const mtime = stat.mtime;
+    const size: u64 = @intCast(stat.size);
+
+    // mtime 与 size 都一致：视作未变，直接读缓存
+    if (cache.get(name)) |entry| if (entry.mtime == mtime and entry.size == size) {
+        if (try cache.readSpv(allocator, name)) |bytes| {
+            std.log.info("Shader from cache: {s}", .{name});
+            return bytes;
+        }
+    };
+
+    // 读取源码并计算内容哈希
+    const source = std.fs.cwd().readFileAllocOptions(
+        allocator,
+        full_path,
+        stat.size,
+        null,
+        .of(u8),
+        0,
+    ) catch return Error.ShaderReadFailed;
+    defer allocator.free(source);
+    const hash = std.hash.Wyhash.hash(0, source);
+
+    // 元数据变了但哈希一致：内容未变，仅刷新摘要
+    if (cache.get(name)) |entry| if (entry.hash == hash) {
+        cache.touch(name, mtime, size);
+        if (try cache.readSpv(allocator, name)) |bytes| {
+            std.log.info("Shader from cache: {s}", .{name});
+            return bytes;
+        }
+    };
+
+    var compiled = try slang.compileToSpirv(allocator, full_path, source, .{ .entry = "main" });
+    defer compiled.deinit();
+
+    const bytes = try allocator.dupe(u8, compiled.bytes());
+    errdefer allocator.free(bytes);
+    try cache.write(allocator, name, bytes, mtime, size, hash);
+    std.log.info("Shader recompiled: {s}", .{name});
+    return bytes;
 }
 
 /// 内建背景着色器的名字和 @embedFile 的映射
@@ -63,12 +126,20 @@ pub fn loadBackground(allocator: Allocator, gpu: *const sdl.Gpu) Error!void {
             Device.setBackgroundShader(shader);
             return;
         }
-        // 再尝试加载文件
+        // 再尝试加载文件，走与用户着色器一致的缓存
         const full_path = try config.allocFullPath(allocator, name);
         defer allocator.free(full_path);
-        const sharder = loader.loadSlangFile(allocator, gpu, full_path, "main", .fragment, .{ .samplers = 0, .buffers = 0 }) catch |err| {
+
+        var cache = try Cache.init(allocator, slang.DEFAULT_PROFILE);
+        defer cache.deinit();
+
+        const bytes = try resolveSpirv(allocator, &cache, name, full_path);
+        defer allocator.free(bytes);
+        try cache.save();
+
+        const shader = loader.load(gpu, bytes, "main", .fragment, .{ .samplers = 0, .buffers = 0 }) catch |err| {
             return app_env.report(err, @src(), "背景着色器 `{s}` 加载失败", .{name});
         };
-        Device.setBackgroundShader(sharder);
+        Device.setBackgroundShader(shader);
     }
 }

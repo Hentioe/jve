@@ -6,6 +6,7 @@
 //
 const std = @import("std");
 const errors = @import("errors.zig");
+const xdg = @import("xdg");
 const fs = std.fs;
 const process = std.process;
 const Allocator = std.mem.Allocator;
@@ -66,18 +67,8 @@ pub fn listCandidates(
 }
 
 /// 读取 `$XDG_CONFIG_HOME`，若未设置则回退为 `$HOME/.config`。
-pub fn getConfigHome(allocator: Allocator) Error![]u8 {
-    if (process.getEnvVarOwned(allocator, "XDG_CONFIG_HOME")) |val| {
-        if (val.len > 0) return val;
-        allocator.free(val); // 如果是空路径，直接释放走回退
-    } else |err| {
-        if (err != GetEnvVarOwnedError.EnvironmentVariableNotFound) return err;
-    }
-
-    const home = try process.getEnvVarOwned(allocator, "HOME");
-    defer allocator.free(home);
-    return fs.path.join(allocator, &.{ home, ".config" });
-}
+/// 复用通用 XDG 解析，返回的字符串由调用者释放。
+pub const getConfigHome = xdg.getConfigHome;
 
 /// 读取 $XDG_CONFIG_DIRS（':' 分隔），未设置则回退为 ["/etc/xdg"]。
 /// 返回的 slice 及其中每个字符串都需要调用者释放（用 freeConfigDirs）。

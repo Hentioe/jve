@@ -23,9 +23,12 @@ pub fn deinit() void {
     shared.heap.mallocTrim(); // 编译环境相当占用内存，需立即回收
 }
 
+/// 默认编译目标，着色器缓存以此为编译环境标识之一
+pub const DEFAULT_PROFILE = "spirv_1_5";
+
 pub const Options = struct {
     entry: []const u8 = "main",
-    profile: []const u8 = "spirv_1_5",
+    profile: []const u8 = DEFAULT_PROFILE,
 };
 
 pub const Compiled = struct {

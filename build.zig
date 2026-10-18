@@ -20,6 +20,13 @@ pub fn build(b: *std.Build) void {
     });
     const shared_import: Import = .{ .name = "shared", .module = shared_mod };
 
+    // XDG 目录解析
+    const xdg_mod = b.addModule("xdg", .{
+        .root_source_file = b.path("src/xdg.zig"),
+        .target = target,
+    });
+    const xdg_import: Import = .{ .name = "xdg", .module = xdg_mod };
+
     const sdl_dep = b.dependency("sdl", .{
         .target = target,
         .optimize = c_dep_optimize,
@@ -89,7 +96,7 @@ pub fn build(b: *std.Build) void {
     const config_mod = b.addModule("config", .{
         .root_source_file = b.path("src/config.zig"),
         .target = target,
-        .imports = &.{toml_import},
+        .imports = &.{ toml_import, xdg_import },
     });
     const config_import: Import = .{ .name = "config", .module = config_mod };
 
@@ -127,6 +134,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .imports = &.{
             shared_import,
+            xdg_import,
             toml_import,
             config_import,
             vips_import,
