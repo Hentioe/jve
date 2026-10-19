@@ -28,6 +28,7 @@ gamma: f32 = 1, // Gamma 校正值（暂未实现）
 channel: i32 = 0, // 0: 正常全彩, 1: R, 2: G, 3: B, 4: A
 // 截图
 save_screenshot: bool = false,
+screenshot_include_bg: bool = false,
 copy_screenshot: bool = false,
 // 是否正在繁忙处理
 is_busy: bool = false,

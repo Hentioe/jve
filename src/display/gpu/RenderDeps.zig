@@ -103,18 +103,17 @@ pub fn init(
         .{ .location = 0, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = @offsetOf(Vertex, "x") }, // Position
         .{ .location = 1, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u") }, // UV
     };
+    // 所有颜色目标统一为 R8G8B8A8_UNORM
+    // 基础 pass 输入非预乘图像，用 SRC_ALPHA 混合写入透明目标，写入后即为预乘 Alpha
     const color_target_desc: sdl.c.SDL_GPUColorTargetDescription = .{
-        .format = device.getGPUSwapchainTextureFormat(window.sdl_window),
-        .blend_state = .{ // 启用 Alpha 混合
-            .enable_blend = true,
-            .src_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-            .dst_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-            .color_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
-            .src_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
-            .dst_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-            .alpha_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
-            .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
-        },
+        .format = sdl.c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        .blend_state = blendState(),
+    };
+    // 链上的内容自基础 pass 起均为预乘 Alpha，后续 pass 与屏幕直通必须用预乘混合，
+    // 否则会把预乘颜色再乘一次 Alpha，导致边缘变暗
+    const premultiplied_color_target_desc: sdl.c.SDL_GPUColorTargetDescription = .{
+        .format = color_target_desc.format,
+        .blend_state = premultipliedBlendState(),
     };
     const vert_shader = try shader_loader.load(device, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
     const frag_shader = try shader_loader.load(device, @embedFile("base.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
@@ -134,12 +133,12 @@ pub fn init(
     // 基础着色器（负责图像渲染）
     const base_pl = try device.createGPUGraphicsPipeline(&pipeline_info);
     // 构造背景
-    const background = try Background.init(device, window);
+    const background = try Background.init(device, color_target_desc.format);
 
     // 创建离屏渲染纹理 A 和 B
     const offscreen_info: sdl.c.SDL_GPUTextureCreateInfo = .{
         .type = sdl.c.SDL_GPU_TEXTURETYPE_2D,
-        .format = sdl.c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 与 Swapchain 格式一致
+        .format = color_target_desc.format,
         .usage = sdl.c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | sdl.c.SDL_GPU_TEXTUREUSAGE_SAMPLER,
         .width = texture_size.w,
         .height = texture_size.h,
@@ -150,19 +149,21 @@ pub fn init(
     const tex_b = try device.createGPUTexture(&offscreen_info);
 
     // 创建屏幕渲染的直通管线
-    const onscreen = try OnscreenPipeline.init(device, vert_shader, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    // 创建内建的后处理管线
-    const pl_builder = PostPipeline.Builder.init(device, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    const onscreen = try OnscreenPipeline.init(device, vert_shader, &vert_buffer_desc, &vert_attrs, &premultiplied_color_target_desc);
+    // 链上后处理：输入输出均为预乘 Alpha
+    const pl_builder = PostPipeline.Builder.init(device, &vert_buffer_desc, &vert_attrs, &premultiplied_color_target_desc);
+    // 仅屏幕叠加的管线：输出非预乘颜色，仍用 SRC_ALPHA 混合
+    const screen_builder = PostPipeline.Builder.init(device, &vert_buffer_desc, &vert_attrs, &color_target_desc);
     const sharpen_frag_shader = try shader_loader.load(device, @embedFile("sharpen.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const sharpen = try pl_builder.build(.sharpen, .{ .vert = vert_shader, .frag = sharpen_frag_shader });
     const blur_frag_shader = try shader_loader.load(device, @embedFile("blur.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const blur_x_pl = try pl_builder.build(.blur_x, .{ .vert = vert_shader, .frag = blur_frag_shader });
     const blur_y_pl = try pl_builder.build(.blur_y, .{ .vert = vert_shader, .frag = blur_frag_shader });
     const fog_frag_shader = try shader_loader.load(device, @embedFile("fog.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
-    const fog_pl = try pl_builder.build(.fog, .{ .vert = vert_shader, .frag = fog_frag_shader });
+    const fog_pl = try screen_builder.build(.fog, .{ .vert = vert_shader, .frag = fog_frag_shader });
     // 构造超出提示管线（图片过大被限制尺寸时，在屏幕边缘显示提示）
     const overflow_frag_shader = try shader_loader.load(device, @embedFile("overflow.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
-    const overflow_pl = try pl_builder.build(.overflow, .{ .vert = vert_shader, .frag = overflow_frag_shader });
+    const overflow_pl = try screen_builder.build(.overflow, .{ .vert = vert_shader, .frag = overflow_frag_shader });
     const mask_frag_shader = try shader_loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, .{ .samplers = 2, .buffers = 0 });
     const mask_pl = try pl_builder.build(.mask, .{ .vert = vert_shader, .frag = mask_frag_shader });
     // 构造标记管线
@@ -253,4 +254,32 @@ pub fn deinit(self: *Self) void {
 /// 内建后处理管线（顺序即渲染顺序）
 pub fn builtin(self: *Self) [4]*PostPipeline {
     return .{ &self.sharpen, &self.blur_x, &self.blur_y, &self.mask };
+}
+
+/// 非预乘输入叠加到透明目标时的混合状态（基础 pass 用，结果变为预乘 Alpha）
+fn blendState() sdl.c.SDL_GPUColorTargetBlendState {
+    return .{
+        .enable_blend = true,
+        .src_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+        .dst_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        .color_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
+        .src_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
+        .dst_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        .alpha_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
+        .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
+    };
+}
+
+/// 预乘 Alpha 的混合状态：源颜色已经乘过 Alpha，直接叠加，不再重复相乘
+fn premultipliedBlendState() sdl.c.SDL_GPUColorTargetBlendState {
+    return .{
+        .enable_blend = true,
+        .src_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
+        .dst_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        .color_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
+        .src_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
+        .dst_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        .alpha_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
+        .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
+    };
 }

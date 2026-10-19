@@ -42,6 +42,6 @@ float4 main(PSInput input) : SV_TARGET
 
     float3 finalColor = lerp(whiteColor, greenColor, innerMask);
 
-    // 6. 输出预乘 Alpha
-    return float4(finalColor * outerAlpha, outerAlpha);
+    // 6. 输出非预乘颜色，由 SRC_ALPHA 混合状态完成 Alpha 混合
+    return float4(finalColor, outerAlpha);
 }

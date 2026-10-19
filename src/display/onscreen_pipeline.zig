@@ -47,7 +47,7 @@ pub fn begin(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, swapchain_texture: ?
         .texture = swapchain_texture,
         .load_op = c.SDL_GPU_LOADOP_CLEAR,
         .store_op = c.SDL_GPU_STOREOP_STORE,
-        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 1.0 },
+        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 },
     };
     self.render_pass = try h.check(c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null));
 }

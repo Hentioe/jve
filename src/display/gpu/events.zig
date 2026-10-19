@@ -58,7 +58,7 @@ pub const EventAction = union(enum) {
     reset,
     invert,
     grayscale,
-    save_screenshot,
+    save_screenshot: struct { include_bg: bool },
     copy_screenshot,
     start_task,
     toggle_custom_shader,
@@ -100,7 +100,10 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
         },
         .invert => state.is_inverted = !state.is_inverted,
         .grayscale => state.is_grayscale = !state.is_grayscale,
-        .save_screenshot => state.save_screenshot = true,
+        .save_screenshot => |payload| {
+            state.save_screenshot = true;
+            state.screenshot_include_bg = payload.include_bg;
+        },
         .copy_screenshot => state.copy_screenshot = true,
         .start_task => {
             if (state.task == null) {
@@ -180,8 +183,8 @@ fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: Act
         action.* = .invert;
     } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_G) { // G 键灰阶化
         action.* = .grayscale;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_S) { // S 键保存截图
-        action.* = .save_screenshot;
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_S) { // S 键保存截图（如果按下 Mod 键，则包含背景）
+        action.* = .{ .save_screenshot = .{ .include_bg = deps.mod_key.pressed } };
     } else if (deps.mod_key.pressedAndKeyDown(event, sdl.c.SDLK_R) and !deps.is_busy) { // Mod+R 去除背景
         action.* = .start_task;
     } else if (deps.mod_key.pressedAndKeyDown(event, sdl.c.SDLK_T)) { // Mod+T 切换自定义着色器的启用状态

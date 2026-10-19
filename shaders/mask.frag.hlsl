@@ -12,12 +12,12 @@ struct PSInput
 
 float4 main(PSInput input) : SV_TARGET
 {
-  // 采样原图 RGB
-  float3 color = u_MainTexture.Sample(u_MainSampler, input.TexCoord).rgb;
+  // 采样主纹理（内容链的纹理已是预乘 Alpha）
+  float4 color = u_MainTexture.Sample(u_MainSampler, input.TexCoord);
   
-  // 采样 Mask 图 R 通道作为 Alpha
+  // 采样 Mask 图 R 通道作为遮罩
   float alpha = u_MaskTexture.Sample(u_MaskSampler, input.TexCoord).r;
 
-  // 输出预乘 Alpha
-  return float4(color * alpha, alpha);
+  // 输出预乘 Alpha：RGB 与 Alpha 同时乘遮罩，混合状态不会再乘一次
+  return float4(color.rgb * alpha, color.a * alpha);
 }

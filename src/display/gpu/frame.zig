@@ -93,15 +93,13 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         } else {
             pl.bind(cmd, state.tex_dst, state.tex_src, deps.sampler, &deps.verts_binding);
         }
-        if (pl.effect == .sharpen) {
-            // 传递锐化参数
+        if (pl.effect == .sharpen) { // 传递锐化参数
             const uniforms: SharpenUniforms = .{
                 .strength = state.slide_value,
                 .texture_size = .{ @floatFromInt(deps.image.shape.w), @floatFromInt(deps.image.shape.h) },
             };
             sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &uniforms, @sizeOf(SharpenUniforms));
-        } else if (pl.effect == .blur_x or pl.effect == .blur_y) {
-            // 传递模糊参数
+        } else if (pl.effect == .blur_x or pl.effect == .blur_y) { // 传递模糊参数
             const uniforms: BlurUniforms = .{
                 .blur_intensity = -state.slide_value, // 从负数转换而来
                 .texel_size = .{ texel_size_w, texel_size_h },
@@ -130,16 +128,24 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         }
     }
 
+    // 截图包含背景：背景作为链上的一趟垫在内容下面
+    if (state.screenshot_include_bg) {
+        try deps.background.composite(cmd, state.tex_src);
+    }
+
     // 获取当前帧的 Swapchain 纹理
-    var swapchain_texture: ?*sdl.c.SDL_GPUTexture = null;
-    if (sdl.c.SDL_WaitAndAcquireGPUSwapchainTexture(cmd, deps.window.sdl_window, @constCast(&swapchain_texture), null, null)) {
-        if (swapchain_texture != null) {
+    var tex_swp: ?*sdl.GPUTexture = null;
+    if (sdl.c.SDL_WaitAndAcquireGPUSwapchainTexture(cmd, deps.window.sdl_window, @constCast(&tex_swp), null, null)) {
+        if (tex_swp != null) {
             // 开启屏幕渲染
-            try deps.onscreen.begin(cmd, swapchain_texture);
-            // 绘制背景
-            deps.background.bind(deps.onscreen.render_pass); // 绑定到屏幕通道
-            deps.background.draw();
-            // 重新绑定屏幕管线，绘制内容（图片 + 后处理）
+            try deps.onscreen.begin(cmd, tex_swp);
+            // tex_src 已包含背景时不再重复绘制
+            if (!state.screenshot_include_bg) {
+                // 绑定背景管线，绘制背景
+                deps.background.bind(deps.onscreen.render_pass); // 绑定到屏幕通道
+                deps.background.draw();
+            }
+            // 绑定屏幕管线，绘制内容（图片 + 后处理）
             deps.onscreen.bind();
             deps.onscreen.draw(state.tex_src, deps.sampler);
             // 在屏幕之上继续添加新内容
@@ -164,7 +170,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 deps.overflow.draw();
             }
             if (state.is_busy) {
-                // 显示雾（不采样纹理，仅使用 uniform）
+                // 显示雾效果（不采样纹理，仅使用 uniform）
                 deps.fog.bindScreen(deps.onscreen.render_pass, &deps.verts_binding);
                 const fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(sdl.c.SDL_GetTicks())) / 1000.0 };
                 sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &fog_uniforms, @sizeOf(FogUniforms));
@@ -181,12 +187,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     // 处理截图保存和复制
     if (state.save_screenshot or state.copy_screenshot) {
         // 创建截图器
-        var screenshot = Screenshot.init(
-            deps.allocator,
-            device,
-            state.tex_src,
-            &deps.image,
-        ) catch |err| fallback: {
+        var screenshot = Screenshot.init(deps.allocator, device, state.tex_src, &deps.image) catch |err| fallback: {
             std.log.err("Failed to create screenshot: {}", .{err});
             break :fallback null;
         };
@@ -199,5 +200,6 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         // 重置控制参数
         state.save_screenshot = false;
         state.copy_screenshot = false;
+        state.screenshot_include_bg = false;
     }
 }
