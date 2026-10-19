@@ -66,7 +66,7 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
         defer allocator.free(full_path);
         if (shared.pathExists(full_path)) {
             std.log.info("Scanning shaders in directory: {s}", .{full_path});
-            shaders = try shader.Scanner.loadAll(allocator, device);
+            shaders = try shader.Scanner.loadAll(allocator, device, full_path);
         } else {
             std.log.warn("Shader directory does not exist: {s}", .{full_path});
         }

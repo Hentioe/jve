@@ -31,8 +31,8 @@ pub fn scan(self: *Self) Error!void {
     try self.scanner.scan();
 }
 
-pub fn loadAll(allocator: Allocator, gpu: *const sdl.Gpu) Error!Shaders {
-    var self = try Self.init(allocator, config.get().shaders.dir);
+pub fn loadAll(allocator: Allocator, gpu: *const sdl.Gpu, shader_dir: []const u8) Error!Shaders {
+    var self = try Self.init(allocator, shader_dir);
     defer self.deinit();
     defer if (slang.isInitialized()) slang.deinit();
     try loadBackground(self.allocator, gpu);
