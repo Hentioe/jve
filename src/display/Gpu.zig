@@ -58,35 +58,15 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
     //     std.log.warn("IMMEDIATE Present Mode not supported", .{});
     // }
 
-    // 加载背景着色器
-    var slang_initialized = false;
-    defer if (slang_initialized) slang.deinit();
-    if (config.get().shaders.background) |name| {
-        if (std.mem.endsWith(u8, name, ".slang")) {
-            try slang.init();
-            slang_initialized = true;
-        }
-        try shader.Scanner.loadBackground(allocator, device, name);
-    }
-    // 扫描并编译用户着色器
+    // 扫描和加载用户着色器（包括背景）
     var shaders: ?Shaders = null;
     if (config.get().base_dir) |base_dir| if (shared.pathExists(base_dir)) {
-        var sf = std.heap.stackFallback(256, allocator);
-        const sfa = sf.get();
-        const full_path = try config.allocFullPath(sfa, config.get().shaders.dir);
-        defer sfa.free(full_path);
+        // 检查着色器目录是否存在
+        const full_path = try config.allocFullPath(allocator, config.get().shaders.dir);
+        defer allocator.free(full_path);
         if (shared.pathExists(full_path)) {
-            var shader_scanner = try shader.Scanner.init(allocator, full_path);
-            defer shader_scanner.deinit();
             std.log.info("Scanning shaders in directory: {s}", .{full_path});
-            try shader_scanner.scan();
-            if (shader_scanner.scanner.names.items.len > 0) {
-                if (!slang_initialized) {
-                    try slang.init();
-                    slang_initialized = true;
-                }
-                shaders = try shader_scanner.compileShaders(allocator, device);
-            }
+            shaders = try shader.Scanner.loadAll(allocator, device);
         } else {
             std.log.warn("Shader directory does not exist: {s}", .{full_path});
         }

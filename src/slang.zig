@@ -8,19 +8,24 @@ pub const Error = @import("slang/errors.zig").Error;
 var initialized: bool = false;
 var compiler: Compiler = undefined;
 
-pub fn init() Error!void {
-    std.debug.assert(!initialized);
+pub fn init(from: []const u8) Error!void {
+    if (initialized) return; // 允许多次调用初始化
+    std.log.debug("Initializing Slang ({s})", .{from});
     compiler = try Compiler.init();
     initialized = true;
 }
 
 pub fn deinit() void {
-    std.log.debug("Deinitializing Slang", .{});
     std.debug.assert(initialized);
+    std.log.debug("Deinitializing Slang", .{});
     compiler.deinit();
     compiler = undefined;
     initialized = false;
     shared.heap.mallocTrim(); // 编译环境相当占用内存，需立即回收
+}
+
+pub fn isInitialized() bool {
+    return initialized;
 }
 
 /// 默认编译目标，着色器缓存以此为编译环境标识之一
