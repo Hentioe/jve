@@ -5,7 +5,11 @@ max_scale = 3.0
 mod_key = "left_alt"
 # 排序方式: name | created_desc | created_asc | modified_desc | modified_asc
 sort = "name"
-screenshot_dir = "screenshots"
+
+[screenshot]
+dir = "screenshots"
+# 截图的输出格式: png | avif | jpg
+format = "jpg"
 
 [titlebar]
 custom = true
@@ -21,7 +25,7 @@ image_switch = true
 dir = "shaders/user"
 # 预设: classic | rainbow
 # 或自定义 .slang
-background = "classic"
+background = "bg.slang"
 
 [models]
 dir = "models"

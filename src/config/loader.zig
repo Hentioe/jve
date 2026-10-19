@@ -5,6 +5,13 @@ const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 const Error = errors.Error;
 
+const SCREENSHOT_FORMATS = [_][]const u8{ "png", "avif", "jpg" };
+
+pub const Screenshot = struct {
+    dir: ?[]const u8 = null, // 截图保存目录
+    format: []const u8, // 截图的输出格式
+};
+
 pub const Titlebar = struct {
     custom: bool, // 是否启用自定义标题栏
     opacity: ?f32, // 标题栏透明度
@@ -81,7 +88,9 @@ pub const MainConfig = struct {
     max_scale: f32 = 3.0, // 最大缩放倍数
     mod_key: []const u8 = "left_alt", // 组合键的 Mod 键
     sort: []const u8 = "name", // 文件排序方式
-    screenshot_dir: ?[]const u8 = null, // 截图保存目录
+    screenshot: Screenshot = .{
+        .format = "png",
+    },
     titlebar: Titlebar = .{
         .custom = true,
         .no_text = false,
