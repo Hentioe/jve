@@ -76,7 +76,9 @@ pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu) Er
 /// 获取某个着色器的 SPIR-V：优先命中缓存，未命中则编译并写回。
 /// 返回的字节由调用方释放。
 fn resolveSpirv(allocator: Allocator, cache: *Cache, name: []const u8, full_path: []const u8) Error![]u8 {
-    const stat = try std.fs.cwd().statFile(full_path);
+    const stat = std.fs.cwd().statFile(full_path) catch |err| {
+        return app_env.report(err, @src(), "着色器 `{s}` 读取失败：{s}", .{ name, @errorName(err) });
+    };
     const mtime = stat.mtime;
     const size: u64 = @intCast(stat.size);
 
