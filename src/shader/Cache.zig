@@ -2,7 +2,7 @@
 //
 // 缓存目录位于 XDG 规范的 `~/.cache/jve/shaders/`：
 //   - `manifest.json`：摘要文件，记录每个源码的 mtime、size、hash；
-//   - `<stem>.spv`：编译产物，文件名与源码同名（仅替换后缀）。
+//   - `<hash>.spv`：编译产物，以源码内容哈希命名，内容相同即共享。
 //
 // 失效判定：先比对 mtime + size（低成本），任一变化再比对内容 hash，
 // hash 也不同才重新编译。manifest 以原子方式写入，读取失败直接报错。
@@ -93,9 +93,10 @@ pub fn touch(self: *Cache, name: []const u8, mtime: i128, size: u64) void {
     }
 }
 
-/// 读取缓存中的 SPIR-V；缓存文件不存在返回 null。
+/// 读取缓存中的 SPIR-V；摘要不存在或缓存文件不存在时返回 null。
 pub fn readSpv(self: *Cache, allocator: Allocator, name: []const u8) Error!?[]u8 {
-    const path = try self.spvPath(allocator, name);
+    const entry = self.entries.get(name) orelse return null;
+    const path = try self.spvPath(allocator, entry.hash);
     defer allocator.free(path);
 
     return std.fs.cwd().readFileAlloc(allocator, path, MAX_SPV_SIZE) catch |err| switch (err) {
@@ -117,7 +118,7 @@ pub fn write(
     size: u64,
     hash: u64,
 ) Error!void {
-    const path = try self.spvPath(allocator, name);
+    const path = try self.spvPath(allocator, hash);
     defer allocator.free(path);
     try atomicWrite(allocator, path, bytes);
 
@@ -190,15 +191,15 @@ fn loadManifest(self: *Cache) Error!void {
     }
 }
 
-fn spvPath(self: *const Cache, allocator: Allocator, name: []const u8) Error![]u8 {
-    const fname = try spvName(allocator, name);
+fn spvPath(self: *const Cache, allocator: Allocator, hash: u64) Error![]u8 {
+    const fname = try spvName(allocator, hash);
     defer allocator.free(fname);
     return std.fs.path.join(allocator, &.{ self.dir_path, fname });
 }
 
-/// 由源码文件名推导编译产物名，例如 `base.frag.slang` -> `base.frag.spv`。
-fn spvName(allocator: Allocator, name: []const u8) Error![]u8 {
-    return std.fmt.allocPrint(allocator, "{s}.spv", .{std.fs.path.stem(name)});
+/// 由源码内容哈希推导编译产物名，与 manifest 中的 hash 字段文本一致。
+fn spvName(allocator: Allocator, hash: u64) Error![]u8 {
+    return std.fmt.allocPrint(allocator, "{d}.spv", .{hash});
 }
 
 const testing = std.testing;
@@ -218,13 +219,13 @@ fn testCache(arena: *std.heap.ArenaAllocator, dir: []const u8, profile: []const 
 
 test "spvName" {
     const a = testing.allocator;
-    const one = try spvName(a, "base.frag.slang");
+    const one = try spvName(a, 0x0123456789abcdef);
     defer a.free(one);
-    try testing.expectEqualStrings("base.frag.spv", one);
+    try testing.expectEqualStrings("81985529216486895.spv", one);
 
-    const two = try spvName(a, "changhong.slang");
+    const two = try spvName(a, 42);
     defer a.free(two);
-    try testing.expectEqualStrings("changhong.spv", two);
+    try testing.expectEqualStrings("42.spv", two);
 }
 
 test "write, save, reload round trip" {
