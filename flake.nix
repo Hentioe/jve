@@ -58,15 +58,15 @@
           libass
         ];
 
-        # 解决 slang 的构建问题：
+        # 解决 slang 的构建问题（仅在内建 slang 编译时存在）：
         # - p 目录是链接，解析问题导致 slang-fiddle: FileNotFound
         # - unable to open file for writing: source/slang/core.meta.slang.temp.h
-        preBuild = ''
-          p="$ZIG_GLOBAL_CACHE_DIR/p"
-          cp -rL --no-preserve=mode "$(readlink -f "$p")" "$p.new"
-          rm -rf "$p"
-          mv "$p.new" "$p"
-        '';
+        # preBuild = ''
+        #   p="$ZIG_GLOBAL_CACHE_DIR/p"
+        #   cp -rL --no-preserve=mode "$(readlink -f "$p")" "$p.new"
+        #   rm -rf "$p"
+        #   mv "$p.new" "$p"
+        # '';
 
         zigBuildFlags = [
           "-Dcpu=baseline"
