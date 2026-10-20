@@ -23,9 +23,9 @@ image_switch = true
 
 [shaders]
 dir = "shaders/user"
-# 预设: classic | rainbow
+# 预设: classic | rainbow | tiles
 # 或自定义 .slang, 背景着色器需放在 background 目录
-background = "test_bg.slang"
+background = "tiles"
 
 [models]
 dir = "models"

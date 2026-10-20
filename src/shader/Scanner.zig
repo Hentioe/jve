@@ -15,6 +15,13 @@ const Self = @This();
 
 const BACKGROUND_DIR = "background";
 
+/// 内建背景着色器的名字和 @embedFile 的映射
+pub const BUILTIN_BG_SHADERS = std.StaticStringMap([]const u8).initComptime(.{
+    .{ "classic", @embedFile("checker_bg.frag.spv") },
+    .{ "rainbow", @embedFile("rainbow_bg.frag.spv") },
+    .{ "tiles", @embedFile("tiles_bg.frag.spv") },
+});
+
 allocator: Allocator,
 scanner: Scanner,
 
@@ -70,12 +77,6 @@ pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu, ca
     try cache.save();
     return shaders;
 }
-
-/// 内建背景着色器的名字和 @embedFile 的映射
-pub const BUILTIN_BG_SHADERS = std.StaticStringMap([]const u8).initComptime(.{
-    .{ "classic", @embedFile("checker_bg.frag.spv") },
-    .{ "rainbow", @embedFile("rainbow_bg.frag.spv") },
-});
 
 /// 加载背景着色器，仅允许调用一次
 pub fn loadBackground(allocator: Allocator, gpu: *const sdl.Gpu, cache: *Cache, shader_dir: []const u8) Error!void {
