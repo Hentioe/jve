@@ -27,24 +27,18 @@ pub fn init(gpa: Allocator, logid: []const u8) Error!Self {
     const logid_z = try sfa.dupeZ(u8, logid);
     defer sfa.free(logid_z);
     var env: ?*c.OrtEnv = null;
-    if (!h.check(ort_api, ort_api.*.CreateEnv.?(c.ORT_LOGGING_LEVEL_WARNING, logid_z, &env))) {
-        return Error.OrtCreateEnvFailed;
-    }
+    try h.check(ort_api, ort_api.*.CreateEnv.?(c.ORT_LOGGING_LEVEL_WARNING, logid_z, &env));
 
     // 创建 MemoryInfo
     var memory_info: ?*c.OrtMemoryInfo = null;
-    if (!h.check(ort_api, ort_api.*.CreateCpuMemoryInfo.?(c.OrtArenaAllocator, c.OrtMemTypeDefault, &memory_info))) {
-        return Error.OrtCreateMemoryInfoFailed;
-    }
+    try h.check(ort_api, ort_api.*.CreateCpuMemoryInfo.?(c.OrtArenaAllocator, c.OrtMemTypeDefault, &memory_info));
 
     // 获取可用的 EP 列表
     std.log.info("Getting available EP list...", .{});
     var providers: [*c][*c]u8 = undefined;
     var provider_len: i32 = 0;
-    if (!h.check(ort_api, ort_api.*.GetAvailableProviders.?(&providers, &provider_len))) {
-        return Error.OrtGetAvailableProvidersFailed;
-    }
-    defer _ = ort_api.*.ReleaseAvailableProviders.?(providers, provider_len);
+    try h.check(ort_api, ort_api.*.GetAvailableProviders.?(&providers, &provider_len));
+    defer h.check(ort_api, ort_api.*.ReleaseAvailableProviders.?(providers, provider_len)) catch std.log.err("Failed to release available providers", .{});
     const provider_count: u32 = @intCast(provider_len);
     var provider_list = try std.ArrayList([]const u8).initCapacity(gpa, provider_count);
     for (0..provider_count) |i| {
@@ -97,9 +91,11 @@ pub fn releaseValue(self: *const Self, value: ?*c.OrtValue) void {
 
 pub fn getTensorMutableData(self: *const Self, output_tensor: ?*c.OrtValue) Error!*anyopaque {
     var output_ptr: ?*anyopaque = null;
-    if (!h.check(self.ort_api, self.ort_api.*.GetTensorMutableData.?(output_tensor, &output_ptr))) {
-        return Error.OrtGetTensorMutableDataFailed;
-    }
+    try h.check(self.ort_api, self.ort_api.*.GetTensorMutableData.?(output_tensor, &output_ptr));
 
     return output_ptr.?;
+}
+
+pub fn allocatorFree(self: *const Self, ort_allocator: ?*c.OrtAllocator, to_free: ?*anyopaque) void {
+    h.check(self.ort_api, self.ort_api.*.AllocatorFree.?(ort_allocator, to_free)) catch std.log.err("Failed to free ORT allocator memory", .{});
 }
