@@ -5,8 +5,8 @@ const Api = ort.Api;
 const Error = @import("errors.zig").Error;
 const Image = @import("vips").Image;
 const Input = @import("processors/Input.zig");
-const OrtRunner = @import("OrtRunner.zig");
-const Model = OrtRunner.Model;
+const OrtRunnable = @import("OrtRunnable.zig");
+const Model = OrtRunnable.Model;
 const Self = @This();
 
 const model_count = @typeInfo(Model).@"enum".fields.len;
@@ -17,7 +17,7 @@ var instance: ?Self = null;
 var mutex: std.Thread.Mutex = .{};
 
 api: Api,
-runners: [model_count]?OrtRunner = [_]?OrtRunner{null} ** model_count,
+runners: [model_count]?OrtRunnable = [_]?OrtRunnable{null} ** model_count,
 
 /// 初始化全局 remover（幂等）。重复调用不会重建 ONNX 环境。
 pub fn init(allocator: Allocator) Error!void {
@@ -33,7 +33,7 @@ pub fn deinit() void {
     defer mutex.unlock();
     if (instance) |*self| {
         for (&self.runners) |*runner| {
-            if (runner.*) |*r| r.deinit();
+            if (runner.*) |*r| r.destroy();
         }
         self.api.deinit();
         instance = null;
@@ -47,7 +47,7 @@ pub fn remove(model: Model, input: Input) Error!Image {
     if (instance) |*self| {
         const index = @intFromEnum(model);
         if (self.runners[index] == null) {
-            self.runners[index] = try OrtRunner.init(model, &self.api);
+            self.runners[index] = try OrtRunnable.create(model, &self.api);
         }
         if (self.runners[index]) |*runner| return runner.run(input);
         unreachable;

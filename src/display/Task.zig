@@ -11,7 +11,7 @@ const Point = shared.Point(f32);
 const Image = vips.Image;
 const extractor = @import("../extractor.zig");
 const Gpu = @import("sdl").Gpu;
-const OrtRunner = ai.OrtRunner;
+const OrtRunnable = ai.OrtRunnable;
 const remover = ai.remover;
 const Self = @This();
 
@@ -77,7 +77,7 @@ fn execute(self: *Self, gpu: *const Gpu, texture: ?*c.SDL_GPUTexture, input: Inp
     const shape = input.shape.to(u32);
     self.extracted = try extractor.extract(self.allocator, gpu, texture, shape);
     // 选择模型：如果存在点击座标，则用 MagicTouch 否则用 BiRefNet
-    const model: OrtRunner.Model = if (input.click != null) .magic_touch else .birefnet;
+    const model: OrtRunnable.Model = if (input.click != null) .magic_touch else .birefnet;
     const data_ptr = self.extracted.?.data.ptr;
     const click_position: ?Point = if (input.click) |click| .{ .x = click.x, .y = click.y } else null;
     const model_input: ai.Input = .{

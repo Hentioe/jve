@@ -9,11 +9,11 @@ const Image = @import("vips").Image;
 const Timer = @import("../Timer.zig");
 const Input = @import("../processors/Input.zig");
 const Output = @import("../processors/Output.zig");
-const OrtRunner = @import("../OrtRunner.zig");
+const OrtRunnable = @import("../OrtRunnable.zig");
 const Error = @import("../errors.zig").Error;
 const Self = @This();
 
-pub const vtable = OrtRunner.VTable.of(Self);
+pub const vtable = OrtRunnable.VTable.of(Self);
 
 const Variant = enum { lite, standard };
 const SIZE = 1024;
@@ -22,7 +22,7 @@ api: *const Api,
 session: Session,
 variant: Variant,
 
-pub fn init(api: *const Api) Error!*Self {
+pub fn init(api: *const Api) Error!Self {
     // 初始化过程涉及大量路径分配，使用 sfa 应付
     var sf = std.heap.stackFallback(std.fs.max_path_bytes, api.gpa);
     const sfa = sf.get();
@@ -48,15 +48,11 @@ pub fn init(api: *const Api) Error!*Self {
         .standard => api.createSession(standard_model_path, .{ .disable_gpu = true, .disable_memory_optimization = disable_memory_optimization }),
     };
 
-    const self_ptr = try api.gpa.create(Self);
-    self_ptr.* = .{ .api = api, .session = session, .variant = variant };
-
-    return self_ptr;
+    return .{ .api = api, .session = session, .variant = variant };
 }
 
 pub fn deinit(self: *Self) void {
     self.session.deinit();
-    self.api.gpa.destroy(self);
 }
 
 pub fn run(self: *const Self, input: Input) Error!Image {
