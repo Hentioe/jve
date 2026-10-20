@@ -2,8 +2,8 @@ with import <nixpkgs> { };
 let
   # 覆盖 Zig 命令，使用 zvm 运行 Zig
   custom-zig = writeShellScriptBin "zig" "exec zvm run 0.15.2 $@";
-  # 启用 ROCm 支持的 ONNX Runtime
-  onnxruntime-rocm = (onnxruntime.override { rocmSupport = true; });
+  # 启用 ROCm 支持的 ONNX Runtime（此处暂时禁用）
+  onnxruntime-rocm = (onnxruntime.override { rocmSupport = false; });
   # 本地开发所需工具
   nativeTools = [
     custom-zig # 受 zvm 管理的 Zig
