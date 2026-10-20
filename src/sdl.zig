@@ -19,6 +19,14 @@ pub fn setCursor(cursor: *Cursor) Error!void {
     return h.check(c.SDL_SetCursor(cursor));
 }
 
+pub fn waitEvent(event: *Event) bool {
+    return c.SDL_WaitEvent(event);
+}
+
+pub fn pollEvent(event: *Event) bool {
+    return c.SDL_PollEvent(event);
+}
+
 // -- 类型别名 --
 pub const Cursor = c.SDL_Cursor;
 pub const SystemCursor = c.SDL_SystemCursor;

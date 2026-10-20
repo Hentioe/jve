@@ -16,14 +16,20 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!void {
     while (state.running) {
         delta.update(); // 计算 delta
 
-        while (sdl.c.SDL_PollEvent(&event)) {
-            events.handle(&event, &state); // 处理全局通用事件
-            if (ui.Event.fromSdl(&event)) |ui_event| { // 构造 ui 事件结构体
-                // 分发 ui 事件给所有 widget
-                for (deps.widgets) |*w| w.event(&ui_event);
-                deps.banner.event(&ui_event);
-            }
-        }
+        if (sdl.waitEvent(&event))
+            handleEvent(&event, &state, deps);
+        while (sdl.pollEvent(&event))
+            handleEvent(&event, &state, deps);
+
         try frame.render(deps, &state);
+    }
+}
+
+pub fn handleEvent(event: *sdl.Event, state: *State, deps: *RenderDeps) void {
+    events.handle(event, state); // 处理全局通用事件
+    if (ui.Event.fromSdl(event)) |ui_event| { // 构造 ui 事件结构体
+        // 分发 ui 事件给所有 widget
+        for (deps.widgets) |*w| w.event(&ui_event);
+        deps.banner.event(&ui_event);
     }
 }
