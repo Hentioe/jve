@@ -1,4 +1,3 @@
-const std = @import("std");
 const sdl = @import("sdl");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");

@@ -5,8 +5,6 @@ const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 const Error = errors.Error;
 
-const SCREENSHOT_FORMATS = [_][]const u8{ "png", "avif", "jpg" };
-
 pub const Screenshot = struct {
     dir: ?[]const u8 = null, // 截图保存目录
     format: []const u8, // 截图的输出格式

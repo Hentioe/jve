@@ -2,7 +2,6 @@ const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const consts = @import("../consts.zig");
-const structs = @import("../structs.zig");
 const LImage = @import("vips").LImage;
 const Vertex = shared.Vertex;
 const Window = @import("../window.zig");

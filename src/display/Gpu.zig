@@ -2,7 +2,6 @@ const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const config = @import("config");
-const slang = @import("slang");
 const ui = @import("../ui.zig");
 const gallery = @import("../gallery.zig");
 const Window = @import("window.zig");

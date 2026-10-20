@@ -1,4 +1,3 @@
-const c = @import("sdl").c;
 const Overflow = @import("enums.zig").Overflow;
 
 // 文字片段着色器 Uniforms
