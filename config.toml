@@ -14,9 +14,9 @@ format = "jpg"
 [titlebar]
 custom = true
 opacity = 0.25 # 取值范围 0.0 - 1.0，仅对自定义标题栏生效
-no_text = false # 仅对自定义标题栏生效
-no_size = true
-no_app = true
+no_file_size = true # 不显示文件尺寸
+no_app_name = true # 不显示应用后缀
+no_title_text = false # 不显示整个标题文本，仅对自定义标题栏生效
 
 [animation]
 image_switch = true

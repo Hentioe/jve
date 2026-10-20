@@ -15,9 +15,9 @@ pub const Screenshot = struct {
 pub const Titlebar = struct {
     custom: bool, // 是否启用自定义标题栏
     opacity: ?f32, // 标题栏透明度
-    no_text: ?bool, // 是否不显示标题文字
-    no_size: ?bool, // 是否不显示图片尺寸
-    no_app: ?bool, // 是否不显示应用后缀
+    no_title_text: ?bool, // 是否不显示标题文字
+    no_file_size: ?bool, // 是否不显示图片尺寸
+    no_app_name: ?bool, // 是否不显示应用后缀
 };
 
 pub const AnimationConfig = struct {
@@ -93,9 +93,9 @@ pub const MainConfig = struct {
     },
     titlebar: Titlebar = .{
         .custom = true,
-        .no_text = false,
-        .no_size = true,
-        .no_app = true,
+        .no_title_text = false,
+        .no_file_size = true,
+        .no_app_name = true,
         .opacity = 0.25,
     },
     animation: AnimationConfig = .{

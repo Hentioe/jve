@@ -101,8 +101,8 @@ pub fn show(self: *Self) Error!ExitAction {
     // 更新窗口尺寸
     app_env.writer().image_shape = image.shape;
     try self.window.setTitle(image.file_name, .{
-        .include_content_size = !(config.get().titlebar.no_size orelse false),
-        .include_app_suffix = !(config.get().titlebar.no_app orelse false),
+        .include_content_size = !(config.get().titlebar.no_file_size orelse false),
+        .include_app_suffix = !(config.get().titlebar.no_app_name orelse false),
     });
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
@@ -121,7 +121,7 @@ pub fn show(self: *Self) Error!ExitAction {
     // 组件数量是动态的，预先分配已知上限的数组
     var widgets: [MAX_WIDGETS]ui.Widget = undefined;
     if (title_bar) |*tb| {
-        if (!(config.get().titlebar.no_text orelse false)) try tb.setText(self.window.getTitle());
+        if (!(config.get().titlebar.no_title_text orelse false)) try tb.setText(self.window.getTitle());
         widgets[widget_count] = tb.toWidget();
         widget_count += 1;
     }
