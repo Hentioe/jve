@@ -4,7 +4,7 @@ const consts = @import("../consts.zig");
 const structs = @import("../structs.zig");
 const LImage = @import("vips").LImage;
 const Window = @import("../window.zig");
-const Uploader = @import("../Uploader.zig");
+const Device = @import("../../Device.zig");
 const shader_loader = @import("../../shader.zig").loader;
 const Background = @import("../Background.zig");
 const OnscreenPipeline = @import("../onscreen_pipeline.zig");
@@ -19,7 +19,6 @@ allocator: std.mem.Allocator,
 window: *Window,
 device: *const sdl.Gpu,
 image: LImage,
-uploader: Uploader,
 texture: *sdl.c.SDL_GPUTexture,
 offscreen_info: sdl.c.SDL_GPUTextureCreateInfo,
 // 基础着色器
@@ -63,7 +62,7 @@ pub fn init(
     widgets: []Widget,
 ) Error!Self {
     // -- 上传器 (Uploader) --
-    var uploader = Uploader.init(allocator, device);
+    const uploader = try Device.getUploader();
 
     // -- 纹理 (Texture) --
     const texture_size = image.shape.toSize2D(u32);
@@ -76,17 +75,14 @@ pub fn init(
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
-    const texture = try uploader.uploadTexture(&texture_info, image.pixels_ptr, texture_size);
+    const texture = try uploader.uploadTextureBorrowed(&texture_info, image.pixels_ptr, texture_size);
 
     // -- 顶点 (Vertex) --
     const verts: [6]Vertex = consts.base_verts;
     const verts_size = @sizeOf(Vertex) * verts.len;
     const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
-    const verts_buffer = try uploader.uploadBuffer(&verts_buffer_info, @ptrCast(&verts), verts_size);
+    const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&verts), verts_size);
     const verts_binding: sdl.c.SDL_GPUBufferBinding = .{ .buffer = verts_buffer, .offset = 0 };
-
-    // 一次性提交纹理与顶点上传
-    try uploader.submit();
 
     // -- 纹理采样器 (Sampler) --
     const sampler_desc = sdl.c.SDL_GPUSamplerCreateInfo{
@@ -184,12 +180,14 @@ pub fn init(
         }
     }
 
+    // 统一提交本次初始化中所有组件的资源上传
+    try uploader.submit();
+
     return Self{
         .allocator = allocator,
         .window = window,
         .device = device,
         .image = image,
-        .uploader = uploader,
         .texture = texture,
         .offscreen_info = offscreen_info,
         .vert_shader = vert_shader,
@@ -247,7 +245,6 @@ pub fn deinit(self: *Self) void {
     self.device.releaseGPUTexture(self.tex_b);
     self.device.releaseGPUTexture(self.tex_a);
     self.device.releaseGPUTexture(self.texture);
-    self.uploader.deinit();
     self.* = undefined;
 }
 

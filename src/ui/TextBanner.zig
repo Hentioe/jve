@@ -9,7 +9,7 @@ const TextPipeline = @import("TextPipeline.zig");
 const BannerPipeline = @import("BannerPipeline.zig");
 const BannerDrawer = @import("BannerDrawer.zig");
 const text_renderer = @import("text_renderer.zig");
-const Uploader = @import("../display/Uploader.zig");
+const Device = @import("../Device.zig");
 const Widget = @import("Widget.zig");
 const Event = @import("Event.zig");
 const Color = @import("Color.zig");
@@ -42,7 +42,6 @@ pub const Options = struct {
 allocator: Allocator,
 renderer: *const ass.Renderer,
 window_size: WindowSize,
-uploader: *Uploader,
 text_pipeline: *TextPipeline,
 options: Options,
 background: BannerDrawer,
@@ -69,19 +68,17 @@ pub fn init(
     allocator: Allocator,
     renderer: *const ass.Renderer,
     window_size: WindowSize,
-    uploader: *Uploader,
     text_pipeline: *TextPipeline,
     banner_pipeline: *BannerPipeline,
     options: Options,
 ) Error!Self {
     // 尚无文字时先给一个高度为 0 的横幅（不可见），`setText` 会按文字尺寸重建
     const top = bannerTop(window_size, options.placement, options.margin, 0);
-    const background = try BannerDrawer.init(uploader, banner_pipeline, window_size, top, 0, options.color.value(), options.debug);
+    const background = try BannerDrawer.init(banner_pipeline, window_size, top, 0, options.color.value(), options.debug);
     return Self{
         .allocator = allocator,
         .renderer = renderer,
         .window_size = window_size,
-        .uploader = uploader,
         .text_pipeline = text_pipeline,
         .options = options,
         .background = background,
@@ -126,9 +123,11 @@ pub fn setText(self: *Self, message: []const u8) Error!void {
         .y = top + (banner_h - text_h) * 0.5,
     }).debug(self.options.debug);
 
-    // 立即生成文字的渲染依赖并提交上传
-    _ = try t.toWidget(self.uploader, self.window_size, self.text_pipeline);
-    try self.uploader.submit();
+    // 生成文字的渲染依赖；初始化阶段由 RenderDeps 末尾统一提交，
+    // 之后的运行时修改需要在此立即提交
+    _ = try t.toWidget(self.window_size, self.text_pipeline);
+    const uploader = try Device.getUploader();
+    try uploader.submit();
 }
 
 /// 设置背景色。

@@ -4,6 +4,7 @@ const h = @import("sdl").h;
 const shared = @import("shared");
 const structs = @import("../structs.zig");
 const Screenshot = @import("../../Screenshot.zig");
+const Device = @import("../../Device.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");
 const Error = @import("../errors.zig").Error;
@@ -65,8 +66,9 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 std.log.info("Task result is reading...", .{});
                 const mask_ptr = s.data_ptr; // 获取遮罩数据指针
                 const mask_size: Size2D(u32) = .{ .w = s.width, .h = s.height };
-                const new_mask = try deps.uploader.uploadTexture(&deps.offscreen_info, mask_ptr, mask_size);
-                try deps.uploader.submit();
+                const uploader = try Device.getUploader();
+                const new_mask = try uploader.uploadTextureBorrowed(&deps.offscreen_info, mask_ptr, mask_size);
+                try uploader.submit();
                 if (state.tex_mask) |tex| device.releaseGPUTexture(tex); // 释放旧遮罩纹理
                 state.tex_mask = new_mask;
                 std.log.info("Task result read complete", .{});

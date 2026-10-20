@@ -5,7 +5,6 @@ const ui = @import("../ui.zig");
 const Allocator = std.mem.Allocator;
 const app_env = @import("../app_env.zig");
 const Device = @import("../Device.zig");
-const Uploader = @import("Uploader.zig");
 const Size2D = @import("shared").Size2D;
 const Window = @import("window.zig");
 const RenderDeps = @import("diag/RenderDeps.zig");
@@ -56,11 +55,9 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn show(self: *Self) Error!ExitAction {
+    defer Device.discardUploader();
     // 设置 ass 帧尺寸（文字据此相对 PLAY_RES 缩放）
     self.ass_renderer.setFrameSize(WINDOW_SIZE.w, WINDOW_SIZE.h);
-    // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
-    var uploader = Uploader.init(self.allocator, self.gpu);
-    defer uploader.deinit();
     // 所有文字/图标组件共享的渲染管线
     var text_pipeline = try ui.TextPipeline.init(self.window, self.gpu);
     defer text_pipeline.deinit();
@@ -69,7 +66,7 @@ pub fn show(self: *Self) Error!ExitAction {
     defer banner_pipeline.deinit();
     var widgets = [_]ui.Widget{};
     // 错误消息横幅
-    var banner = try ui.TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &uploader, &text_pipeline, &banner_pipeline, .{
+    var banner = try ui.TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &text_pipeline, &banner_pipeline, .{
         .placement = .center,
         .color = .rgba(0.5, 0.0, 0.0, 0.5),
         .padding_y = 10.0,
@@ -77,8 +74,6 @@ pub fn show(self: *Self) Error!ExitAction {
     defer banner.deinit();
     const message = if (app_env.writer().take_fatal()) |fatal| fatal.message() else "或许，没有发生错误？";
     try banner.setText(message);
-    // 统一提交所有组件的资源上传
-    try uploader.submit();
 
     var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &widgets, &banner);
     defer deps.deinit();

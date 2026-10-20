@@ -11,7 +11,6 @@ const app_env = @import("../app_env.zig");
 const shader = @import("../shader.zig");
 const RenderDeps = @import("gpu/RenderDeps.zig");
 const events = @import("gpu/events.zig");
-const Uploader = @import("Uploader.zig");
 const Widget = ui.Widget;
 const TextPipeline = ui.TextPipeline;
 const RectPipeline = ui.RectPipeline;
@@ -94,13 +93,11 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn show(self: *Self) Error!ExitAction {
+    defer Device.discardUploader();
     const image = try gallery.current();
     // 当来自于模式切换（预览 -> GPU），立即释放内存
     if (app_env.reader().preview_initialized) shared.heap.mallocTrim();
     const shaders: ?[]const *sdl.c.SDL_GPUShader = if (self.shaders) |*s| s.items else null;
-    // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
-    var uploader = Uploader.init(self.allocator, self.device);
-    defer uploader.deinit();
     // 纯色矩形背景（Button / TitleBar）共享的渲染管线
     var rect_pipeline = try RectPipeline.init(self.window, self.device);
     defer rect_pipeline.deinit();
@@ -119,7 +116,7 @@ pub fn show(self: *Self) Error!ExitAction {
     var title_bar: ?TitleBar = null;
     if (self.window.borderless) {
         const window_size = self.window.fit_size;
-        title_bar = try TitleBar.init(self.allocator, &uploader, &text_pipeline, &rect_pipeline, window_size, .{
+        title_bar = try TitleBar.init(self.allocator, &text_pipeline, &rect_pipeline, window_size, .{
             .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity orelse 0.25),
         });
         title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量
@@ -134,8 +131,6 @@ pub fn show(self: *Self) Error!ExitAction {
         widgets[widget_count] = tb.toWidget();
         widget_count += 1;
     }
-
-    try uploader.submit();
 
     var deps = try RenderDeps.init(
         self.allocator,

@@ -4,7 +4,7 @@ const Allocator = std.mem.Allocator;
 const consts = @import("../consts.zig");
 const Vertex = @import("../structs.zig").Vertex;
 const Window = @import("../window.zig");
-const Uploader = @import("../Uploader.zig");
+const Device = @import("../../Device.zig");
 const shader_loader = @import("../../shader.zig").loader;
 const Pipeline = @import("../Pipeline.zig");
 const Widget = @import("../../ui/Widget.zig");
@@ -39,15 +39,14 @@ pub fn init(allocator: Allocator, window: *Window, gpu: *const sdl.Gpu, widgets:
     const frag_shader = try shader_loader.load(gpu, @embedFile("diag.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
     const bg_pipeline = try Pipeline.init(gpu, window.sdl_window, .{ .vert = vert_shader, .frag = frag_shader }, vertex_input_state);
 
-    // 创建上传器
-    var uploader = Uploader.init(allocator, gpu);
-    defer uploader.deinit();
+    // 获取全局上传器
+    const uploader = try Device.getUploader();
 
     // 上传全屏顶点
     const verts = consts.base_verts;
     const verts_size = @sizeOf(Vertex) * verts.len;
     const verts_buffer_info = sdl.GPUBufferCreateInfo{ .usage = sdl.GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
-    const bg_verts_buffer = try uploader.uploadBuffer(&verts_buffer_info, @ptrCast(&verts), verts_size);
+    const bg_verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&verts), verts_size);
 
     try uploader.submit();
 

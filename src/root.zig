@@ -29,7 +29,7 @@ pub fn init(allocator: std.mem.Allocator, file_path: []const u8, config_path: ?[
     vips.init(allocator) catch |err| return showInitDiag(allocator, err);
     gallery.init(allocator, file_path) catch |err| return showInitDiag(allocator, err);
     try ui.init();
-    try display.init();
+    try display.init(allocator);
 }
 
 pub fn deinit() void {
@@ -54,7 +54,7 @@ pub fn vips_deinit() void {
 pub fn display_init(allocator: Allocator) !void {
     app_env.init(allocator);
     try ui.init();
-    try display.init();
+    try display.init(allocator);
 }
 
 pub fn display_deinit() void {

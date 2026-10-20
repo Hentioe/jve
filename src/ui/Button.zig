@@ -6,7 +6,6 @@ const FrameSize = shared.Size2D(i32);
 const Position = shared.Point(f32);
 const Icon = @import("Icon.zig");
 const icon_renderer = @import("icon_renderer.zig");
-const Uploader = @import("../display/Uploader.zig");
 const TextPipeline = @import("TextPipeline.zig");
 const RectPipeline = @import("RectPipeline.zig");
 const RectDrawer = @import("RectDrawer.zig");
@@ -46,7 +45,6 @@ last_hover: bool = false,
 
 pub fn init(
     allocator: Allocator,
-    uploader: *Uploader,
     text_pipeline: *TextPipeline,
     rect_pipeline: *RectPipeline,
     frame_size: FrameSize,
@@ -70,11 +68,10 @@ pub fn init(
     };
     _ = icon.position(.{ .x = rect.x + options.padding, .y = rect.y + options.padding });
 
-    var background = try RectDrawer.init(uploader, rect_pipeline, frame_size, rect, options.color.value(), options.debug);
+    var background = try RectDrawer.init(rect_pipeline, frame_size, rect, options.color.value(), options.debug);
     errdefer background.deinit();
 
-    _ = try icon.toWidget(uploader, frame_size, text_pipeline);
-    try uploader.submit();
+    _ = try icon.toWidget(frame_size, text_pipeline);
 
     return Self{
         .allocator = allocator,

@@ -3,7 +3,7 @@ const shared = @import("shared");
 const Vertex = @import("../display/structs.zig").Vertex;
 const BannerUniforms = @import("../display/structs.zig").BannerUniforms;
 const base_verts = @import("../display/consts.zig").base_verts;
-const Uploader = @import("../display/Uploader.zig");
+const Device = @import("../Device.zig");
 const BannerPipeline = @import("BannerPipeline.zig");
 const FrameSize = shared.Size2D(i32);
 const Error = @import("errors.zig").Error;
@@ -20,7 +20,6 @@ verts_binding: sdl.c.SDL_GPUBufferBinding,
 uniforms: BannerUniforms,
 
 pub fn init(
-    uploader: *Uploader,
     pipeline: *BannerPipeline,
     frame_size: FrameSize,
     top_px: f32,
@@ -28,10 +27,11 @@ pub fn init(
     color: [4]f32,
     debug: bool,
 ) Error!Self {
+    const uploader = try Device.getUploader();
     const verts_size: u32 = @intCast(@sizeOf(Vertex) * base_verts.len);
     const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
     // base_verts 是编译期常量，生命周期贯穿整个程序，无需额外暂存
-    const verts_buffer = try uploader.uploadBuffer(&verts_buffer_info, @ptrCast(&base_verts), verts_size);
+    const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&base_verts), verts_size);
 
     return Self{
         .pipeline = pipeline,

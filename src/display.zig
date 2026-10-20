@@ -1,3 +1,4 @@
+const std = @import("std");
 const sdl = @import("sdl");
 const app_env = @import("app_env.zig");
 const Device = @import("Device.zig");
@@ -38,7 +39,9 @@ pub fn show(mode: Viewer.Mode) Error!void {
     }
 }
 
-pub fn init() Error!void {
+pub fn init(allocator: std.mem.Allocator) Error!void {
+    // 设备及其上传器由 display 统一管理
+    Device.init(allocator);
     // 设置提示
     try sdl.check(sdl.c.SDL_SetHint(sdl.c.SDL_HINT_VIDEO_DRIVER, "x11")); // todo: 配置化驱动
     // 强制 1:1 像素映射

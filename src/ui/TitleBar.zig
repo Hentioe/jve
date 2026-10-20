@@ -9,7 +9,7 @@ const text_renderer = @import("text_renderer.zig");
 const consts = @import("consts.zig");
 const AssLibrary = @import("AssLibrary.zig");
 const Text = @import("Text.zig");
-const Uploader = @import("../display/Uploader.zig");
+const Device = @import("../Device.zig");
 const TextPipeline = @import("TextPipeline.zig");
 const RectPipeline = @import("RectPipeline.zig");
 const RectDrawer = @import("RectDrawer.zig");
@@ -63,7 +63,6 @@ allocator: Allocator,
 frame_size: FrameSize,
 options: Options,
 renderer: ass.Renderer,
-uploader: *Uploader,
 text_pipeline: *TextPipeline,
 background: RectDrawer,
 rect: Rect,
@@ -80,7 +79,6 @@ last_button_hover: bool = false,
 
 pub fn init(
     allocator: Allocator,
-    uploader: *Uploader,
     text_pipeline: *TextPipeline,
     rect_pipeline: *RectPipeline,
     frame_size: FrameSize,
@@ -101,7 +99,7 @@ pub fn init(
     const padding = @max(0.0, (button_side - icon_side) * 0.5);
     const rect = Rect{ .x = 0.0, .y = 0.0, .w = fw, .h = button_side };
 
-    var background = try RectDrawer.init(uploader, rect_pipeline, frame_size, rect, options.color.value(), options.debug);
+    var background = try RectDrawer.init(rect_pipeline, frame_size, rect, options.color.value(), options.debug);
     errdefer background.deinit();
 
     const button_options = Button.Options{
@@ -110,9 +108,9 @@ pub fn init(
         .icon = options.icon,
         .debug = options.debug,
     };
-    var close = try Button.init(allocator, uploader, text_pipeline, rect_pipeline, frame_size, .close, .{ .x = fw - button_side, .y = 0.0 }, button_options);
+    var close = try Button.init(allocator, text_pipeline, rect_pipeline, frame_size, .close, .{ .x = fw - button_side, .y = 0.0 }, button_options);
     errdefer close.deinit();
-    var minimize = try Button.init(allocator, uploader, text_pipeline, rect_pipeline, frame_size, .minimize, .{ .x = fw - button_side * 2.0, .y = 0.0 }, button_options);
+    var minimize = try Button.init(allocator, text_pipeline, rect_pipeline, frame_size, .minimize, .{ .x = fw - button_side * 2.0, .y = 0.0 }, button_options);
     errdefer minimize.deinit();
 
     return Self{
@@ -120,7 +118,6 @@ pub fn init(
         .frame_size = frame_size,
         .options = options,
         .renderer = renderer,
-        .uploader = uploader,
         .text_pipeline = text_pipeline,
         .background = background,
         .rect = rect,
@@ -165,8 +162,7 @@ pub fn setText(self: *Self, value: []const u8) Error!void {
     _ = title.position(.{ .x = (fw - tw) * 0.5, .y = (self.options.height - th) * 0.5 });
     title.debug(self.options.debug);
 
-    _ = try title.toWidget(self.uploader, self.frame_size, self.text_pipeline);
-    try self.uploader.submit();
+    _ = try title.toWidget(self.frame_size, self.text_pipeline);
 
     self.title = title;
 }

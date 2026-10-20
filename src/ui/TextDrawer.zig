@@ -4,7 +4,7 @@ const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Vertex = @import("../display/structs.zig").Vertex;
 const TextUniforms = @import("../display/structs.zig").TextUniforms;
-const Uploader = @import("../display/Uploader.zig");
+const Device = @import("../Device.zig");
 const TextPipeline = @import("TextPipeline.zig");
 const FrameSize = shared.Size2D(i32);
 const Position = shared.Point(f32);
@@ -15,9 +15,9 @@ const Self = @This();
 
 /// 单个文字/图标组件的绘制依赖：顶点（布局）、纹理（栅格化结果）、uniforms（状态）。
 ///
-/// 与共享的 `TextPipeline` 配合使用。内部只调用 `Uploader` 记录上传任务，不执行提交；
-/// 提交由外部统一完成，因此上传所需的暂存数据（展开后的 RGBA 与顶点）由自身持有，
-/// 随组件生命周期在 `release` 时释放。
+/// 与共享的 `TextPipeline` 配合使用。内部只调用全局 `Uploader` 记录上传任务，不执行提交；
+/// 提交由 `RenderDeps` 初始化末尾统一完成，因此上传所需的暂存数据（展开后的 RGBA 与顶点）
+/// 由自身持有，随组件生命周期在 `release` 时释放。
 pipeline: *TextPipeline,
 texture: *sdl.c.SDL_GPUTexture,
 verts_buffer: *sdl.c.SDL_GPUBuffer,
@@ -29,12 +29,12 @@ staging_verts: []Vertex,
 
 pub fn init(
     allocator: Allocator,
-    uploader: *Uploader,
     pipeline: *TextPipeline,
     frame_size: FrameSize,
     raster: *const AssRendered,
     layout: LayoutOptions,
 ) Error!Self {
+    const uploader = try Device.getUploader();
     // 覆盖率（单通道）展开为 RGBA8888 再记录上传；数据需存活到外部提交之后，故由 Self 持有
     const tex_w: usize = @intCast(raster.width);
     const tex_h: usize = @intCast(raster.height);
@@ -56,7 +56,7 @@ pub fn init(
         .layer_count_or_depth = 1,
         .num_levels = 1,
     };
-    const texture = try uploader.uploadTexture(&texture_create_info, staging_pixels.ptr, .{ .w = raster.width, .h = raster.height });
+    const texture = try uploader.uploadTextureBorrowed(&texture_create_info, staging_pixels.ptr, .{ .w = raster.width, .h = raster.height });
 
     // 按布局位置（帧左上角原点，像素）构造 quad，转换为 NDC；同样需存活到外部提交之后
     const staging_verts = try allocator.alloc(Vertex, 6);
@@ -65,7 +65,7 @@ pub fn init(
     @memcpy(staging_verts, &verts);
     const verts_size: u32 = @intCast(@sizeOf(Vertex) * staging_verts.len);
     const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
-    const verts_buffer = try uploader.uploadBuffer(&verts_buffer_info, @ptrCast(staging_verts.ptr), verts_size);
+    const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(staging_verts.ptr), verts_size);
 
     return Self{
         .pipeline = pipeline,

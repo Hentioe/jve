@@ -15,7 +15,6 @@ const TextPipeline = ui.TextPipeline;
 const BannerPipeline = ui.BannerPipeline;
 const RectPipeline = ui.RectPipeline;
 const TextBanner = ui.TextBanner;
-const Uploader = @import("Uploader.zig");
 const ExitAction = @import("enums.zig").ExitAction;
 const RenderDeps = @import("welcome/RenderDeps.zig");
 const loop = @import("welcome/loop.zig");
@@ -69,11 +68,9 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn show(self: *Self) Error!ExitAction {
+    defer Device.discardUploader();
     // 设置 ass 帧尺寸（文字据此相对 PLAY_RES 缩放）
     self.ass_renderer.setFrameSize(WINDOW_SIZE.w, WINDOW_SIZE.h);
-    // 所有组件的资源上传共用同一个上传器，最后由外部统一提交
-    var uploader = Uploader.init(self.allocator, self.gpu);
-    defer uploader.deinit();
     // 纯色矩形背景（Button / TitleBar）共享的渲染管线
     var rect_pipeline = try RectPipeline.init(self.window, self.gpu);
     defer rect_pipeline.deinit();
@@ -100,14 +97,12 @@ pub fn show(self: *Self) Error!ExitAction {
     defer image.deinit();
 
     var widgets = [_]Widget{
-        try image.toWidget(&uploader, WINDOW_SIZE, &text_pipeline),
-        try logo.toWidget(&uploader, WINDOW_SIZE, &text_pipeline),
+        try image.toWidget(WINDOW_SIZE, &text_pipeline),
+        try logo.toWidget(WINDOW_SIZE, &text_pipeline),
     };
-    // 统一提交所有组件的资源上传
-    try uploader.submit();
 
     // 底部横幅（背景默认红色，测试文本）；帧渲染中一直显示
-    var banner = try TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &uploader, &text_pipeline, &banner_pipeline, .{
+    var banner = try TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &text_pipeline, &banner_pipeline, .{
         .color = .rgba(1.0, 1.0, 1.0, 0), // 半透明白色
     });
     defer banner.deinit();
