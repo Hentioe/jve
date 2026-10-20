@@ -1,5 +1,5 @@
 const c = @import("sdl").c;
-const post_util = @import("post_util.zig");
+const util = @import("util.zig");
 const Gpu = @import("sdl").Gpu;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
@@ -60,7 +60,7 @@ pub fn init(
     vert_attrs: *const [2]c.SDL_GPUVertexAttribute,
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 ) !Self {
-    const pipeline = try post_util.createPipeline(
+    const pipeline = try util.createPipeline(
         gpu,
         shader_pair,
         vert_buffer_desc,

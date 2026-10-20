@@ -1,6 +1,6 @@
 const c = @import("sdl").c;
 const h = @import("sdl").h;
-const post_util = @import("post_util.zig");
+const util = @import("util.zig");
 const shader_loader = @import("../shader.zig").loader;
 const Error = @import("errors.zig").Error;
 const Gpu = @import("sdl").Gpu;
@@ -19,7 +19,7 @@ pub fn init(
     color_target_desc: *const c.SDL_GPUColorTargetDescription,
 ) Error!Self {
     const frag_shader = try shader_loader.load(gpu, @embedFile("onscreen.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 0 });
-    const pipeline = try post_util.createPipeline(
+    const pipeline = try util.createPipeline(
         gpu,
         .{ .vert = vert_shader, .frag = frag_shader },
         vert_buffer_desc,

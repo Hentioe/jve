@@ -1,18 +1,16 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const shared = @import("shared");
 const consts = @import("../consts.zig");
 const structs = @import("../structs.zig");
 const LImage = @import("vips").LImage;
+const Vertex = shared.Vertex;
 const Window = @import("../window.zig");
 const Device = @import("../../Device.zig");
-const shader_loader = @import("../../shader.zig").loader;
-const Background = @import("../Background.zig");
-const OnscreenPipeline = @import("../onscreen_pipeline.zig");
-const PostPipeline = @import("../PostPipeline.zig");
-const Pipeline = @import("../Pipeline.zig");
-const Widget = @import("../../ui/Widget.zig");
+const pipelines = @import("../../pipelines.zig");
+const shader = @import("../../shader.zig");
+const ui = @import("../../ui.zig");
 const Error = @import("../errors.zig").Error;
-const Vertex = structs.Vertex;
 const Self = @This();
 
 allocator: std.mem.Allocator,
@@ -22,44 +20,44 @@ image: LImage,
 texture: *sdl.c.SDL_GPUTexture,
 offscreen_info: sdl.c.SDL_GPUTextureCreateInfo,
 // 基础着色器
-vert_shader: *sdl.c.SDL_GPUShader,
-frag_shader: *sdl.c.SDL_GPUShader,
+vert_shader: *sdl.GPUShader,
+frag_shader: *sdl.GPUShader,
 // 后处理片段着色器（供释放）
-sharpen_shader: *sdl.c.SDL_GPUShader,
-blur_shader: *sdl.c.SDL_GPUShader,
-fog_shader: *sdl.c.SDL_GPUShader,
-overflow_shader: *sdl.c.SDL_GPUShader,
-mask_shader: *sdl.c.SDL_GPUShader,
+sharpen_shader: *sdl.GPUShader,
+blur_shader: *sdl.GPUShader,
+fog_shader: *sdl.GPUShader,
+overflow_shader: *sdl.GPUShader,
+mask_shader: *sdl.GPUShader,
 // 顶点
 verts_buffer: *sdl.c.SDL_GPUBuffer,
 verts_binding: sdl.c.SDL_GPUBufferBinding,
 sampler: *sdl.c.SDL_GPUSampler,
 // 管线
 base_pipeline: *sdl.c.SDL_GPUGraphicsPipeline,
-background: Background,
-onscreen: OnscreenPipeline,
-sharpen: PostPipeline,
-blur_x: PostPipeline,
-blur_y: PostPipeline,
-fog: PostPipeline,
-overflow: PostPipeline,
-mask: PostPipeline,
-marker: Pipeline,
+background: pipelines.Background,
+screen: pipelines.Screen,
+sharpen: pipelines.Post,
+blur_x: pipelines.Post,
+blur_y: pipelines.Post,
+fog: pipelines.Post,
+overflow: pipelines.Post,
+mask: pipelines.Post,
+marker: pipelines.Base,
 // 离屏纹理（乒乓）
 tex_a: *sdl.c.SDL_GPUTexture,
 tex_b: *sdl.c.SDL_GPUTexture,
 // 自定义管线（堆分配，便于释放）
-custom: std.ArrayList(*PostPipeline),
+custom: std.ArrayList(*pipelines.Post),
 // 组件列表
-widgets: []Widget,
+widgets: []ui.Widget,
 
 pub fn init(
     allocator: std.mem.Allocator,
     window: *Window,
     device: *const sdl.Gpu,
-    shaders: ?[]const *sdl.c.SDL_GPUShader,
     image: LImage,
-    widgets: []Widget,
+    shaders: ?[]const *sdl.GPUShader,
+    widgets: []ui.Widget,
 ) Error!Self {
     // -- 上传器 (Uploader) --
     const uploader = try Device.getUploader();
@@ -111,8 +109,8 @@ pub fn init(
         .format = color_target_desc.format,
         .blend_state = premultipliedBlendState(),
     };
-    const vert_shader = try shader_loader.load(device, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
-    const frag_shader = try shader_loader.load(device, @embedFile("base.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
+    const vert_shader = try shader.loader.load(device, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
+    const frag_shader = try shader.loader.load(device, @embedFile("base.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const vert_buffer_desc: sdl.c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
     const pipeline_info: sdl.c.SDL_GPUGraphicsPipelineCreateInfo = .{
         .vertex_shader = vert_shader, // 编译好的顶点着色器
@@ -129,7 +127,7 @@ pub fn init(
     // 基础着色器（负责图像渲染）
     const base_pl = try device.createGPUGraphicsPipeline(&pipeline_info);
     // 构造背景
-    const background = try Background.init(device, color_target_desc.format);
+    const background = try pipelines.Background.init(device, color_target_desc.format);
 
     // 创建离屏渲染纹理 A 和 B
     const offscreen_info: sdl.c.SDL_GPUTextureCreateInfo = .{
@@ -145,36 +143,36 @@ pub fn init(
     const tex_b = try device.createGPUTexture(&offscreen_info);
 
     // 创建屏幕渲染的直通管线
-    const onscreen = try OnscreenPipeline.init(device, vert_shader, &vert_buffer_desc, &vert_attrs, &premultiplied_color_target_desc);
+    const onscreen = try pipelines.Screen.init(device, vert_shader, &vert_buffer_desc, &vert_attrs, &premultiplied_color_target_desc);
     // 链上后处理：输入输出均为预乘 Alpha
-    const pl_builder = PostPipeline.Builder.init(device, &vert_buffer_desc, &vert_attrs, &premultiplied_color_target_desc);
+    const pl_builder = pipelines.Post.Builder.init(device, &vert_buffer_desc, &vert_attrs, &premultiplied_color_target_desc);
     // 仅屏幕叠加的管线：输出非预乘颜色，仍用 SRC_ALPHA 混合
-    const screen_builder = PostPipeline.Builder.init(device, &vert_buffer_desc, &vert_attrs, &color_target_desc);
-    const sharpen_frag_shader = try shader_loader.load(device, @embedFile("sharpen.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
+    const screen_builder = pipelines.Post.Builder.init(device, &vert_buffer_desc, &vert_attrs, &color_target_desc);
+    const sharpen_frag_shader = try shader.loader.load(device, @embedFile("sharpen.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const sharpen = try pl_builder.build(.sharpen, .{ .vert = vert_shader, .frag = sharpen_frag_shader });
-    const blur_frag_shader = try shader_loader.load(device, @embedFile("blur.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
+    const blur_frag_shader = try shader.loader.load(device, @embedFile("blur.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const blur_x_pl = try pl_builder.build(.blur_x, .{ .vert = vert_shader, .frag = blur_frag_shader });
     const blur_y_pl = try pl_builder.build(.blur_y, .{ .vert = vert_shader, .frag = blur_frag_shader });
-    const fog_frag_shader = try shader_loader.load(device, @embedFile("fog.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
+    const fog_frag_shader = try shader.loader.load(device, @embedFile("fog.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
     const fog_pl = try screen_builder.build(.fog, .{ .vert = vert_shader, .frag = fog_frag_shader });
     // 构造超出提示管线（图片过大被限制尺寸时，在屏幕边缘显示提示）
-    const overflow_frag_shader = try shader_loader.load(device, @embedFile("overflow.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
+    const overflow_frag_shader = try shader.loader.load(device, @embedFile("overflow.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
     const overflow_pl = try screen_builder.build(.overflow, .{ .vert = vert_shader, .frag = overflow_frag_shader });
-    const mask_frag_shader = try shader_loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, .{ .samplers = 2, .buffers = 0 });
+    const mask_frag_shader = try shader.loader.load(device, @embedFile("mask.frag.spv"), "main", .fragment, .{ .samplers = 2, .buffers = 0 });
     const mask_pl = try pl_builder.build(.mask, .{ .vert = vert_shader, .frag = mask_frag_shader });
     // 构造标记管线
-    const marker_vert_shader = try shader_loader.load(device, @embedFile("marker.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 1 });
-    const marker_frag_shader = try shader_loader.load(device, @embedFile("marker.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
-    const marker_pl = try Pipeline.init(device, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader }, null);
+    const marker_vert_shader = try shader.loader.load(device, @embedFile("marker.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 1 });
+    const marker_frag_shader = try shader.loader.load(device, @embedFile("marker.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 1 });
+    const marker_pl = try pipelines.Base.init(device, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader }, null);
 
     // 添加自定义管线
-    var custom = std.ArrayList(*PostPipeline).empty;
+    var custom = std.ArrayList(*pipelines.Post).empty;
     if (shaders) |list| {
-        for (list) |shader| {
-            const pl = try allocator.create(PostPipeline); // 在堆上创建，避免被作用域回收
+        for (list) |frag| {
+            const pl = try allocator.create(pipelines.Post); // 在堆上创建，避免被作用域回收
             pl.* = try pl_builder.build(
                 .custom,
-                .{ .vert = vert_shader, .frag = shader },
+                .{ .vert = vert_shader, .frag = frag },
             );
             try custom.append(allocator, pl);
         }
@@ -202,7 +200,7 @@ pub fn init(
         .sampler = sampler,
         .base_pipeline = base_pl,
         .background = background,
-        .onscreen = onscreen,
+        .screen = onscreen,
         .sharpen = sharpen,
         .blur_x = blur_x_pl,
         .blur_y = blur_y_pl,
@@ -219,7 +217,7 @@ pub fn init(
 
 pub fn deinit(self: *Self) void {
     self.marker.deinit();
-    self.onscreen.deinit();
+    self.screen.deinit();
     self.mask.deinit(self.device);
     self.overflow.deinit(self.device);
     self.fog.deinit(self.device);
@@ -249,7 +247,7 @@ pub fn deinit(self: *Self) void {
 }
 
 /// 内建后处理管线（顺序即渲染顺序）
-pub fn builtin(self: *Self) [4]*PostPipeline {
+pub fn builtin(self: *Self) [4]*pipelines.Post {
     return .{ &self.sharpen, &self.blur_x, &self.blur_y, &self.mask };
 }
 

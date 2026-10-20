@@ -1,20 +1,6 @@
 const c = @import("sdl").c;
 const Overflow = @import("enums.zig").Overflow;
 
-// 定义顶点与 UV 坐标
-pub const Vertex = struct {
-    x: f32,
-    y: f32,
-    z: f32,
-    u: f32,
-    v: f32,
-};
-
-pub const ShaderPair = struct {
-    vert: *c.SDL_GPUShader,
-    frag: *c.SDL_GPUShader,
-};
-
 // 文字片段着色器 Uniforms
 pub const TextUniforms = extern struct {
     color: [4]f32, // RGBA

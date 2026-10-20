@@ -1,4 +1,4 @@
-const Vertex = @import("structs.zig").Vertex;
+const Vertex = @import("shared").Vertex;
 
 // 铺满屏幕的 6 个顶点（两个三角形组成一个矩形）
 pub const base_verts: [6]Vertex = .{

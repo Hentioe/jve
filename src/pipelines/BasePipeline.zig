@@ -9,9 +9,31 @@ gpu: *const Gpu,
 sdl_pipeline: *c.SDL_GPUGraphicsPipeline,
 vert_shader: *sdl.c.SDL_GPUShader,
 frag_shader: ?*sdl.c.SDL_GPUShader,
+owns_vert: bool,
+owns_frag: bool,
 render_pass: ?*c.SDL_GPURenderPass = null,
 
+const Ownership = struct {
+    vert: bool = true,
+    frag: bool = true,
+};
+
 pub fn init(gpu: *const Gpu, window: *c.SDL_Window, shaders: ShaderPair, vertex_input_state: ?sdl.c.SDL_GPUVertexInputState) Error!Self {
+    return initInternal(gpu, window, shaders, vertex_input_state, .{});
+}
+
+/// 与 `init` 相同，但不接管顶点着色器的生命周期（由外部共享持有）。
+pub fn initBorrowedVert(gpu: *const Gpu, window: *c.SDL_Window, shaders: ShaderPair, vertex_input_state: ?sdl.c.SDL_GPUVertexInputState) Error!Self {
+    return initInternal(gpu, window, shaders, vertex_input_state, .{ .vert = false });
+}
+
+fn initInternal(
+    gpu: *const Gpu,
+    window: *c.SDL_Window,
+    shaders: ShaderPair,
+    vertex_input_state: ?sdl.c.SDL_GPUVertexInputState,
+    ownership: Ownership,
+) Error!Self {
     // 构造管线
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
         .format = gpu.getGPUSwapchainTextureFormat(window),
@@ -35,20 +57,26 @@ pub fn init(gpu: *const Gpu, window: *c.SDL_Window, shaders: ShaderPair, vertex_
         .vertex_input_state = vertex_input_state orelse .{},
     };
 
+    errdefer {
+        if (ownership.frag) gpu.releaseGPUShader(shaders.frag);
+        if (ownership.vert) gpu.releaseGPUShader(shaders.vert);
+    }
     const sdl_pipeline = try gpu.createGPUGraphicsPipeline(&pipeline_info);
 
     return Self{
         .gpu = gpu,
         .vert_shader = shaders.vert,
         .frag_shader = shaders.frag,
+        .owns_vert = ownership.vert,
+        .owns_frag = ownership.frag,
         .sdl_pipeline = sdl_pipeline,
     };
 }
 
 pub fn deinit(self: *Self) void {
     self.gpu.releaseGPUGraphicsPipeline(self.sdl_pipeline);
-    if (self.frag_shader) |s| self.gpu.releaseGPUShader(s);
-    self.gpu.releaseGPUShader(self.vert_shader);
+    if (self.owns_frag) if (self.frag_shader) |s| self.gpu.releaseGPUShader(s);
+    if (self.owns_vert) self.gpu.releaseGPUShader(self.vert_shader);
 }
 
 pub fn bind(self: *Self, render_pass: *c.SDL_GPURenderPass) void {

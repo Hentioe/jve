@@ -11,10 +11,7 @@ const app_env = @import("../app_env.zig");
 const shader = @import("../shader.zig");
 const RenderDeps = @import("gpu/RenderDeps.zig");
 const events = @import("gpu/events.zig");
-const Widget = ui.Widget;
-const TextPipeline = ui.TextPipeline;
-const RectPipeline = ui.RectPipeline;
-const TitleBar = ui.TitleBar;
+const pipelines = @import("../pipelines.zig");
 const loop = @import("gpu/loop.zig");
 const ExitAction = @import("enums.zig").ExitAction;
 const Error = @import("errors.zig").Error;
@@ -98,12 +95,9 @@ pub fn show(self: *Self) Error!ExitAction {
     // 当来自于模式切换（预览 -> GPU），立即释放内存
     if (app_env.reader().preview_initialized) shared.heap.mallocTrim();
     const shaders: ?[]const *sdl.c.SDL_GPUShader = if (self.shaders) |*s| s.items else null;
-    // 纯色矩形背景（Button / TitleBar）共享的渲染管线
-    var rect_pipeline = try RectPipeline.init(self.window, self.device);
-    defer rect_pipeline.deinit();
-    // 所有文字/图标组件共享的渲染管线
-    var text_pipeline = try TextPipeline.init(self.window, self.device);
-    defer text_pipeline.deinit();
+    // UI 组件共享的管线注册表
+    try pipelines.registry.init(self.allocator, self.window, self.device);
+    defer pipelines.registry.deinit();
     // 更新窗口尺寸
     app_env.writer().image_shape = image.shape;
     try self.window.setTitle(image.file_name, .{
@@ -113,10 +107,10 @@ pub fn show(self: *Self) Error!ExitAction {
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
     // 顶部标题栏（自带 close / minimize 按钮）
-    var title_bar: ?TitleBar = null;
+    var title_bar: ?ui.TitleBar = null;
     if (self.window.borderless) {
         const window_size = self.window.fit_size;
-        title_bar = try TitleBar.init(self.allocator, &text_pipeline, &rect_pipeline, window_size, .{
+        title_bar = try ui.TitleBar.init(self.allocator, window_size, .{
             .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity orelse 0.25),
         });
         title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量
@@ -125,7 +119,7 @@ pub fn show(self: *Self) Error!ExitAction {
 
     var widget_count: usize = 0;
     // 组件数量是动态的，预先分配已知上限的数组
-    var widgets: [MAX_WIDGETS]Widget = undefined;
+    var widgets: [MAX_WIDGETS]ui.Widget = undefined;
     if (title_bar) |*tb| {
         if (!(config.get().titlebar.no_text orelse false)) try tb.setText(self.window.getTitle());
         widgets[widget_count] = tb.toWidget();
@@ -136,8 +130,8 @@ pub fn show(self: *Self) Error!ExitAction {
         self.allocator,
         self.window,
         self.device,
-        shaders,
         image,
+        shaders,
         widgets[0..widget_count],
     );
     errdefer deps.deinit();

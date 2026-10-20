@@ -140,20 +140,20 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     if (sdl.c.SDL_WaitAndAcquireGPUSwapchainTexture(cmd, deps.window.sdl_window, @constCast(&tex_swp), null, null)) {
         if (tex_swp != null) {
             // 开启屏幕渲染
-            try deps.onscreen.begin(cmd, tex_swp);
+            try deps.screen.begin(cmd, tex_swp);
             // tex_src 已包含背景时不再重复绘制
             if (!state.screenshot_include_bg) {
                 // 绑定背景管线，绘制背景
-                deps.background.bind(deps.onscreen.render_pass); // 绑定到屏幕通道
+                deps.background.bind(deps.screen.render_pass); // 绑定到屏幕通道
                 deps.background.draw();
             }
             // 绑定屏幕管线，绘制内容（图片 + 后处理）
-            deps.onscreen.bind();
-            deps.onscreen.draw(state.tex_src, deps.sampler);
+            deps.screen.bind();
+            deps.screen.draw(state.tex_src, deps.sampler);
             // 在屏幕之上继续添加新内容
             if (state.marker_pos) |pos| {
                 // 绘制标记
-                deps.marker.bind(deps.onscreen.render_pass);
+                deps.marker.bind(deps.screen.render_pass);
                 // 传递标记位置：事件坐标基于视口（可能是缩放后的窗口），不可直接用图片尺寸算 NDC
                 const viewport_size = try deps.window.currentSize();
                 const marker_loc_uniforms: MarkerVertUniforms = .fromViewportPoint(pos.x, pos.y, viewport_size.w, viewport_size.h);
@@ -166,21 +166,21 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
             }
             if (state.overflow_hint.isRunning()) {
                 // 在雾效果之前绘制超出提示（屏幕边缘的红色渐变）
-                deps.overflow.bindScreen(deps.onscreen.render_pass, &deps.verts_binding);
+                deps.overflow.bindScreen(deps.screen.render_pass, &deps.verts_binding);
                 const overflow_uniforms = OverflowUniforms.init(deps.window.overflow, state.overflow_hint.alpha);
                 sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &overflow_uniforms, @sizeOf(OverflowUniforms));
                 deps.overflow.draw();
             }
             if (state.is_busy) {
                 // 显示雾效果（不采样纹理，仅使用 uniform）
-                deps.fog.bindScreen(deps.onscreen.render_pass, &deps.verts_binding);
+                deps.fog.bindScreen(deps.screen.render_pass, &deps.verts_binding);
                 const fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(sdl.c.SDL_GetTicks())) / 1000.0 };
                 sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &fog_uniforms, @sizeOf(FogUniforms));
                 deps.fog.draw();
             }
             // 绘制组件
-            for (deps.widgets) |*widget| widget.draw(cmd, deps.onscreen.render_pass);
-            deps.onscreen.end();
+            for (deps.widgets) |*widget| widget.draw(cmd, deps.screen.render_pass);
+            deps.screen.end();
         }
     }
     // 提交命令，渲染到屏幕

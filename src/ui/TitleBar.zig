@@ -9,9 +9,7 @@ const text_renderer = @import("text_renderer.zig");
 const consts = @import("consts.zig");
 const AssLibrary = @import("AssLibrary.zig");
 const Text = @import("Text.zig");
-const Device = @import("../Device.zig");
-const TextPipeline = @import("TextPipeline.zig");
-const RectPipeline = @import("RectPipeline.zig");
+const pipeline_registry = @import("../pipelines/registry.zig");
 const RectDrawer = @import("RectDrawer.zig");
 const Rect = RectDrawer.Rect;
 const Button = @import("Button.zig");
@@ -63,7 +61,6 @@ allocator: Allocator,
 frame_size: FrameSize,
 options: Options,
 renderer: ass.Renderer,
-text_pipeline: *TextPipeline,
 background: RectDrawer,
 rect: Rect,
 close: Button,
@@ -79,8 +76,6 @@ last_button_hover: bool = false,
 
 pub fn init(
     allocator: Allocator,
-    text_pipeline: *TextPipeline,
-    rect_pipeline: *RectPipeline,
     frame_size: FrameSize,
     options: Options,
 ) Error!Self {
@@ -99,6 +94,7 @@ pub fn init(
     const padding = @max(0.0, (button_side - icon_side) * 0.5);
     const rect = Rect{ .x = 0.0, .y = 0.0, .w = fw, .h = button_side };
 
+    const rect_pipeline = try pipeline_registry.rect();
     var background = try RectDrawer.init(rect_pipeline, frame_size, rect, options.color.value(), options.debug);
     errdefer background.deinit();
 
@@ -108,9 +104,9 @@ pub fn init(
         .icon = options.icon,
         .debug = options.debug,
     };
-    var close = try Button.init(allocator, text_pipeline, rect_pipeline, frame_size, .close, .{ .x = fw - button_side, .y = 0.0 }, button_options);
+    var close = try Button.init(allocator, frame_size, .close, .{ .x = fw - button_side, .y = 0.0 }, button_options);
     errdefer close.deinit();
-    var minimize = try Button.init(allocator, text_pipeline, rect_pipeline, frame_size, .minimize, .{ .x = fw - button_side * 2.0, .y = 0.0 }, button_options);
+    var minimize = try Button.init(allocator, frame_size, .minimize, .{ .x = fw - button_side * 2.0, .y = 0.0 }, button_options);
     errdefer minimize.deinit();
 
     return Self{
@@ -118,7 +114,6 @@ pub fn init(
         .frame_size = frame_size,
         .options = options,
         .renderer = renderer,
-        .text_pipeline = text_pipeline,
         .background = background,
         .rect = rect,
         .close = close,
@@ -162,7 +157,7 @@ pub fn setText(self: *Self, value: []const u8) Error!void {
     _ = title.position(.{ .x = (fw - tw) * 0.5, .y = (self.options.height - th) * 0.5 });
     title.debug(self.options.debug);
 
-    _ = try title.toWidget(self.frame_size, self.text_pipeline);
+    _ = try title.toWidget(self.frame_size);
 
     self.title = title;
 }

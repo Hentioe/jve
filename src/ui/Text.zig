@@ -7,7 +7,7 @@ const Size2D = shared.Size2D;
 const AssRendered = @import("AssRendered.zig");
 const text_renderer = @import("text_renderer.zig");
 const BuildOptions = text_renderer.Options;
-const TextPipeline = @import("TextPipeline.zig");
+const pipeline_registry = @import("../pipelines/registry.zig");
 const TextDrawer = @import("TextDrawer.zig");
 const LayoutOptions = @import("options.zig").LayoutOptions;
 const Position = @import("shared").Point(f32);
@@ -127,8 +127,9 @@ pub fn debug(self: *Self, value: bool) void {
     self.options.debug = value;
 }
 
-pub fn toWidget(self: *Self, frame_size: Size2D(i32), pipeline: *TextPipeline) Error!Widget {
+pub fn toWidget(self: *Self, frame_size: Size2D(i32)) Error!Widget {
     std.debug.assert(!self.is_drawable);
+    const pipeline = try pipeline_registry.text();
     self.drawer = try TextDrawer.init(self.allocator, pipeline, frame_size, &self.raster, self.options);
     self.is_drawable = true;
 

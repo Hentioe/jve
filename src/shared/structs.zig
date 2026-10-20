@@ -1,6 +1,15 @@
 const std = @import("std");
 const SizeError = @import("errors.zig").SizeError;
 
+// 定义顶点与 UV 坐标
+pub const Vertex = struct {
+    x: f32,
+    y: f32,
+    z: f32,
+    u: f32,
+    v: f32,
+};
+
 /// 表示二维尺寸的结构体（Width x Height）
 pub fn Size2D(comptime T: type) type {
     return struct {

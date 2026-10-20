@@ -11,9 +11,7 @@ const AssLibrary = ui.AssLibrary;
 const Text = ui.Text;
 const Icon = ui.Icon;
 const Widget = ui.Widget;
-const TextPipeline = ui.TextPipeline;
-const BannerPipeline = ui.BannerPipeline;
-const RectPipeline = ui.RectPipeline;
+const pipeline_registry = @import("../pipelines/registry.zig");
 const TextBanner = ui.TextBanner;
 const ExitAction = @import("enums.zig").ExitAction;
 const RenderDeps = @import("welcome/RenderDeps.zig");
@@ -71,16 +69,9 @@ pub fn show(self: *Self) Error!ExitAction {
     defer Device.discardUploader();
     // 设置 ass 帧尺寸（文字据此相对 PLAY_RES 缩放）
     self.ass_renderer.setFrameSize(WINDOW_SIZE.w, WINDOW_SIZE.h);
-    // 纯色矩形背景（Button / TitleBar）共享的渲染管线
-    var rect_pipeline = try RectPipeline.init(self.window, self.gpu);
-    defer rect_pipeline.deinit();
-    // 所有文字/图标组件共享的渲染管线
-    var text_pipeline = try TextPipeline.init(self.window, self.gpu);
-    defer text_pipeline.deinit();
-    // 横幅背景共享的渲染管线
-    // todo: 单例化 banner 管线，在 banner 组件中直接获取
-    var banner_pipeline = try BannerPipeline.init(self.window, self.gpu);
-    defer banner_pipeline.deinit();
+    // UI 组件共享的管线注册表
+    try pipeline_registry.init(self.allocator, self.window, self.gpu);
+    defer pipeline_registry.deinit();
     // 创建 logo 文字
     var logo = try Text.init(self.allocator, &self.ass_renderer, LOGO_TEXT, .{
         .font_name = LOGO_FONT,
@@ -97,12 +88,12 @@ pub fn show(self: *Self) Error!ExitAction {
     defer image.deinit();
 
     var widgets = [_]Widget{
-        try image.toWidget(WINDOW_SIZE, &text_pipeline),
-        try logo.toWidget(WINDOW_SIZE, &text_pipeline),
+        try image.toWidget(WINDOW_SIZE),
+        try logo.toWidget(WINDOW_SIZE),
     };
 
     // 底部横幅（背景默认红色，测试文本）；帧渲染中一直显示
-    var banner = try TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &text_pipeline, &banner_pipeline, .{
+    var banner = try TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, .{
         .color = .rgba(1.0, 1.0, 1.0, 0), // 半透明白色
     });
     defer banner.deinit();

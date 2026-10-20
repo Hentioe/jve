@@ -5,6 +5,7 @@ const ui = @import("../ui.zig");
 const Allocator = std.mem.Allocator;
 const app_env = @import("../app_env.zig");
 const Device = @import("../Device.zig");
+const pipeline_registry = @import("../pipelines/registry.zig");
 const Size2D = @import("shared").Size2D;
 const Window = @import("window.zig");
 const RenderDeps = @import("diag/RenderDeps.zig");
@@ -58,15 +59,12 @@ pub fn show(self: *Self) Error!ExitAction {
     defer Device.discardUploader();
     // 设置 ass 帧尺寸（文字据此相对 PLAY_RES 缩放）
     self.ass_renderer.setFrameSize(WINDOW_SIZE.w, WINDOW_SIZE.h);
-    // 所有文字/图标组件共享的渲染管线
-    var text_pipeline = try ui.TextPipeline.init(self.window, self.gpu);
-    defer text_pipeline.deinit();
-    // todo: 单例化 banner 管线，在 banner 组件中直接获取
-    var banner_pipeline = try ui.BannerPipeline.init(self.window, self.gpu);
-    defer banner_pipeline.deinit();
+    // UI 组件共享的管线注册表
+    try pipeline_registry.init(self.allocator, self.window, self.gpu);
+    defer pipeline_registry.deinit();
     var widgets = [_]ui.Widget{};
     // 错误消息横幅
-    var banner = try ui.TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, &text_pipeline, &banner_pipeline, .{
+    var banner = try ui.TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, .{
         .placement = .center,
         .color = .rgba(0.5, 0.0, 0.0, 0.5),
         .padding_y = 10.0,

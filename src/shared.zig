@@ -1,9 +1,10 @@
-const structs = @import("shared//structs.zig");
+const structs = @import("shared/structs.zig");
 const errors = @import("shared/errors.zig");
 const helper = @import("shared/helper.zig");
 
 pub const heap = @import("shared/heap.zig");
 pub const Fatal = @import("shared/Fatal.zig");
+pub const Vertex = structs.Vertex;
 pub const Size2D = structs.Size2D;
 pub const IShape = structs.IShape;
 pub const Point = structs.Point;

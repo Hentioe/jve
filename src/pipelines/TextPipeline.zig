@@ -1,37 +1,24 @@
 const sdl = @import("sdl");
-const Vertex = @import("../display/structs.zig").Vertex;
 const Window = @import("../display/window.zig");
 const shader_loader = @import("../shader.zig").loader;
-const Pipeline = @import("../display/Pipeline.zig");
-const Error = @import("../display/errors.zig").Error;
+const Pipeline = @import("BasePipeline.zig");
+const structs = @import("structs.zig");
+const Error = @import("errors.zig").Error;
 const Self = @This();
 
 /// 文字/图标组件的共享渲染管线。
 ///
-/// 所有组件复用同一份着色器、图形管线与采样器；顶点数据、纹理与状态 uniform
-/// 由各组件自行持有（见 `ui.Drawer`），因此这个管线本身不携带任何组件状态。
+/// 所有组件复用同一份片段着色器、图形管线与采样器；顶点着色器由会话级
+/// `pipeline_registry` 加载一次并共享。顶点数据、纹理与状态 uniform 由各组件
+/// 自行持有（见 `ui.Drawer`），因此这个管线本身不携带任何组件状态。
 gpu: *const sdl.Gpu,
 pipeline: Pipeline,
 sampler: *sdl.c.SDL_GPUSampler,
 
-pub fn init(window: *const Window, gpu: *const sdl.Gpu) Error!Self {
-    const vert_buffer_desc: sdl.c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
-    const vert_attrs: [2]sdl.c.SDL_GPUVertexAttribute = .{
-        .{ .location = 0, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = @offsetOf(Vertex, "x") }, // Position
-        .{ .location = 1, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u") }, // UV
-    };
-    const vertex_input_state: sdl.c.SDL_GPUVertexInputState = .{
-        .num_vertex_buffers = 1,
-        .vertex_buffer_descriptions = &vert_buffer_desc,
-        .num_vertex_attributes = 2,
-        .vertex_attributes = &vert_attrs,
-    };
-
+pub fn init(window: *const Window, gpu: *const sdl.Gpu, vert_shader: *sdl.c.SDL_GPUShader) Error!Self {
     // 文字管线
-    // todo: 复用 base.vert
-    const vert_shader = try shader_loader.load(gpu, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
     const frag_shader = try shader_loader.load(gpu, @embedFile("text.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
-    var pipeline = try Pipeline.init(gpu, window.sdl_window, .{ .vert = vert_shader, .frag = frag_shader }, vertex_input_state);
+    var pipeline = try Pipeline.initBorrowedVert(gpu, window.sdl_window, .{ .vert = vert_shader, .frag = frag_shader }, structs.vertex_input_state);
     errdefer pipeline.deinit();
 
     // 文字纹理采样器（所有组件共用）

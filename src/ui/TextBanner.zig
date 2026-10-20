@@ -5,8 +5,7 @@ const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const WindowSize = shared.Size2D(i32);
 const Text = @import("Text.zig");
-const TextPipeline = @import("TextPipeline.zig");
-const BannerPipeline = @import("BannerPipeline.zig");
+const pipeline_registry = @import("../pipelines/registry.zig");
 const BannerDrawer = @import("BannerDrawer.zig");
 const text_renderer = @import("text_renderer.zig");
 const Device = @import("../Device.zig");
@@ -42,7 +41,6 @@ pub const Options = struct {
 allocator: Allocator,
 renderer: *const ass.Renderer,
 window_size: WindowSize,
-text_pipeline: *TextPipeline,
 options: Options,
 background: BannerDrawer,
 text: ?Text = null,
@@ -68,18 +66,16 @@ pub fn init(
     allocator: Allocator,
     renderer: *const ass.Renderer,
     window_size: WindowSize,
-    text_pipeline: *TextPipeline,
-    banner_pipeline: *BannerPipeline,
     options: Options,
 ) Error!Self {
     // 尚无文字时先给一个高度为 0 的横幅（不可见），`setText` 会按文字尺寸重建
     const top = bannerTop(window_size, options.placement, options.margin, 0);
+    const banner_pipeline = try pipeline_registry.banner();
     const background = try BannerDrawer.init(banner_pipeline, window_size, top, 0, options.color.value(), options.debug);
     return Self{
         .allocator = allocator,
         .renderer = renderer,
         .window_size = window_size,
-        .text_pipeline = text_pipeline,
         .options = options,
         .background = background,
         .rect_top = top,
@@ -125,7 +121,7 @@ pub fn setText(self: *Self, message: []const u8) Error!void {
 
     // 生成文字的渲染依赖；初始化阶段由 RenderDeps 末尾统一提交，
     // 之后的运行时修改需要在此立即提交
-    _ = try t.toWidget(self.window_size, self.text_pipeline);
+    _ = try t.toWidget(self.window_size);
     const uploader = try Device.getUploader();
     try uploader.submit();
 }
