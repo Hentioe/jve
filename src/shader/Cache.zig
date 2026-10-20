@@ -9,17 +9,11 @@
 const std = @import("std");
 const xdg = @import("xdg");
 const Allocator = std.mem.Allocator;
+const consts = @import("consts.zig");
 const Error = @import("errors.zig").Error;
 const Cache = @This();
 
 /// manifest 格式版本，结构或编译参数语义变更时递增，旧缓存将整体重建。
-const FORMAT_VERSION: u32 = 1;
-const CACHE_APP = "jve";
-const CACHE_SUBDIR = "shaders";
-const MANIFEST_NAME = "manifest.json";
-const MAX_MANIFEST_SIZE = 8 * 1024 * 1024;
-const MAX_SPV_SIZE = 64 * 1024 * 1024;
-
 /// 单个着色器的摘要信息。
 pub const Entry = struct {
     mtime: i128, // 源码修改时间（纳秒）
@@ -57,10 +51,10 @@ pub fn init(allocator: Allocator, profile: []const u8) Error!Cache {
     const a = arena.allocator();
 
     const home = try xdg.getCacheHome(a);
-    const dir_path = try std.fs.path.join(a, &.{ home, CACHE_APP, CACHE_SUBDIR });
+    const dir_path = try std.fs.path.join(a, &.{ home, consts.CACHE_APP, consts.CACHE_SUBDIR });
     std.fs.cwd().makePath(dir_path) catch |err| {
-        std.log.err("Failed to create shader cache directory '{s}': {s}", .{ dir_path, @errorName(err) });
-        return Error.CacheDirFailed;
+        std.log.err("Failed to create shader cache directory {s}: {s}", .{ dir_path, @errorName(err) });
+        return Error.CacheDirCreationFailed;
     };
 
     var self = Cache{
@@ -99,7 +93,7 @@ pub fn readSpv(self: *Cache, allocator: Allocator, name: []const u8) Error!?[]u8
     const path = try self.spvPath(allocator, entry.hash);
     defer allocator.free(path);
 
-    return std.fs.cwd().readFileAlloc(allocator, path, MAX_SPV_SIZE) catch |err| switch (err) {
+    return std.fs.cwd().readFileAlloc(allocator, path, consts.MAX_SPV_SIZE) catch |err| switch (err) {
         error.FileNotFound => null,
         else => {
             std.log.err("Failed to read cached shader '{s}': {s}", .{ path, @errorName(err) });
@@ -146,7 +140,7 @@ pub fn save(self: *Cache) Error!void {
         });
     }
 
-    const wire = Wire{ .version = FORMAT_VERSION, .profile = self.profile, .entries = list.items };
+    const wire = Wire{ .version = consts.FORMAT_VERSION, .profile = self.profile, .entries = list.items };
     var out: std.io.Writer.Allocating = .init(gpa);
     defer out.deinit();
     std.json.Stringify.value(wire, .{ .whitespace = .indent_2 }, &out.writer) catch |err| {
@@ -155,16 +149,16 @@ pub fn save(self: *Cache) Error!void {
     };
 
     const a = self.arena.allocator();
-    const path = std.fs.path.join(a, &.{ self.dir_path, MANIFEST_NAME }) catch return Error.CacheWriteFailed;
+    const path = std.fs.path.join(a, &.{ self.dir_path, consts.MANIFEST_NAME }) catch return Error.CacheWriteFailed;
     try atomicWrite(gpa, path, out.written());
     self.dirty = false;
 }
 
 fn loadManifest(self: *Cache) Error!void {
     const a = self.arena.allocator();
-    const path = try std.fs.path.join(a, &.{ self.dir_path, MANIFEST_NAME });
+    const path = try std.fs.path.join(a, &.{ self.dir_path, consts.MANIFEST_NAME });
 
-    const raw = std.fs.cwd().readFileAlloc(a, path, MAX_MANIFEST_SIZE) catch |err| switch (err) {
+    const raw = std.fs.cwd().readFileAlloc(a, path, consts.MAX_MANIFEST_SIZE) catch |err| switch (err) {
         error.FileNotFound => return, // 首次加载，缓存为空
         else => {
             std.log.err("Failed to read shader cache manifest '{s}': {s}", .{ path, @errorName(err) });
@@ -179,7 +173,7 @@ fn loadManifest(self: *Cache) Error!void {
     defer parsed.deinit();
 
     // 格式或编译环境变化：整体作废，重新生成
-    if (parsed.value.version != FORMAT_VERSION or !std.mem.eql(u8, parsed.value.profile, self.profile)) {
+    if (parsed.value.version != consts.FORMAT_VERSION or !std.mem.eql(u8, parsed.value.profile, self.profile)) {
         std.log.warn("Shader cache format/profile changed, rebuilding cache", .{});
         return;
     }

@@ -8,6 +8,7 @@ pub const vips = @import("vips");
 pub const slang = @import("slang");
 pub const display = @import("display.zig");
 pub const gallery = @import("gallery.zig");
+pub const shader = @import("shader.zig");
 pub const clipboard = @import("clipboard.zig");
 pub const ui = @import("ui.zig");
 pub const remover = @import("ai").remover;
@@ -63,12 +64,16 @@ pub fn display_deinit() void {
     app_env.deinit();
 }
 
-pub fn isSupported(suffix: []const u8) !bool {
-    return try vips.formats.isSupported(suffix);
-}
-
 pub fn extensions() ![]const []const u8 {
     return try vips.formats.get();
+}
+
+pub fn clearCache(allocator: Allocator) !void {
+    if (try shader.cleaner.deleteCacheDir(allocator)) {
+        std.log.info("Cache directory has been deleted", .{});
+    } else {
+        std.log.info("No cache to clear", .{});
+    }
 }
 
 pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {

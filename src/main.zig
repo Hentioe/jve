@@ -24,6 +24,8 @@ pub fn main() !void {
         const formats = try std.mem.join(allocator, " ", try jve.vips.formats.get());
         defer allocator.free(formats);
         std.debug.print("Supported formats: {s}\n", .{formats});
+    } else if (res.args.@"clear-cache" != 0) {
+        try jve.clearCache(allocator);
     } else if (res.positionals[0]) |file_path| { // 取位置参数作为路径
         // 初始化
         defer jve.deinit();
