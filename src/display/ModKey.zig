@@ -1,5 +1,5 @@
 const c = @import("sdl").c;
-const config = @import("config");
+const config = @import("../config.zig");
 const Self = @This();
 
 key: c.SDL_Keycode,

@@ -1,6 +1,6 @@
 const std = @import("std");
 const c = @import("sdl").c;
-const config = @import("config");
+const config = @import("config.zig");
 const vips = @import("vips");
 const writer = vips.writer;
 const LImage = vips.LImage;

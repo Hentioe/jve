@@ -1,7 +1,7 @@
 const std = @import("std");
 const SlangError = @import("slang").Error;
 const SdlError = @import("sdl").Error;
-const ConfigError = @import("config").Error;
+const ConfigError = @import("../config.zig").Error;
 const ScannerError = @import("../Scanner.zig").Error;
 
 const CustomError = error{

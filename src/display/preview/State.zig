@@ -1,6 +1,6 @@
 const sdl = @import("sdl");
 const shared = @import("shared");
-const config = @import("config");
+const config = @import("../../config.zig");
 const Delta = @import("../Delta.zig");
 const ModKey = @import("../ModKey.zig");
 const Animated = @import("../Animated.zig");

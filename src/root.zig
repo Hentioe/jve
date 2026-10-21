@@ -3,7 +3,7 @@ const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
 
 pub const app_env = @import("app_env.zig");
-pub const config = @import("config");
+pub const config = @import("config.zig");
 pub const vips = @import("vips");
 pub const slang = @import("slang");
 pub const display = @import("display.zig");
@@ -11,7 +11,7 @@ pub const gallery = @import("gallery.zig");
 pub const shader = @import("shader.zig");
 pub const clipboard = @import("clipboard.zig");
 pub const ui = @import("ui.zig");
-pub const remover = @import("ai").remover;
+pub const remover = @import("ai.zig").remover;
 pub const LoadError = errors.LoadError;
 
 const DisplayMode = display.Viewer.Mode;

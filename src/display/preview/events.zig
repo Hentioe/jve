@@ -1,6 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl");
-const config = @import("config");
+const config = @import("../../config.zig");
 const gallery = @import("../../gallery.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");

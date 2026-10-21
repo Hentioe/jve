@@ -92,14 +92,6 @@ pub fn build(b: *std.Build) void {
     const toml_dep = b.dependency("toml", .{});
     const toml_import: Import = .{ .name = "toml", .module = toml_dep.module("toml") };
 
-    // 配置模块
-    const config_mod = b.addModule("config", .{
-        .root_source_file = b.path("src/config.zig"),
-        .target = target,
-        .imports = &.{ toml_import, xdg_import },
-    });
-    const config_import: Import = .{ .name = "config", .module = config_mod };
-
     // VIPS 模块
     const vips_mod = b.addModule("vips", .{
         .root_source_file = b.path("src/vips.zig"),
@@ -118,14 +110,6 @@ pub fn build(b: *std.Build) void {
     ort_mod.linkSystemLibrary("onnxruntime", .{});
     const ort_import: Import = .{ .name = "ort", .module = ort_mod };
 
-    // AI 模块
-    const ai_mod = b.addModule("ai", .{
-        .root_source_file = b.path("src/ai.zig"),
-        .target = target,
-        .imports = &.{ shared_import, config_import, ort_import, vips_import },
-    });
-    const ai_import: Import = .{ .name = "ai", .module = ai_mod };
-
     const clap_dep = b.dependency("clap", .{});
     const clap_import: Import = .{ .name = "clap", .module = clap_dep.module("clap") };
 
@@ -136,10 +120,8 @@ pub fn build(b: *std.Build) void {
             shared_import,
             xdg_import,
             toml_import,
-            config_import,
             vips_import,
             ort_import,
-            ai_import,
             slang_import,
             sdl_wrapper_import,
             libass_import,
