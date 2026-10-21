@@ -116,6 +116,7 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
                 if (Task.start(deps.allocator, deps.device, state.tex_src, .{ .shape = deps.image.shape, .click = click })) |t| {
                     std.log.info("Task started successfully", .{});
                     state.task = t;
+                    if (deps.animation != null) state.playback.setPlaying(sdl.getTicks(), false); // 暂停动图播放
                 } else |err| {
                     std.log.err("Failed to start task: {}", .{err});
                     state.is_busy = false;
@@ -193,7 +194,7 @@ fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: Act
         action.* = .start_task;
     } else if (deps.mod_key.pressedAndKeyDown(event, sdl.c.SDLK_T)) { // Mod+T 切换自定义着色器的启用状态
         action.* = .toggle_custom_shader;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_SPACE) { // 空格键暂停/播放动画
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_SPACE and !deps.is_busy) { // 空格键暂停/播放动画（繁忙时禁止控制）
         action.* = .{ .change_playing = !deps.is_playing };
     } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_C and (event.key.mod & sdl.c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
         action.* = .copy_screenshot;
