@@ -6,6 +6,7 @@ pub const formats = @import("vips/formats.zig");
 pub const loader = @import("vips/loader.zig");
 pub const writer = @import("vips/writer.zig");
 pub const Image = @import("vips/Image.zig");
+pub const Animation = @import("vips/Animation.zig");
 pub const LImage = loader.LoadedImage;
 pub const Error = @import("vips/errors.zig").Error;
 

@@ -7,6 +7,10 @@ pub const Gpu = @import("sdl/Gpu.zig");
 pub const Renderer = @import("sdl/Renderer.zig");
 pub const Error = errors.Error;
 
+pub fn getTicks() u64 {
+    return c.SDL_GetTicks();
+}
+
 pub fn createSystemCursor(cursor: SystemCursor) Error!*Cursor {
     return h.check(c.SDL_CreateSystemCursor(cursor));
 }

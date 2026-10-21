@@ -16,6 +16,12 @@
         cudaSupport = false;
       };
 
+      # 给 webpload 补上 sequential flag，避免 n=-1 打开整段动画时，
+      # libvips 在第一次访问像素时把整条 roll 物化（全量解码 + 临时文件）。
+      vips = pkgs.vips.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ ./patches/libvips-webp-sequential.patch ];
+      });
+
       # SDL 在运行时通过 dlopen 加载的库。
       # 它们不会出现在链接依赖里，所以不会被写进 RPATH，必须通过 LD_LIBRARY_PATH 提供。
       runtimeLibs = with pkgs; [

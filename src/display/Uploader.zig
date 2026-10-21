@@ -36,6 +36,8 @@ const TextureUploadTask = struct {
     size: TexSize,
     buffer_size: u32,
     aligned_size: u32,
+    /// true 时循环纹理，避免覆盖仍在被上一帧命令使用的数据。
+    cycle: bool,
 };
 
 /// 内部顶点/数据缓冲上传任务记录
@@ -115,7 +117,7 @@ pub fn uploadTextureBorrowed(
     pixels_ptr: *const anyopaque,
     size: TexSize,
 ) Error!*c.SDL_GPUTexture {
-    return self.addTexture(create_info, .{ .borrowed = pixels_ptr }, size);
+    return self.addTexture(create_info, .{ .borrowed = pixels_ptr }, size, false);
 }
 
 /// 与 `uploadTextureBorrowed` 相同，但会复制一份像素数据由上传器持有，
@@ -128,10 +130,32 @@ pub fn uploadTextureOwned(
     const copy = try self.allocator.dupe(u8, pixels);
     errdefer self.allocator.free(copy);
     const size = TexSize{ .w = create_info.width, .h = create_info.height };
-    return self.addTexture(create_info, .{ .owned = copy }, size);
+    return self.addTexture(create_info, .{ .owned = copy }, size, false);
 }
 
-fn addTexture(self: *Self, create_info: *const c.SDL_GPUTextureCreateInfo, data: Storage, size: TexSize) Error!*c.SDL_GPUTexture {
+/// 更新一个已存在的纹理，不创建新的 GPU 纹理。
+/// 注意：pixels_ptr 指向的内存必须在调用 submit() 之前保持有效。
+pub fn updateTextureBorrowed(
+    self: *Self,
+    texture: *c.SDL_GPUTexture,
+    pixels_ptr: *const anyopaque,
+    size: TexSize,
+) Error!void {
+    // 计算 RGBA8888 字节大小并做 4 字节对齐
+    const raw_size: u32 = @intCast(size.w * size.h * 4);
+    const aligned_size = std.mem.alignForward(u32, raw_size, 4);
+
+    try self.tasks.append(self.allocator, .{ .texture = .{
+        .texture = texture,
+        .data = .{ .borrowed = pixels_ptr },
+        .size = size,
+        .buffer_size = raw_size,
+        .aligned_size = aligned_size,
+        .cycle = true,
+    } });
+}
+
+fn addTexture(self: *Self, create_info: *const c.SDL_GPUTextureCreateInfo, data: Storage, size: TexSize, cycle: bool) Error!*c.SDL_GPUTexture {
     // 计算 RGBA8888 字节大小并做 4 字节对齐
     const raw_size: u32 = @intCast(size.w * size.h * 4);
     const aligned_size = std.mem.alignForward(u32, raw_size, 4);
@@ -145,6 +169,7 @@ fn addTexture(self: *Self, create_info: *const c.SDL_GPUTextureCreateInfo, data:
         .size = size,
         .buffer_size = raw_size,
         .aligned_size = aligned_size,
+        .cycle = cycle,
     } });
 
     return texture;
@@ -240,7 +265,7 @@ pub fn submit(self: *Self) Error!void {
                     .d = 1,
                 };
 
-                c.SDL_UploadToGPUTexture(copy_pass, &src, &dst, false);
+                c.SDL_UploadToGPUTexture(copy_pass, &src, &dst, t.cycle);
             },
             .buffer => |b| {
                 const src = c.SDL_GPUTransferBufferLocation{

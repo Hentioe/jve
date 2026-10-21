@@ -10,6 +10,10 @@ const frame = @import("frame.zig");
 const ExitAction = @import("../enums.zig").ExitAction;
 const Error = @import("../errors.zig").Error;
 
+/// 临时诊断：首次循环阻塞与首次渲染耗时只输出一次
+var first_stall_logged = false;
+var first_render_logged = false;
+
 pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
     var event: sdl.c.SDL_Event = undefined;
     var delta: Delta = .init();
@@ -23,14 +27,28 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         if (state.tex_mask) |tex| deps.device.releaseGPUTexture(tex);
     }
 
+    var last_iteration_tick: ?u64 = null;
+
     while (state.running) {
+        const iteration_tick = sdl.getTicks();
+        if (!first_stall_logged and state.playback.playing) {
+            if (last_iteration_tick) |last| {
+                const gap = iteration_tick - last;
+                if (gap >= 50) {
+                    first_stall_logged = true;
+                    std.log.debug("First loop stall: {d} ms since previous iteration", .{gap});
+                }
+            }
+        }
+        last_iteration_tick = iteration_tick;
+
         // 计算 delta
         delta.update();
         defer action = .none; // 重置动作
         // 推进提示动画
         if (state.overflow_hint.isRunning()) state.overflow_hint.nextStep(delta.value);
-        // 繁忙或提示动画进行时，保持渲染循环刷新（dirty）
-        state.dirty = state.is_busy or state.overflow_hint.isRunning();
+        // 繁忙、提示动画或动图播放时保持渲染循环刷新
+        state.dirty = state.is_busy or state.overflow_hint.isRunning() or state.playback.playing;
 
         if (!state.dirty) {
             var wait_event: sdl.Event = undefined;
@@ -53,8 +71,15 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
 
         // 根据动作修改状态
         try events.apply(deps, &action, &state);
+        // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
+        advanceAnimation(deps, &state);
         // 根据状态执行渲染
+        const render_started = sdl.getTicks();
         try frame.render(deps, &state);
+        if (!first_render_logged) {
+            first_render_logged = true;
+            std.log.debug("First frame render took {d} ms", .{sdl.getTicks() - render_started});
+        }
     }
 
     // 通知状态停止渲染
@@ -69,4 +94,21 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
     }
 
     return if (state.toggle) .toggle else .quit;
+}
+
+/// 按累计 PTS 推进动图：仅当帧索引变化时才重新解码并更新纹理。
+fn advanceAnimation(deps: *RenderDeps, state: *State) void {
+    const animation = if (deps.animation) |*a| a else return;
+    const index = state.playback.sync(animation, sdl.getTicks()) orelse return;
+    const view = animation.frameAt(index) catch |err| {
+        std.log.err("Failed to decode animation frame {d}: {}", .{ index, err });
+        state.playback.playing = false;
+        return;
+    };
+    deps.updateFrame(view) catch |err| {
+        std.log.err("Failed to upload animation frame {d}: {}", .{ index, err });
+        state.playback.playing = false;
+        return;
+    };
+    state.dirty = true;
 }

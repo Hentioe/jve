@@ -4,6 +4,10 @@ let
   custom-zig = writeShellScriptBin "zig" "exec zvm run 0.15.2 $@";
   # 启用 ROCm 支持的 ONNX Runtime（此处暂时禁用）
   onnxruntime-rocm = (onnxruntime.override { rocmSupport = false; });
+  # 给 webpload 补 sequential flag，避免动画首次访问时全量物化整条 roll
+  vips-patched = vips.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ./patches/libvips-webp-sequential.patch ];
+  });
   # 本地开发所需工具
   nativeTools = [
     custom-zig # 受 zvm 管理的 Zig
@@ -26,7 +30,7 @@ mkShell {
   packages = nativeTools ++ runtimeTools ++ runtimeLibs;
 
   buildInputs = [
-    vips # 图像解码
+    vips-patched # 图像解码
     glib # VIPS 依赖
     onnxruntime-rocm # ONNX 推理引擎
     shader-slang # slang 着色器支持

@@ -4,6 +4,7 @@ const config = @import("../../config.zig");
 const Delta = @import("../Delta.zig");
 const ModKey = @import("../ModKey.zig");
 const OverflowHint = @import("../OverflowHint.zig");
+const Playback = @import("../Playback.zig");
 const Task = @import("../Task.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const Point = shared.Point(f32);
@@ -16,6 +17,8 @@ running: bool = true,
 delta: *const Delta,
 toggle: bool = false,
 dirty: bool = false,
+// 动图播放状态（静态图时 playing 为 false，不参与渲染循环）
+playback: Playback,
 // 其它开关
 mod_key: ModKey,
 custom_shader_enabled: bool = false,
@@ -51,6 +54,7 @@ pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
         .delta = delta,
         .mod_key = ModKey.init(ModKey.keycode(config.modKey())),
         .overflow_hint = OverflowHint.init(1.25, 1.25, 0.9),
+        .playback = Playback.init(sdl.getTicks(), deps.animation != null),
         .tex_src = deps.tex_a,
         .tex_dst = deps.tex_b,
     };

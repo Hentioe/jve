@@ -3,6 +3,7 @@ const sdl = @import("sdl");
 const shared = @import("shared");
 const consts = @import("../consts.zig");
 const LImage = @import("vips").LImage;
+const Animation = @import("vips").Animation;
 const Vertex = shared.Vertex;
 const Window = @import("../window.zig");
 const Device = @import("../../Device.zig");
@@ -16,6 +17,7 @@ allocator: std.mem.Allocator,
 window: *Window,
 device: *const sdl.Gpu,
 image: LImage,
+animation: ?Animation,
 texture: *sdl.c.SDL_GPUTexture,
 offscreen_info: sdl.c.SDL_GPUTextureCreateInfo,
 // 基础着色器
@@ -73,6 +75,13 @@ pub fn init(
         .num_levels = 1,
     };
     const texture = try uploader.uploadTextureBorrowed(&texture_info, image.pixels_ptr, texture_size);
+
+    // -- 动图容器 (Animation) --
+    // 仅对 GIF/WebP/JXL 尝试；其他格式或单帧图会返回 null。
+    const animation = Animation.init(allocator, image.file_path, .{}) catch |err| blk: {
+        std.log.warn("Failed to initialize animation for {s}: {}", .{ image.file_path, err });
+        break :blk null;
+    };
 
     // -- 顶点 (Vertex) --
     const verts: [6]Vertex = consts.base_verts;
@@ -185,6 +194,7 @@ pub fn init(
         .window = window,
         .device = device,
         .image = image,
+        .animation = animation,
         .texture = texture,
         .offscreen_info = offscreen_info,
         .vert_shader = vert_shader,
@@ -215,6 +225,7 @@ pub fn init(
 }
 
 pub fn deinit(self: *Self) void {
+    if (self.animation) |*animation| animation.deinit();
     self.marker.deinit();
     self.screen.deinit();
     self.mask.deinit(self.device);
@@ -243,6 +254,13 @@ pub fn deinit(self: *Self) void {
     self.device.releaseGPUTexture(self.tex_a);
     self.device.releaseGPUTexture(self.texture);
     self.* = undefined;
+}
+
+/// 将动图的一帧上传到当前图像纹理，复用已有纹理，不重新创建 GPU 资源。
+pub fn updateFrame(self: *Self, view: Animation.FrameView) Error!void {
+    const uploader = try Device.getUploader();
+    try uploader.updateTextureBorrowed(self.texture, @ptrCast(view.pixels), view.size);
+    try uploader.submit();
 }
 
 /// 内建后处理管线（顺序即渲染顺序）

@@ -99,6 +99,19 @@ pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
     return self;
 }
 
+/// 接管一个已存在的 VipsImage（所有权转移）。
+/// 用于逐页裁剪等场景：调用方负责传入新创建的图像，不得再自行 unref。
+/// 与 `initFromFile` 一样，format 先以 UCHAR 占位，随后由 `toSrgb` 更新。
+pub fn initFromVips(in: *c.VipsImage) Self {
+    return Self{
+        .width = c.vips_image_get_width(in),
+        .height = c.vips_image_get_height(in),
+        .channels = c.vips_image_get_bands(in),
+        .format = .UCHAR,
+        ._in = in,
+    };
+}
+
 /// 将图像转换为 sRGB 色彩空间
 pub fn toSrgb(self: *Self) Error!void {
     var out: ?*c.VipsImage = null;

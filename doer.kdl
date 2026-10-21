@@ -6,6 +6,7 @@ tasks {
     }
     show:preview "zig build run -- -d preview -c config.toml assets/image.png"
     show:channel "zig build run -- -d gpu -c config.toml assets/channel-test.png"
+    show:animation "zig build run -- -d gpu -c config.toml assets/animation-timecode.webp"
     show:diag "zig build run -- -d diag"
     supports "zig build run -- --supports"
     format {
