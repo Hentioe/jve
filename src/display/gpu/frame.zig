@@ -22,7 +22,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     const device = deps.device;
     // 获取当前帧的 Command Buffer
     const cmd = try device.acquireGPUCommandBuffer();
-    // 开启 Render Pass
+    // 开启渲染通道
     const base_color_target: sdl.c.SDL_GPUColorTargetInfo = .{
         .texture = state.tex_src,
         .load_op = sdl.c.SDL_GPU_LOADOP_CLEAR,

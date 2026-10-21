@@ -7,8 +7,8 @@ anchor_ticks: u64,
 anchor_ms: u64 = 0,
 /// 当前显示的帧索引。初始为 0，因为首帧在初始化时已经上传并显示。
 index: usize = 0,
-/// 是否继续推进。动图始终播放，不提供暂停交互；
-/// 解码或上传失败时置 false，避免每轮重复出错。
+/// 是否继续推进。用户可通过外部控制暂停/恢复，
+/// 解码或上传失败时也置 false，避免每轮重复出错。
 playing: bool,
 
 pub fn init(now: u64, is_animation: bool) Self {
@@ -19,9 +19,25 @@ pub fn init(now: u64, is_animation: bool) Self {
 pub fn elapsedMs(self: *const Self, animation: *const Animation, now: u64) u64 {
     const total = animation.totalMs();
     if (total == 0) return 0;
+    // 暂停时进度冻结在锚点，直到恢复
+    if (!self.playing) return self.anchor_ms % total;
     // now 可能早于锚点（理论上不会发生），用饱和减法兜底
     const advanced = self.anchor_ms + (now -| self.anchor_ticks);
     return advanced % total;
+}
+
+/// 切换播放状态。
+/// 暂停时把已播放的时间固化进 `anchor_ms`，恢复时把锚点时刻移到当前，
+/// 这样暂停期间流逝的时间不会被计入播放进度。
+pub fn setPlaying(self: *Self, now: u64, playing: bool) void {
+    if (self.playing == playing) return;
+    if (playing) {
+        self.anchor_ticks = now;
+    } else {
+        self.anchor_ms += now -| self.anchor_ticks;
+        self.anchor_ticks = now;
+    }
+    self.playing = playing;
 }
 
 /// 与当前时间同步。帧索引变化时更新自身并返回新索引；

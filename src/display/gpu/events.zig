@@ -62,6 +62,7 @@ pub const EventAction = union(enum) {
     copy_screenshot,
     start_task,
     toggle_custom_shader,
+    change_playing: bool,
     slide_start: struct { button: u8 },
     slide_stop: struct { button: u8 },
     sliding: struct { xrel: f32 },
@@ -73,6 +74,7 @@ const ActionDeps = struct {
     mod_key: *ModKey,
     is_sliding: bool,
     is_busy: bool,
+    is_playing: bool,
 };
 
 // 从事件中更新动作（可跨多个事件累积）
@@ -81,6 +83,7 @@ pub fn handle(event: *sdl.Event, action: *EventAction, state: *State) void {
         .mod_key = &state.mod_key,
         .is_sliding = state.is_sliding,
         .is_busy = state.is_busy,
+        .is_playing = state.playback.playing,
     };
     updateActionFromEvent(action, event.*, deps);
 }
@@ -120,6 +123,7 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
             }
         },
         .toggle_custom_shader => state.custom_shader_enabled = !state.custom_shader_enabled,
+        .change_playing => |is_playing| if (deps.animation != null) state.playback.setPlaying(sdl.getTicks(), is_playing),
         .slide_start => |payload| {
             state.is_sliding = true;
             std.log.debug("Mouse wheel event down: {}", .{payload.button});
@@ -189,6 +193,8 @@ fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: Act
         action.* = .start_task;
     } else if (deps.mod_key.pressedAndKeyDown(event, sdl.c.SDLK_T)) { // Mod+T 切换自定义着色器的启用状态
         action.* = .toggle_custom_shader;
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_SPACE) { // 空格键暂停/播放动画
+        action.* = .{ .change_playing = !deps.is_playing };
     } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_C and (event.key.mod & sdl.c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
         action.* = .copy_screenshot;
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_MIDDLE) { // 横向调节开始

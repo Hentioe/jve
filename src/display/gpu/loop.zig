@@ -31,15 +31,13 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
 
     while (state.running) {
         const iteration_tick = sdl.getTicks();
-        if (!first_stall_logged and state.playback.playing) {
-            if (last_iteration_tick) |last| {
-                const gap = iteration_tick - last;
-                if (gap >= 50) {
-                    first_stall_logged = true;
-                    std.log.debug("First loop stall: {d} ms since previous iteration", .{gap});
-                }
+        if (!first_stall_logged and state.playback.playing) if (last_iteration_tick) |last| {
+            const gap = iteration_tick - last;
+            if (gap >= 50) {
+                first_stall_logged = true;
+                std.log.debug("First loop stall: {d} ms since previous iteration", .{gap});
             }
-        }
+        };
         last_iteration_tick = iteration_tick;
 
         // 计算 delta
@@ -74,11 +72,11 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
         advanceAnimation(deps, &state);
         // 根据状态执行渲染
-        const render_started = sdl.getTicks();
         try frame.render(deps, &state);
         if (!first_render_logged) {
-            first_render_logged = true;
+            const render_started = sdl.getTicks();
             std.log.debug("First frame render took {d} ms", .{sdl.getTicks() - render_started});
+            first_render_logged = true;
         }
     }
 
@@ -102,12 +100,12 @@ fn advanceAnimation(deps: *RenderDeps, state: *State) void {
     const index = state.playback.sync(animation, sdl.getTicks()) orelse return;
     const view = animation.frameAt(index) catch |err| {
         std.log.err("Failed to decode animation frame {d}: {}", .{ index, err });
-        state.playback.playing = false;
+        state.playback.setPlaying(sdl.getTicks(), false);
         return;
     };
     deps.updateFrame(view) catch |err| {
         std.log.err("Failed to upload animation frame {d}: {}", .{ index, err });
-        state.playback.playing = false;
+        state.playback.setPlaying(sdl.getTicks(), false);
         return;
     };
     state.dirty = true;
