@@ -70,7 +70,7 @@ pub fn show(self: *Self) Error!ExitAction {
         .padding_y = 10.0,
     });
     defer banner.deinit();
-    const message = if (app_env.writer().take_fatal()) |fatal| fatal.message() else "或许，没有发生错误？";
+    const message = if (app_env.writer().takeFatal()) |fatal| fatal.message() else "或许，没有发生错误？";
     try banner.setText(message);
 
     var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &widgets, &banner);

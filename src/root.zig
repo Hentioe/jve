@@ -96,7 +96,7 @@ pub fn show(allocator: Allocator, display_mode: []const u8) !void {
     };
 
     display.show(mode) catch |err| {
-        app_env.ensure_fatal(err);
+        app_env.ensureFatal(err);
         try showDiag(allocator);
     };
 }
@@ -110,7 +110,7 @@ pub fn showWelcome(allocator: Allocator) !void {
 
 pub fn showInitDiag(allocator: Allocator, err: anyerror) !void {
     try display_init(allocator); // 仅做显示初始化
-    app_env.ensure_fatal(err);
+    app_env.ensureFatal(err);
     try showDiag(allocator);
     return err;
 }

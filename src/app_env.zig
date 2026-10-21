@@ -12,6 +12,7 @@ pub const Error = sdl.Error || std.mem.Allocator.Error || sdl.Error;
 // 应用唯一的全局数据缓存，由 root 在初始化/反初始化时管理生命周期。
 // 不持有显示相关的资源（Viewer、GPU 设备、窗口等），因此释放顺序无强依赖。
 var instance: Self = undefined;
+var initialized: bool = false;
 
 allocator: Allocator,
 image_shape: IShape(i32) = undefined,
@@ -25,12 +26,16 @@ fatal_mutex: std.Thread.Mutex = .{},
 fatal_slot: ?shared.Fatal = null,
 
 pub fn init(allocator: Allocator) void {
+    if (initialized) return;
     instance = Self{ .allocator = allocator };
+    initialized = true;
 }
 
 pub fn deinit() void {
+    if (!initialized) return;
     if (instance.extracted) |*extracted| extracted.deinit();
     instance = undefined;
+    initialized = false;
 }
 
 // 只读访问
@@ -60,19 +65,19 @@ pub fn report(err: anytype, src: std.builtin.SourceLocation, comptime fmt: []con
 }
 
 /// 顶层兜底：如果还没人记录，就至少记下错误名
-pub fn ensure_fatal(err: anyerror) void {
+pub fn ensureFatal(err: anyerror) void {
     instance.fatal_mutex.lock();
     defer instance.fatal_mutex.unlock();
     if (instance.fatal_slot == null) {
         var f: shared.Fatal = .{ .err = err, .src = @src() };
-        const s = std.fmt.bufPrint(&f.msg_buf, "{s}", .{@errorName(err)}) catch "";
+        const s = std.fmt.bufPrint(&f.msg_buf, "{s}", .{@errorName(err)}) catch unreachable;
         f.msg_len = s.len;
         instance.fatal_slot = f;
     }
 }
 
 /// 诊断模式调用：取出并清空
-pub fn take_fatal(self: *Self) ?shared.Fatal {
+pub fn takeFatal(self: *Self) ?shared.Fatal {
     self.fatal_mutex.lock();
     defer self.fatal_mutex.unlock();
     if (self.fatal_slot) |slot| {

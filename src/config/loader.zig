@@ -1,9 +1,9 @@
 const std = @import("std");
 const toml = @import("toml");
-const paths = @import("paths.zig");
-const errors = @import("errors.zig");
 const Allocator = std.mem.Allocator;
-const Error = errors.Error;
+const app_env = @import("../app_env.zig");
+const paths = @import("paths.zig");
+const Error = @import("errors.zig").Error;
 
 pub const Screenshot = struct {
     dir: ?[]const u8 = null, // 截图保存目录
@@ -162,7 +162,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
 
         var parsed = parser.parseFile(p) catch |err| {
             std.log.err("Failed to parse config file: {}", .{err});
-            return Error.ConfigParseError;
+            return app_env.report(Error.ConfigParseError, @src(), "配置解析失败：{s}", .{@errorName(err)});
         };
         // 附加基础目录路径
         const base_dir = std.fs.path.dirname(p) orelse ".";
