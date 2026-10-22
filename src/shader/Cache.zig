@@ -13,15 +13,14 @@ const consts = @import("consts.zig");
 const Error = @import("errors.zig").Error;
 const Cache = @This();
 
-/// manifest 格式版本，结构或编译参数语义变更时递增，旧缓存将整体重建。
-/// 单个着色器的摘要信息。
+/// 单个着色器的摘要信息（manifest 中的条目）。
 pub const Entry = struct {
     mtime: i128, // 源码修改时间（纳秒）
     size: u64, // 源码字节数，与 mtime 一同用于快速判定
     hash: u64, // 源码内容哈希（Wyhash）
 };
 
-/// 磁盘上的摘要结构。
+/// 硬盘上的摘要结构。
 const Wire = struct {
     version: u32,
     profile: []const u8,
@@ -37,11 +36,11 @@ const WireEntry = struct {
 
 allocator: Allocator,
 arena: std.heap.ArenaAllocator,
-/// 缓存目录（位于 arena 中）
+/// 缓存目录（位于 arena 中）。
 dir_path: []const u8,
-/// 编译环境标识（借用自调用方，如 slang 的编译 profile）
+/// 编译环境标识（如 slang 的编译 profile）。
 profile: []const u8,
-/// 已有摘要，键为源码文件名，值为其摘要（键由 arena 持有）
+/// 已有摘要，键为源码文件名（或路径），值为其摘要（键由 arena 持有）。
 entries: std.StringArrayHashMapUnmanaged(Entry) = .empty,
 dirty: bool = false,
 
@@ -103,15 +102,7 @@ pub fn readSpv(self: *Cache, allocator: Allocator, name: []const u8) Error!?[]u8
 }
 
 /// 写入新编译的 SPIR-V 并更新摘要。
-pub fn write(
-    self: *Cache,
-    allocator: Allocator,
-    name: []const u8,
-    bytes: []const u8,
-    mtime: i128,
-    size: u64,
-    hash: u64,
-) Error!void {
+pub fn write(self: *Cache, allocator: Allocator, name: []const u8, bytes: []const u8, mtime: i128, size: u64, hash: u64) Error!void {
     const path = try self.spvPath(allocator, hash);
     defer allocator.free(path);
     try atomicWrite(allocator, path, bytes);
@@ -161,13 +152,13 @@ fn loadManifest(self: *Cache) Error!void {
     const raw = std.fs.cwd().readFileAlloc(a, path, consts.MAX_MANIFEST_SIZE) catch |err| switch (err) {
         error.FileNotFound => return, // 首次加载，缓存为空
         else => {
-            std.log.err("Failed to read shader cache manifest '{s}': {s}", .{ path, @errorName(err) });
+            std.log.err("Failed to read shader cache manifest {s}: {s}", .{ path, @errorName(err) });
             return Error.CacheReadFailed;
         },
     };
 
     var parsed = std.json.parseFromSlice(Wire, self.allocator, raw, .{}) catch |err| {
-        std.log.err("Failed to parse shader cache manifest '{s}': {s}", .{ path, @errorName(err) });
+        std.log.err("Failed to parse shader cache manifest {s}: {s}", .{ path, @errorName(err) });
         return Error.CacheParseFailed;
     };
     defer parsed.deinit();

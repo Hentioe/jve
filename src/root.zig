@@ -69,10 +69,11 @@ pub fn extensions() ![]const []const u8 {
 }
 
 pub fn clearCache(allocator: Allocator) !void {
-    if (try shader.cleaner.deleteCacheDir(allocator)) {
-        std.log.info("Cache directory has been deleted", .{});
+    const deleted_count = try shader.cleaner.deleteInvalidCache(allocator);
+    if (deleted_count > 0) {
+        std.log.info("Deleted {d} invalid cache file(s)", .{deleted_count});
     } else {
-        std.log.info("No cache to clear", .{});
+        std.log.info("No invalid cache files found", .{});
     }
 }
 
