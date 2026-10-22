@@ -93,9 +93,9 @@ pub fn scan(self: *Self) Error!void {
     for (entries.items) |item| try self.names.append(self.gpa, item.name);
 
     // 输出文件数量
-    const extensions = try std.mem.join(self.gpa, ",", self.extensions);
+    const extensions = try std.mem.join(self.gpa, "|", self.extensions);
     defer self.gpa.free(extensions);
-    std.log.info("Found {d} `{s}` file(s)", .{ self.names.items.len, extensions });
+    std.log.info("Found {d} {{{s}}} file(s) in: {s}", .{ self.names.items.len, extensions, self.dir_path });
 }
 
 const Entry = struct {
