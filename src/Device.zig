@@ -3,7 +3,7 @@ const sdl = @import("sdl");
 const Allocator = std.mem.Allocator;
 const Uploader = @import("display/Uploader.zig");
 
-var allocator: ?Allocator = null;
+var gpa: Allocator = undefined;
 // 显示层唯一的 GPU 设备。多个窗口可绑定到同一设备上，
 // 因此全局只创建一个，由 display 负责其生命周期（懒创建、统一销毁）。
 var gpu: ?sdl.Gpu = null;
@@ -13,8 +13,8 @@ var uploader: ?Uploader = null;
 var background_shader: ?*sdl.GPUShader = null;
 
 /// 由 display.init 在创建任何 GPU 资源之前调用。
-pub fn init(alloc: Allocator) void {
-    allocator = alloc;
+pub fn init(allocator: Allocator) void {
+    gpa = allocator;
 }
 
 /// 懒创建并返回唯一 Gpu 实例
@@ -25,7 +25,7 @@ pub fn getGpu() sdl.Error!*const sdl.Gpu {
 
 /// 获取唯一的上传器（懒创建，复用同一个 Gpu 实例）。
 pub fn getUploader() sdl.Error!*Uploader {
-    if (uploader == null) uploader = Uploader.init(allocator.?, try getGpu());
+    if (uploader == null) uploader = Uploader.init(gpa, try getGpu());
     return &uploader.?;
 }
 
@@ -45,7 +45,7 @@ pub fn destroy() void {
         device.destroy();
         gpu = null;
     }
-    allocator = null;
+    gpa = undefined;
 }
 
 pub fn setBackgroundShader(shader: ?*sdl.GPUShader) void {

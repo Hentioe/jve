@@ -14,20 +14,19 @@ pub const Error = sdl.Error || std.mem.Allocator.Error || sdl.Error;
 var instance: Self = undefined;
 var initialized: bool = false;
 
-allocator: Allocator,
 image_shape: IShape(i32) = undefined,
 target_angle: f64 = 0.0,
 target_scale: f64 = 1.0,
 move_offset: Point = .{},
 preview_initialized: bool = false,
 window_dirty: bool = false, // 窗口状态已脏（如预览模式轮换）
-extracted: ?extractor.Extracted = null,
 fatal_mutex: std.Thread.Mutex = .{},
 fatal_slot: ?shared.Fatal = null,
+extracted: ?extractor.Extracted = null, // 已提取的纹理（模式切换时复用）
 
-pub fn init(allocator: Allocator) void {
+pub fn init() void {
     if (initialized) return;
-    instance = Self{ .allocator = allocator };
+    instance = Self{};
     initialized = true;
 }
 

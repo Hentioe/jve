@@ -1,6 +1,7 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const app_env = @import("app_env.zig");
+const Allocator = std.mem.Allocator;
 const Device = @import("Device.zig");
 
 pub const Viewer = @import("display/Viewer.zig");
@@ -13,22 +14,22 @@ var preview_viewer: ?Viewer = null;
 var gpu_viewer: ?Viewer = null;
 
 // 惰性创建并复用指定模式的 Viewer。
-fn viewerFor(mode: Viewer.Mode) Error!*Viewer {
+fn viewerFor(allocator: Allocator, mode: Viewer.Mode) Error!*Viewer {
     const slot = switch (mode) {
         .preview => &preview_viewer,
         .gpu => &gpu_viewer,
     };
     if (slot.* == null) {
-        slot.* = try Viewer.create(app_env.reader().allocator, mode);
+        slot.* = try Viewer.create(allocator, mode);
         if (mode == .preview) app_env.writer().preview_initialized = true;
     }
     return &slot.*.?;
 }
 
-pub fn show(mode: Viewer.Mode) Error!void {
+pub fn show(allocator: Allocator, mode: Viewer.Mode) Error!void {
     var current = mode;
     while (true) {
-        const viewer = try viewerFor(current);
+        const viewer = try viewerFor(allocator, current);
         current = switch (try viewer.show()) {
             .quit => return, // 退出
             .toggle => switch (current) { // 切换到另一个模式

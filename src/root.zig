@@ -25,7 +25,7 @@ extern "c" fn mallopt(param: c_int, value: c_int) c_int;
 pub fn init(allocator: std.mem.Allocator, file_path: []const u8, config_path: ?[]const u8) !void {
     // 限制 malloc arena 数量，避免工作线程造成的内存滞留
     if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
-    app_env.init(allocator);
+    app_env.init();
     config.init(allocator, config_path) catch |err| return showInitDiag(allocator, err);
     vips.init(allocator) catch |err| return showInitDiag(allocator, err);
     gallery.init(allocator, file_path) catch |err| return showInitDiag(allocator, err);
@@ -53,7 +53,7 @@ pub fn vips_deinit() void {
 }
 
 pub fn display_init(allocator: Allocator) !void {
-    app_env.init(allocator);
+    app_env.init();
     try ui.init();
     try display.init(allocator);
 }
@@ -69,7 +69,7 @@ pub fn extensions() ![]const []const u8 {
 }
 
 pub fn clearCache(allocator: Allocator, config_path: ?[]const u8) !void {
-    app_env.init(allocator);
+    app_env.init();
     defer app_env.deinit();
     try config.init(allocator, config_path);
     defer config.deinit();
@@ -100,7 +100,7 @@ pub fn show(allocator: Allocator, display_mode: []const u8) !void {
         return error.UnknownDisplayMode;
     };
 
-    display.show(mode) catch |err| {
+    display.show(allocator, mode) catch |err| {
         app_env.ensureFatal(err);
         try showDiag(allocator);
     };
