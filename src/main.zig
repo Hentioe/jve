@@ -27,9 +27,13 @@ pub fn main() !void {
     } else if (res.args.@"clear-cache" != 0) { // 执行缓存清理
         try jve.clearCache(allocator, res.args.config);
     } else if (res.positionals[0]) |file_path| { // 取位置参数作为路径
+        // 启动跟踪
+        var trace = jve.StepTrace.init(allocator);
+        defer trace.deinit();
+        defer trace.report(); // 输出跟踪报告
         // 初始化
         defer jve.deinit();
-        try jve.init(allocator, file_path, res.args.config);
+        try jve.init(allocator, &trace, file_path, res.args.config);
         // 显示模式
         const display_mode: []const u8 = res.args.display orelse jve.config.get().display_mode;
         // 显示图像

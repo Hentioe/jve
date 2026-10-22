@@ -73,9 +73,11 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         advanceAnimation(deps, &state);
         // 根据状态执行渲染
         try frame.render(deps, &state);
+        // 记录首次渲染完成
         if (!first_render_logged) {
-            const render_started = sdl.getTicks();
-            std.log.debug("First frame render took {d} ms", .{sdl.getTicks() - render_started});
+            // 首次渲染完成
+            try app_env.trace_mark("first_rendering");
+            app_env.trace_complete();
             first_render_logged = true;
         }
     }

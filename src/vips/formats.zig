@@ -16,18 +16,19 @@ const Cache = struct {
     arena: ArenaAllocator,
     suffixes: Suffixes,
 
-    pub fn init(gpa: Allocator, suffixes_ptr: [*c][*c]u8, len: usize) Error!Cache {
+    pub fn init(gpa: Allocator, ptr: [*c][*c]u8, len: usize) Error!Cache {
         // 用 Arena 分配器管理 suffixes 内存
         var arena: std.heap.ArenaAllocator = .init(gpa);
         errdefer arena.deinit(); // 避免后续错误导致内存不释放
+        const a = arena.allocator();
         // 申请内存
-        var suffixes: Suffixes = .init(arena.allocator());
+        var suffixes: Suffixes = .init(a);
         // 逐个复制
         var i: usize = 0;
         while (i < len) : (i += 1) {
-            const s = try arena.allocator().dupe(u8, std.mem.span(suffixes_ptr[i]));
+            const s = try a.dupe(u8, std.mem.span(ptr[i]));
             if (isBlacklisted(s)) { // 跳过黑名单中的格式
-                arena.allocator().free(s);
+                a.free(s);
                 continue;
             }
             try suffixes.put(s, {});
@@ -41,6 +42,7 @@ const Cache = struct {
         self.* = undefined;
     }
 };
+
 var initialized: bool = false;
 var cache: Cache = undefined;
 
@@ -51,13 +53,13 @@ pub fn get() Error![]const []const u8 {
 
 pub fn init(allocator: Allocator) Error!void {
     // 获取 Vips 支持的文件后缀列表
-    const suffixes_ptr = try h.check(c.vips_foreign_get_suffixes());
-    defer c.g_strfreev(suffixes_ptr);
+    const ptr = try h.check(c.vips_foreign_get_suffixes());
+    defer c.g_strfreev(ptr);
     // 数元素个数（遇到 null 为止）
     var n: usize = 0;
-    while (suffixes_ptr[n] != null) : (n += 1) {}
+    while (ptr[n] != null) : (n += 1) {}
     // 初始化缓存
-    cache = try Cache.init(allocator, suffixes_ptr, n);
+    cache = try Cache.init(allocator, ptr, n);
     initialized = true;
     // 输出支持的格式数量
     std.log.info("VIPS library supports {d} format(s)", .{cache.suffixes.keys().len});

@@ -8,6 +8,8 @@ const frame = @import("frame.zig");
 const ExitAction = @import("../enums.zig").ExitAction;
 const Error = @import("../errors.zig").Error;
 
+var first_render_logged = false;
+
 pub fn run(deps: *RenderDeps) Error!ExitAction {
     var event: sdl.Event = undefined;
     var delta: Delta = .init();
@@ -31,6 +33,13 @@ pub fn run(deps: *RenderDeps) Error!ExitAction {
         try events.apply(deps, &action, &state);
         // 根据状态执行渲染
         try frame.render(deps, &state);
+        // 记录首次渲染完成
+        if (!first_render_logged) {
+            // 首次渲染完成
+            try app_env.trace_mark("first_rendering");
+            app_env.trace_complete();
+            first_render_logged = true;
+        }
     }
 
     // 缓存控制参数

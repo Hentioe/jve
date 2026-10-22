@@ -13,6 +13,7 @@ pub const clipboard = @import("clipboard.zig");
 pub const ui = @import("ui.zig");
 pub const remover = @import("ai.zig").remover;
 pub const LoadError = errors.LoadError;
+pub const StepTrace = @import("StepTrace.zig");
 
 const DisplayMode = display.Viewer.Mode;
 
@@ -22,15 +23,21 @@ const DisplayMode = display.Viewer.Mode;
 const M_ARENA_MAX: c_int = -8;
 extern "c" fn mallopt(param: c_int, value: c_int) c_int;
 
-pub fn init(allocator: std.mem.Allocator, file_path: []const u8, config_path: ?[]const u8) !void {
+pub fn init(allocator: std.mem.Allocator, trace: *StepTrace, file_path: []const u8, config_path: ?[]const u8) !void {
     // 限制 malloc arena 数量，避免工作线程造成的内存滞留
     if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
-    app_env.init();
+    app_env.init(trace);
+    try trace.mark("app_env.init");
     config.init(allocator, config_path) catch |err| return showInitDiag(allocator, err);
+    try trace.mark("config.init");
     vips.init(allocator) catch |err| return showInitDiag(allocator, err);
+    try trace.mark("vips.init");
     gallery.init(allocator, file_path) catch |err| return showInitDiag(allocator, err);
+    try trace.mark("gallery.init");
     try ui.init();
+    try trace.mark("ui.init");
     try display.init(allocator);
+    try trace.mark("display.init");
 }
 
 pub fn deinit() void {
@@ -53,7 +60,7 @@ pub fn vips_deinit() void {
 }
 
 pub fn display_init(allocator: Allocator) !void {
-    app_env.init();
+    app_env.init(null);
     try ui.init();
     try display.init(allocator);
 }
@@ -69,7 +76,7 @@ pub fn extensions() ![]const []const u8 {
 }
 
 pub fn clearCache(allocator: Allocator, config_path: ?[]const u8) !void {
-    app_env.init();
+    app_env.init(null);
     defer app_env.deinit();
     try config.init(allocator, config_path);
     defer config.deinit();

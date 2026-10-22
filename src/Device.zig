@@ -18,7 +18,7 @@ pub fn init(allocator: Allocator) void {
 }
 
 /// 懒创建并返回唯一 Gpu 实例
-pub fn getGpu() sdl.Error!*const sdl.Gpu {
+pub inline fn getGpu() sdl.Error!*const sdl.Gpu {
     if (gpu == null) gpu = try sdl.Gpu.create();
     return &gpu.?;
 }

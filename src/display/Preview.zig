@@ -1,8 +1,8 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const gallery = @import("../gallery.zig");
-const Window = @import("window.zig");
 const app_env = @import("../app_env.zig");
+const Window = @import("window.zig");
 const RenderDeps = @import("preview/RenderDeps.zig");
 const loop = @import("preview/loop.zig");
 const ExitAction = @import("enums.zig").ExitAction;
@@ -23,11 +23,13 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
         .{ .windowed = false, .mode = .preview },
     );
     errdefer window.destroy();
+    try app_env.trace_mark("Window.create");
     // 创建渲染器
     var renderer = try sdl.Renderer.create(window.sdl_window);
     errdefer renderer.destroy();
     // 开启垂直同步
     try renderer.setRenderVSync(1);
+    try app_env.trace_mark("renderer_init");
     // 记录图片形状
     app_env.writer().image_shape = image.shape;
 
@@ -47,12 +49,14 @@ pub fn deinit(self: *Self) void {
 pub fn show(self: *Self) Error!ExitAction {
     const image = try gallery.current();
     var deps = try RenderDeps.init(self.window, &self.renderer, image);
+    try app_env.trace_mark("RenderDeps.init");
     defer deps.deinit();
 
     // 更新窗口标题
     try self.window.setTitle(image.file_name, .{});
     // 显示窗口
     try self.window.show();
+    try app_env.trace_mark("window.show");
 
     return try loop.run(&deps);
 }

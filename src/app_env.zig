@@ -5,9 +5,10 @@ const Allocator = std.mem.Allocator;
 const IShape = shared.IShape;
 const Point = shared.Point(f32);
 const extractor = @import("extractor.zig");
+const StepTrace = @import("StepTrace.zig");
 const Self = @This();
 
-pub const Error = sdl.Error || std.mem.Allocator.Error || sdl.Error;
+pub const Error = sdl.Error || std.mem.Allocator.Error || StepTrace.Error;
 
 // 应用唯一的全局数据缓存，由 root 在初始化/反初始化时管理生命周期。
 // 不持有显示相关的资源（Viewer、GPU 设备、窗口等），因此释放顺序无强依赖。
@@ -15,6 +16,7 @@ var instance: Self = undefined;
 var initialized: bool = false;
 
 image_shape: IShape(i32) = undefined,
+trace: ?*StepTrace = null,
 target_angle: f64 = 0.0,
 target_scale: f64 = 1.0,
 move_offset: Point = .{},
@@ -24,9 +26,9 @@ fatal_mutex: std.Thread.Mutex = .{},
 fatal_slot: ?shared.Fatal = null,
 extracted: ?extractor.Extracted = null, // 已提取的纹理（模式切换时复用）
 
-pub fn init() void {
+pub fn init(trace: ?*StepTrace) void {
     if (initialized) return;
-    instance = Self{};
+    instance = Self{ .trace = trace };
     initialized = true;
 }
 
@@ -35,6 +37,14 @@ pub fn deinit() void {
     if (instance.extracted) |*extracted| extracted.deinit();
     instance = undefined;
     initialized = false;
+}
+
+pub inline fn trace_mark(step: []const u8) Error!void {
+    if (instance.trace) |t| try t.mark(step);
+}
+
+pub inline fn trace_complete() void {
+    if (instance.trace) |t| t.complete();
 }
 
 // 只读访问

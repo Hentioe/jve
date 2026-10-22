@@ -8,8 +8,9 @@ const UiError = @import("../ui.zig").CustomError; // todo: 改为 Error（等待
 const ShaderError = @import("../shader.zig").Error;
 const PipelineError = @import("../pipelines/errors.zig").Error;
 const GalleryError = @import("../gallery.zig").Error;
+const StepTraceError = @import("../StepTrace.zig").Error;
 
 const CustomError = error{};
 
-pub const Error = CustomError || SdlError || AssError || SizeError || OrtError || GalleryError || AiError || UiError || ShaderError || PipelineError ||
+pub const Error = CustomError || SdlError || AssError || SizeError || OrtError || GalleryError || AiError || UiError || ShaderError || PipelineError || StepTraceError ||
     std.mem.Allocator.Error || std.Thread.SpawnError || std.fs.File.OpenError;
