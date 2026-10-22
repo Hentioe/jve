@@ -1,4 +1,3 @@
-const std = @import("std");
 const Animation = @import("vips").Animation;
 const Self = @This();
 
