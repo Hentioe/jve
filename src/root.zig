@@ -73,11 +73,19 @@ pub fn clearCache(allocator: Allocator, config_path: ?[]const u8) !void {
     defer app_env.deinit();
     try config.init(allocator, config_path);
     defer config.deinit();
-    const deleted_count = try shader.cleaner.deleteInvalidCache(allocator);
-    if (deleted_count > 0) {
-        std.log.info("Deleted {d} invalid cache file(s)", .{deleted_count});
-    } else {
-        std.log.info("No invalid cache files found", .{});
+    const r = try shader.cleaner.deleteInvalidCache(allocator);
+    if (r.deleted_dir) {
+        std.log.info("Deleted shader cache directory", .{});
+        return;
+    }
+    if (r.deleted_count > 0) {
+        std.log.info("Deleted {d} invalid cache file(s)", .{r.deleted_count});
+    }
+    if (r.deleted_entries > 0) {
+        std.log.info("Deleted {d} invalid cache entries", .{r.deleted_entries});
+    }
+    if (r.deleted_count == 0 and r.deleted_entries == 0) {
+        std.log.info("No invalid cache files and entries found", .{});
     }
 }
 

@@ -9,26 +9,42 @@ const Cache = @import("Cache.zig");
 const Scanner = @import("../Scanner.zig");
 const Error = @import("errors.zig").Error;
 
+pub const Result = struct {
+    // 是否删除目录
+    deleted_dir: bool = false,
+    // 删除的缓存文件数量
+    deleted_count: u32 = 0,
+    // 删除的条目数量
+    deleted_entries: u32 = 0,
+};
+
 /// 删除无效缓存：
 ///   - 缓存清单中不存在对应 `.slang` 文件的条目，会被移除。
 ///   - 缓存目录中不存在对应清单条目的 `.spv` 文件，会被删除。
-pub fn deleteInvalidCache(allocator: Allocator) Error!u32 {
+pub fn deleteInvalidCache(allocator: Allocator) Error!Result {
     // 用 arena 简化内存释放
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
-
+    // 初始化一个空的清理结果
+    var r: Result = .{};
     // 获取缓存目录路径
     const home = try xdg.getCacheHome(a);
-    const dir_path = try std.fs.path.join(a, &.{ home, consts.CACHE_APP, consts.CACHE_SUBDIR });
-    if (!shared.pathExists(dir_path)) { // 目录不存在，直接返回
-        std.log.debug("Cache directory does not exist: {s}", .{dir_path});
-        return 0;
+    const cache_path = try std.fs.path.join(a, &.{ home, consts.CACHE_APP, consts.CACHE_SUBDIR });
+    if (!shared.pathExists(cache_path)) { // 目录不存在，直接返回
+        std.log.debug("Cache directory does not exist: {s}", .{cache_path});
+        return r;
     }
-
-    var cache = try Cache.init(a, slang.DEFAULT_PROFILE);
+    // 载入缓存清单
+    var cache = try Cache.load(allocator, slang.DEFAULT_PROFILE);
     defer cache.deinit();
-
+    // 检查 profile 是否不同
+    if (!std.mem.eql(u8, cache.manifest_profile, slang.DEFAULT_PROFILE)) { // profile 不同，删除整个缓存目录后返回
+        try std.fs.cwd().deleteTree(cache_path);
+        r.deleted_dir = true;
+        return r;
+    }
+    // 将本地着色器构造为 key 的集合
     var local_keys: std.StringHashMapUnmanaged(void) = .empty;
     defer local_keys.deinit(a);
     // 扫描当前的用户着色器目录
@@ -75,10 +91,9 @@ pub fn deleteInvalidCache(allocator: Allocator) Error!u32 {
         std.log.debug("Added shader file to entry files: {s}", .{file_name});
     }
     // 扫描缓存目录中的所有 .spv 文件
-    var scanner = try Scanner.init(a, dir_path, &.{".spv"}, .{});
+    var scanner = try Scanner.init(a, cache_path, &.{".spv"}, .{});
     defer scanner.deinit();
 
-    var deleted_count: u32 = 0;
     for (scanner.names.items) |name| {
         var found = false;
         for (entry_files.items) |file| if (std.mem.eql(u8, file, name)) {
@@ -86,11 +101,11 @@ pub fn deleteInvalidCache(allocator: Allocator) Error!u32 {
             break;
         };
         if (!found) {
-            const file_path = try std.fs.path.join(a, &.{ dir_path, name });
+            const file_path = try std.fs.path.join(a, &.{ cache_path, name });
             try std.fs.cwd().deleteFile(file_path);
             std.log.info("Deleted shader file not in cache: {s}", .{name});
-            deleted_count += 1;
+            r.deleted_count += 1;
         }
     }
-    return deleted_count;
+    return r;
 }

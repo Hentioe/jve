@@ -6,10 +6,14 @@
 //
 // 失效判定：先比对 mtime + size（低成本），任一变化再比对内容 hash，
 // hash 也不同才重新编译。manifest 以原子方式写入，读取失败直接报错。
+//
+// `init` 会在格式/profile 不匹配时丢弃全部条目；`load` 只负责读取，
+// 保留磁盘上记录的版本、profile 和全部条目，供调用方自行判断（如 cleaner）。
 const std = @import("std");
 const xdg = @import("xdg");
-const Allocator = std.mem.Allocator;
 const consts = @import("consts.zig");
+const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const Error = @import("errors.zig").Error;
 const Cache = @This();
 
@@ -34,36 +38,66 @@ const WireEntry = struct {
     hash: u64,
 };
 
-allocator: Allocator,
-arena: std.heap.ArenaAllocator,
+gpa: Allocator,
+arena: ArenaAllocator,
 /// 缓存目录（位于 arena 中）。
 dir_path: []const u8,
-/// 编译环境标识（如 slang 的编译 profile）。
+/// 当前编译环境标识（如 slang 的编译 profile），`save` 时写入摘要。
 profile: []const u8,
+/// 摘要中记录的格式版本；未读到摘要时为 0。
+manifest_version: u32 = 0,
+/// 摘要中记录的 profile（可能是旧的），未读到摘要时为空。
+manifest_profile: []const u8 = "",
+/// 是否成功读到了摘要文件。
+has_manifest: bool = false,
 /// 已有摘要，键为源码文件名（或路径），值为其摘要（键由 arena 持有）。
 entries: std.StringArrayHashMapUnmanaged(Entry) = .empty,
 dirty: bool = false,
 
-pub fn init(allocator: Allocator, profile: []const u8) Error!Cache {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+pub fn init(gpa: Allocator, profile: []const u8) Error!Cache {
+    var self = try load(gpa, profile);
+    errdefer self.deinit();
+
+    std.fs.cwd().makePath(self.dir_path) catch |err| {
+        std.log.err("Failed to create shader cache directory {s}: {s}", .{ self.dir_path, @errorName(err) });
+        return Error.CacheDirCreationFailed;
+    };
+
+    self.invalidateIfStale();
+    return self;
+}
+
+/// 仅从磁盘读取摘要，不做格式/profile 校验，也不创建缓存目录。
+///
+/// 与 `init` 的区别：`init` 校验失败时丢弃全部条目；本函数原样返回摘要中的
+/// `manifest_version`、`manifest_profile` 和所有条目，供需要自行判断旧缓存
+/// （例如 cleaner）的调用方使用。摘要不存在时返回空缓存且 `has_manifest` 为 false。
+pub fn load(gpa: Allocator, profile: []const u8) Error!Cache {
+    var arena = ArenaAllocator.init(gpa);
     errdefer arena.deinit();
     const a = arena.allocator();
 
     const home = try xdg.getCacheHome(a);
     const dir_path = try std.fs.path.join(a, &.{ home, consts.CACHE_APP, consts.CACHE_SUBDIR });
-    std.fs.cwd().makePath(dir_path) catch |err| {
-        std.log.err("Failed to create shader cache directory {s}: {s}", .{ dir_path, @errorName(err) });
-        return Error.CacheDirCreationFailed;
-    };
 
     var self = Cache{
-        .allocator = allocator,
+        .gpa = gpa,
         .arena = arena,
         .dir_path = dir_path,
         .profile = profile,
     };
     try self.loadManifest();
     return self;
+}
+
+/// 按 `profile` 与 `consts.FORMAT_VERSION` 校验已加载的摘要，
+/// 不匹配时清空内存中的条目（磁盘内容不动）。
+fn invalidateIfStale(self: *Cache) void {
+    if (!self.has_manifest) return;
+    if (self.manifest_version == consts.FORMAT_VERSION and std.mem.eql(u8, self.manifest_profile, self.profile)) return;
+
+    std.log.warn("Shader cache format/profile changed", .{});
+    self.entries.clearRetainingCapacity();
 }
 
 pub fn deinit(self: *Cache) void {
@@ -117,7 +151,7 @@ pub fn write(self: *Cache, allocator: Allocator, name: []const u8, bytes: []cons
 pub fn save(self: *Cache) Error!void {
     if (!self.dirty) return;
 
-    const gpa = self.allocator;
+    const gpa = self.gpa;
     var list = std.ArrayList(WireEntry).empty;
     defer list.deinit(gpa);
 
@@ -157,17 +191,16 @@ fn loadManifest(self: *Cache) Error!void {
         },
     };
 
-    var parsed = std.json.parseFromSlice(Wire, self.allocator, raw, .{}) catch |err| {
+    var parsed = std.json.parseFromSlice(Wire, self.gpa, raw, .{}) catch |err| {
         std.log.err("Failed to parse shader cache manifest {s}: {s}", .{ path, @errorName(err) });
         return Error.CacheParseFailed;
     };
     defer parsed.deinit();
 
-    // 格式或编译环境变化：整体作废，重新生成
-    if (parsed.value.version != consts.FORMAT_VERSION or !std.mem.eql(u8, parsed.value.profile, self.profile)) {
-        std.log.warn("Shader cache format/profile changed", .{});
-        return;
-    }
+    // 记录摘要来源；是否可用由调用方（init/cleaner 等）判断
+    self.manifest_version = parsed.value.version;
+    self.manifest_profile = try a.dupe(u8, parsed.value.profile);
+    self.has_manifest = true;
 
     for (parsed.value.entries) |e| {
         if (e.name.len == 0) continue;
@@ -189,10 +222,10 @@ fn spvName(allocator: Allocator, hash: u64) Error![]u8 {
 
 const testing = std.testing;
 
-fn testCache(arena: *std.heap.ArenaAllocator, dir: []const u8, profile: []const u8) Error!Cache {
+fn testCache(arena: *ArenaAllocator, dir: []const u8, profile: []const u8) Error!Cache {
     const owned = try arena.allocator().dupe(u8, dir);
     var cache = Cache{
-        .allocator = testing.allocator,
+        .gpa = testing.allocator,
         .arena = arena.*,
         .dir_path = owned,
         .profile = profile,
@@ -220,7 +253,7 @@ test "write, save, reload round trip" {
     defer testing.allocator.free(dir);
 
     {
-        var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+        var arena: ArenaAllocator = .init(testing.allocator);
         var cache = try testCache(&arena, dir, "spirv_1_5");
         defer cache.deinit();
 
@@ -234,7 +267,7 @@ test "write, save, reload round trip" {
     }
 
     // 重新打开：摘要应已持久化
-    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    var arena: ArenaAllocator = .init(testing.allocator);
     var cache = try testCache(&arena, dir, "spirv_1_5");
     defer cache.deinit();
 
@@ -251,18 +284,58 @@ test "profile change invalidates cache" {
     defer testing.allocator.free(dir);
 
     {
-        var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+        var arena: ArenaAllocator = .init(testing.allocator);
         var cache = try testCache(&arena, dir, "spirv_1_5");
         defer cache.deinit();
         try cache.write(testing.allocator, "foo.frag.slang", "x", 1, 2, 3);
         try cache.save();
     }
 
-    // profile 不同：摘要整体作废
-    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    // profile 不同：init 的校验会丢弃全部条目（这里手动模拟该步骤）
+    var arena: ArenaAllocator = .init(testing.allocator);
     var cache = try testCache(&arena, dir, "spirv_1_6");
     defer cache.deinit();
+    cache.invalidateIfStale();
     try testing.expect(cache.get("foo.frag.slang") == null);
+}
+
+test "load keeps entries and old profile" {
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const dir = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(dir);
+
+    {
+        var arena: ArenaAllocator = .init(testing.allocator);
+        var cache = try testCache(&arena, dir, "spirv_1_5");
+        defer cache.deinit();
+        try cache.write(testing.allocator, "foo.frag.slang", "x", 1, 2, 3);
+        try cache.save();
+    }
+
+    // 只加载、不校验：旧 profile 与条目都应原样保留
+    var arena: ArenaAllocator = .init(testing.allocator);
+    var cache = try testCache(&arena, dir, "spirv_1_6");
+    defer cache.deinit();
+
+    try testing.expect(cache.has_manifest);
+    try testing.expectEqual(consts.FORMAT_VERSION, cache.manifest_version);
+    try testing.expectEqualStrings("spirv_1_5", cache.manifest_profile);
+    try testing.expect(cache.get("foo.frag.slang") != null);
+}
+
+test "no manifest leaves cache empty" {
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const dir = try tmp.dir.realpathAlloc(testing.allocator, ".");
+    defer testing.allocator.free(dir);
+
+    var arena: ArenaAllocator = .init(testing.allocator);
+    var cache = try testCache(&arena, dir, "spirv_1_5");
+    defer cache.deinit();
+
+    try testing.expect(!cache.has_manifest);
+    try testing.expectEqual(@as(usize, 0), cache.entries.count());
 }
 
 test "missing spv returns null" {
@@ -271,7 +344,7 @@ test "missing spv returns null" {
     const dir = try tmp.dir.realpathAlloc(testing.allocator, ".");
     defer testing.allocator.free(dir);
 
-    var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+    var arena: ArenaAllocator = .init(testing.allocator);
     var cache = try testCache(&arena, dir, "spirv_1_5");
     defer cache.deinit();
     try testing.expect((try cache.readSpv(testing.allocator, "none.frag.slang")) == null);
