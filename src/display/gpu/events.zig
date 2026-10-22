@@ -53,6 +53,8 @@ const slide_sensitivity = 100; // 横向滑动灵敏度
 pub const EventAction = union(enum) {
     none,
     quit,
+    minimize,
+    restored,
     toggle,
     mod_key: EventType,
     reset,
@@ -85,7 +87,7 @@ pub fn handle(event: *sdl.Event, action: *EventAction, state: *State) void {
         .is_busy = state.is_busy,
         .is_playing = state.playback.playing,
     };
-    updateActionFromEvent(action, event.*, deps);
+    updateAction(action, event.*, deps);
 }
 
 // 根据动作修改状态
@@ -93,6 +95,12 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
     switch (action.*) {
         .none => {},
         .quit => state.running = false,
+        .minimize => {
+            if (deps.animation != null) state.playback.setPlaying(sdl.getTicks(), false); // 暂停动图播放
+        },
+        .restored => {
+            if (deps.animation != null) state.playback.setPlaying(sdl.getTicks(), true); // 恢复动图播放
+        },
         .toggle => {
             state.toggle = true;
             state.running = false;
@@ -175,9 +183,13 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
     }
 }
 
-fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: ActionDeps) void {
-    if (event.type == sdl.c.SDL_EVENT_QUIT) {
+fn updateAction(action: *EventAction, event: sdl.Event, deps: ActionDeps) void {
+    if (event.type == sdl.EVENT_QUIT) {
         action.* = .quit;
+    } else if (event.type == sdl.EVENT_WINDOW_MINIMIZED) {
+        action.* = .minimize;
+    } else if (event.type == sdl.EVENT_WINDOW_RESTORED) {
+        action.* = .restored;
     } else if (isToggleEvent(event)) {
         action.* = .toggle;
     } else if (event.key.key == deps.mod_key.key) {

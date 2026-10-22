@@ -32,6 +32,14 @@ pub fn pollEvent(event: *Event) bool {
 }
 
 // -- 类型别名 --
+// 事件
+pub const Event = c.SDL_Event;
+pub const EVENT_QUIT = c.SDL_EVENT_QUIT;
+pub const EVENT_MOUSE_BUTTON_DOWN = c.SDL_EVENT_MOUSE_BUTTON_DOWN;
+pub const EVENT_MOUSE_BUTTON_UP = c.SDL_EVENT_MOUSE_BUTTON_UP;
+pub const EVENT_WINDOW_MINIMIZED = c.SDL_EVENT_WINDOW_MINIMIZED;
+pub const EVENT_WINDOW_RESTORED = c.SDL_EVENT_WINDOW_RESTORED;
+// 光标
 pub const Cursor = c.SDL_Cursor;
 pub const SystemCursor = c.SDL_SystemCursor;
 pub const SYSTEM_CURSOR_DEFAULT = c.SDL_SYSTEM_CURSOR_DEFAULT;
@@ -41,10 +49,6 @@ pub const GPUShader = c.SDL_GPUShader;
 pub const GPUTexture = c.SDL_GPUTexture;
 pub const GPURenderPass = c.SDL_GPURenderPass;
 pub const GPUCommandBuffer = c.SDL_GPUCommandBuffer;
-pub const Event = c.SDL_Event;
-pub const EVENT_QUIT = c.SDL_EVENT_QUIT;
-pub const EVENT_MOUSE_BUTTON_DOWN = c.SDL_EVENT_MOUSE_BUTTON_DOWN;
-pub const EVENT_MOUSE_BUTTON_UP = c.SDL_EVENT_MOUSE_BUTTON_UP;
 pub const HINT_MOUSE_FOCUS_CLICKTHROUGH = c.SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH;
 pub const GPUBuffer = c.SDL_GPUBuffer;
 pub const GPUBufferBinding = c.SDL_GPUBufferBinding;
