@@ -93,7 +93,9 @@ pub fn scan(self: *Self) Error!void {
     for (entries.items) |item| try self.names.append(self.gpa, item.name);
 
     // 输出文件数量
-    std.log.info("Found {d} supported file(s)", .{self.names.items.len});
+    const extensions = try std.mem.join(self.gpa, ",", self.extensions);
+    defer self.gpa.free(extensions);
+    std.log.info("Found {d} `{s}` file(s)", .{ self.names.items.len, extensions });
 }
 
 const Entry = struct {

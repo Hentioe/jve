@@ -68,7 +68,11 @@ pub fn extensions() ![]const []const u8 {
     return try vips.formats.get();
 }
 
-pub fn clearCache(allocator: Allocator) !void {
+pub fn clearCache(allocator: Allocator, config_path: ?[]const u8) !void {
+    app_env.init(allocator);
+    defer app_env.deinit();
+    try config.init(allocator, config_path);
+    defer config.deinit();
     const deleted_count = try shader.cleaner.deleteInvalidCache(allocator);
     if (deleted_count > 0) {
         std.log.info("Deleted {d} invalid cache file(s)", .{deleted_count});

@@ -165,7 +165,7 @@ fn loadManifest(self: *Cache) Error!void {
 
     // 格式或编译环境变化：整体作废，重新生成
     if (parsed.value.version != consts.FORMAT_VERSION or !std.mem.eql(u8, parsed.value.profile, self.profile)) {
-        std.log.warn("Shader cache format/profile changed, rebuilding cache", .{});
+        std.log.warn("Shader cache format/profile changed", .{});
         return;
     }
 
