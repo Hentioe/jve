@@ -42,12 +42,14 @@ slide_value: f32 = 0,
 marker_pos: ?Point = null,
 // 任务（后台调用模型）
 task: ?*Task = null,
-tex_mask: ?*sdl.c.SDL_GPUTexture = null,
+tex_mask: ?*sdl.GPUTexture = null,
 // 超出提示动画（图片过大被限制尺寸时，屏幕边缘显示提示）
 overflow_hint: OverflowHint,
 // 乒乓纹理
-tex_src: *sdl.c.SDL_GPUTexture,
-tex_dst: *sdl.c.SDL_GPUTexture,
+tex_src: *sdl.GPUTexture,
+tex_dst: *sdl.GPUTexture,
+// 是否显示错误
+show_error: bool = false,
 
 pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     var state = Self{

@@ -2,6 +2,7 @@ const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const consts = @import("../consts.zig");
+const ui = @import("../../ui.zig");
 const LImage = @import("vips").LImage;
 const Animation = @import("vips").Animation;
 const Vertex = shared.Vertex;
@@ -9,7 +10,6 @@ const Window = @import("../window.zig");
 const Device = @import("../../Device.zig");
 const pipelines = @import("../../pipelines.zig");
 const shader = @import("../../shader.zig");
-const ui = @import("../../ui.zig");
 const Error = @import("../errors.zig").Error;
 const Self = @This();
 
@@ -51,6 +51,8 @@ tex_b: *sdl.c.SDL_GPUTexture,
 custom: std.ArrayList(*pipelines.Post),
 // 组件列表
 widgets: []ui.Widget,
+// 错误消息横幅
+error_banner: *ui.TextBanner,
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -59,6 +61,7 @@ pub fn init(
     image: LImage,
     shaders: ?[]const *sdl.GPUShader,
     widgets: []ui.Widget,
+    error_banner: *ui.TextBanner,
 ) Error!Self {
     // -- 上传器 (Uploader) --
     const uploader = try Device.getUploader();
@@ -221,6 +224,7 @@ pub fn init(
         .tex_b = tex_b,
         .custom = custom,
         .widgets = widgets,
+        .error_banner = error_banner,
     };
 }
 

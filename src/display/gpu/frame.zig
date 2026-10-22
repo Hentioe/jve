@@ -73,7 +73,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 state.tex_mask = new_mask;
                 std.log.info("Task result read complete", .{});
             },
-            .failure => |err| std.log.err("Task failed: {}", .{err}),
+            .failure => |err| try showError(deps, state, "任务出错：{s}", .{@errorName(err)}),
         };
     };
 
@@ -180,6 +180,9 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
             }
             // 绘制组件
             for (deps.widgets) |*widget| widget.draw(cmd, deps.screen.render_pass);
+            // 绘制错误横幅
+            if (state.show_error) deps.error_banner.draw(cmd, deps.screen.render_pass);
+            // 结束屏幕绘制
             deps.screen.end();
         }
     }
@@ -190,12 +193,12 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     if (state.save_screenshot or state.copy_screenshot) {
         // 创建截图器
         var screenshot = Screenshot.init(deps.allocator, device, state.tex_src, &deps.image) catch |err| fallback: {
-            std.log.err("Failed to create screenshot: {}", .{err});
+            try showError(deps, state, "截图失败：{s}", .{@errorName(err)});
             break :fallback null;
         };
         if (screenshot) |*s| {
             defer s.deinit();
-            if (state.save_screenshot) s.saveToFile() catch |err| std.log.err("Failed to save screenshot: {}", .{err});
+            if (state.save_screenshot) s.saveToFile() catch |err| try showError(deps, state, "保存失败：{s}", .{@errorName(err)});
             if (state.copy_screenshot) s.copyToClipboard();
         }
 
@@ -204,4 +207,11 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         state.copy_screenshot = false;
         state.screenshot_include_bg = false;
     }
+}
+
+fn showError(deps: *RenderDeps, state: *State, comptime fmt: []const u8, args: anytype) Error!void {
+    const message = try std.fmt.allocPrint(deps.allocator, fmt, args);
+    defer deps.allocator.free(message);
+    try deps.error_banner.setText(message);
+    state.show_error = true;
 }

@@ -1,5 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const ass = @import("ass");
 const shared = @import("shared");
 const config = @import("../config.zig");
 const ui = @import("../ui.zig");
@@ -8,24 +9,26 @@ const Window = @import("window.zig");
 const Device = @import("../Device.zig");
 const app_env = @import("../app_env.zig");
 const shader = @import("../shader.zig");
+const Allocator = std.mem.Allocator;
 const RenderDeps = @import("gpu/RenderDeps.zig");
 const events = @import("gpu/events.zig");
 const pipelines = @import("../pipelines.zig");
 const loop = @import("gpu/loop.zig");
 const ExitAction = @import("enums.zig").ExitAction;
+const Shaders = std.ArrayList(*sdl.GPUShader);
 const Error = @import("errors.zig").Error;
-const Shaders = std.ArrayList(*sdl.c.SDL_GPUShader);
 const Self = @This();
 
 // 组件总量
 const MAX_WIDGETS = 1; // 当前仅有 title_bar 组件
 
-allocator: std.mem.Allocator,
+gpa: Allocator,
 window: *Window,
 device: *const sdl.Gpu,
 shaders: ?Shaders,
+ass_renderer: ass.Renderer,
 
-pub fn init(allocator: std.mem.Allocator) Error!Self {
+pub fn init(allocator: Allocator) Error!Self {
     // 初始化 GPU 模式
     std.log.info("Initializing GPU mode", .{});
     const image = try gallery.current();
@@ -69,12 +72,17 @@ pub fn init(allocator: std.mem.Allocator) Error!Self {
 
     // 记录图片形状
     app_env.writer().image_shape = image.shape;
+    // 创建 ass 渲染器
+    const ass_renderer = try ass.Renderer.init(try ui.AssLibrary.get());
+    // 设置 ass 渲染器字体
+    ass_renderer.setFonts(null, ui.DEFAULT_FONT, ass.c.ASS_FONTPROVIDER_AUTODETECT, null, 1);
 
     return Self{
-        .allocator = allocator,
+        .gpa = allocator,
         .window = window,
         .device = device,
         .shaders = shaders,
+        .ass_renderer = ass_renderer,
     };
 }
 
@@ -82,20 +90,23 @@ pub fn deinit(self: *Self) void {
     std.log.debug("Deinitializing GPU mode", .{});
     if (self.shaders) |*shaders| { // 着色器释放时依赖 gpu
         for (shaders.items) |s| self.device.releaseGPUShader(s);
-        shaders.deinit(self.allocator);
+        shaders.deinit(self.gpa);
     }
     self.window.destroy();
+    self.ass_renderer.deinit("gpu mode");
     self.* = undefined;
 }
 
 pub fn show(self: *Self) Error!ExitAction {
     defer Device.discardUploader();
+    // 设置 ass 帧尺寸（文字据此相对 PLAY_RES 缩放）
+    self.ass_renderer.setFrameSize(self.window.fit_size.w, self.window.fit_size.h);
     const image = try gallery.current();
     // 当来自于模式切换（预览 -> GPU），立即释放内存
     if (app_env.reader().preview_initialized) shared.heap.mallocTrim();
-    const shaders: ?[]const *sdl.c.SDL_GPUShader = if (self.shaders) |*s| s.items else null;
+    const shaders: ?[]const *sdl.GPUShader = if (self.shaders) |*s| s.items else null;
     // UI 组件共享的管线注册表
-    try pipelines.registry.init(self.allocator, self.window, self.device);
+    try pipelines.registry.init(self.gpa, self.window, self.device);
     defer pipelines.registry.deinit();
     // 更新窗口尺寸
     app_env.writer().image_shape = image.shape;
@@ -105,11 +116,16 @@ pub fn show(self: *Self) Error!ExitAction {
     });
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
+
+    // 创建错误横幅
+    var error_banner: ui.TextBanner = try .init(self.gpa, &self.ass_renderer, self.window.fit_size, .{});
+    defer error_banner.deinit();
+
     // 顶部标题栏（自带 close / minimize 按钮）
     var title_bar: ?ui.TitleBar = null;
     if (self.window.borderless) {
         const window_size = self.window.fit_size;
-        title_bar = try ui.TitleBar.init(self.allocator, window_size, .{
+        title_bar = try ui.TitleBar.init(self.gpa, window_size, .{
             .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity orelse 0.25),
         });
         title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量
@@ -126,12 +142,13 @@ pub fn show(self: *Self) Error!ExitAction {
     }
 
     var deps = try RenderDeps.init(
-        self.allocator,
+        self.gpa,
         self.window,
         self.device,
         image,
         shaders,
         widgets[0..widget_count],
+        &error_banner,
     );
     errdefer deps.deinit();
 
