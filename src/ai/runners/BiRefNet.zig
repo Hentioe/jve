@@ -23,20 +23,18 @@ session: Session,
 variant: Variant,
 
 pub fn init(api: *const Api) Error!Self {
-    // 初始化过程涉及大量路径分配，使用 sfa 应付
-    var sf = std.heap.stackFallback(std.fs.max_path_bytes, api.gpa);
-    const sfa = sf.get();
+    // 使用 arena 简化分配
+    var arena = std.heap.ArenaAllocator.init(api.gpa);
+    defer arena.deinit();
+    const a = arena.allocator();
     // 检查模型是否已配置
     const model_config = config.get().models.birefnet;
     if (model_config == null) return Error.ModelNotConfigured;
     // 检查并获取模型目录
-    const model_dir = try checker.modelDirCheck(sfa);
-    defer sfa.free(model_dir);
+    const model_dir = try checker.modelDirCheck(a);
     // 检查并获取模型路径
-    const lite_model_path = try checker.modelFileCheck(sfa, model_dir, model_config.?.lite_model);
-    defer sfa.free(lite_model_path);
-    const standard_model_path = try checker.modelFileCheck(sfa, model_dir, model_config.?.standard_model);
-    defer sfa.free(standard_model_path);
+    const lite_model_path = try checker.modelFileCheck(a, model_dir, model_config.?.lite_model);
+    const standard_model_path = try checker.modelFileCheck(a, model_dir, model_config.?.standard_model);
     // 根据配置决定使用的模型变体
     const variant: Variant = if (std.mem.eql(u8, model_config.?.used_variant, "standard")) .standard else .lite;
     std.log.info("Using BiRefNet variant: {s}", .{@tagName(variant)});
