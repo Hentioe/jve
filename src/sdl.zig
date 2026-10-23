@@ -2,9 +2,10 @@ const errors = @import("sdl/errors.zig");
 
 pub const c = @import("sdl/c.zig").c;
 pub const h = @import("sdl/helper.zig");
-pub const check = h.check;
+pub const K = @import("sdl/K.zig");
 pub const Gpu = @import("sdl/Gpu.zig");
 pub const Renderer = @import("sdl/Renderer.zig");
+pub const check = h.check;
 pub const Error = errors.Error;
 
 pub fn getTicks() u64 {
@@ -39,6 +40,9 @@ pub const EVENT_MOUSE_BUTTON_DOWN = c.SDL_EVENT_MOUSE_BUTTON_DOWN;
 pub const EVENT_MOUSE_BUTTON_UP = c.SDL_EVENT_MOUSE_BUTTON_UP;
 pub const EVENT_WINDOW_MINIMIZED = c.SDL_EVENT_WINDOW_MINIMIZED;
 pub const EVENT_WINDOW_RESTORED = c.SDL_EVENT_WINDOW_RESTORED;
+// 按键
+pub const Keycode = c.SDL_Keycode;
+// 更多按键在 sdl/K.zig 中定义，使用 sdl.K._* 访问。
 // 光标
 pub const Cursor = c.SDL_Cursor;
 pub const SystemCursor = c.SDL_SystemCursor;

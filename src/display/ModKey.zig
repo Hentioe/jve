@@ -1,25 +1,26 @@
-const c = @import("sdl").c;
+const sdl = @import("sdl");
+const c = sdl.c;
 const config = @import("../config.zig");
 const Self = @This();
 
-key: c.SDL_Keycode,
+key: sdl.Keycode,
 pressed: bool = false,
 
-pub fn init(key: c.SDL_Keycode) Self {
+pub fn init(key: sdl.Keycode) Self {
     return Self{ .key = key };
 }
 
 // 配置中的 Mod 键到 SDL 按键的映射
-pub fn keycode(kind: config.loader.ModKey) c.SDL_Keycode {
+pub fn keycode(kind: config.loader.ModKey) sdl.Keycode {
     return switch (kind) {
-        .left_alt => c.SDLK_LALT,
-        .right_alt => c.SDLK_RALT,
-        .left_ctrl => c.SDLK_LCTRL,
-        .right_ctrl => c.SDLK_RCTRL,
-        .left_shift => c.SDLK_LSHIFT,
-        .right_shift => c.SDLK_RSHIFT,
-        .left_gui => c.SDLK_LGUI,
-        .right_gui => c.SDLK_RGUI,
+        .left_alt => sdl.K._LALT,
+        .right_alt => sdl.K._RALT,
+        .left_ctrl => sdl.K._LCTRL,
+        .right_ctrl => sdl.K._RCTRL,
+        .left_shift => sdl.K._LSHIFT,
+        .right_shift => sdl.K._RSHIFT,
+        .left_gui => sdl.K._LGUI,
+        .right_gui => sdl.K._RGUI,
     };
 }
 
@@ -40,10 +41,10 @@ pub fn up(self: *Self) void {
     self.pressed = false;
 }
 
-pub fn pressedAndInput(self: *const Self, event: c.SDL_Event, _type: u32, key: c.SDL_Keycode) bool {
+pub fn pressedAndInput(self: *const Self, event: c.SDL_Event, _type: u32, key: sdl.Keycode) bool {
     return self.pressed and event.type == _type and event.key.key == key;
 }
 
-pub fn pressedAndKeyDown(self: *const Self, event: c.SDL_Event, key: c.SDL_Keycode) bool {
+pub fn pressedAndKeyDown(self: *const Self, event: c.SDL_Event, key: sdl.Keycode) bool {
     return self.pressedAndInput(event, c.SDL_EVENT_KEY_DOWN, key);
 }

@@ -18,7 +18,7 @@ pub const EventAction = union(enum) {
     drag_start: struct { button_x: f32, button_y: f32 },
     drag_stop: struct { button_x: f32, button_y: f32 },
     dragging: struct { xrel: f32, yrel: f32 },
-    rotate: struct { key: sdl.c.SDL_Keycode },
+    rotate: struct { key: sdl.Keycode },
     delete,
     scale: struct { wheel_y: f32 },
     next_or_prev: struct { wheel_y: f32 },
@@ -149,13 +149,13 @@ fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: Act
         handleDragingEvent(event, action);
     } else if (isRotateEvent(event)) {
         action.* = .{ .rotate = .{ .key = event.key.key } };
-    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.c.SDLK_D)) {
+    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.K._D)) {
         action.* = .delete;
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_WHEEL and (sdl.c.SDL_GetModState() & sdl.c.SDL_KMOD_CTRL) != 0) {
         action.* = .{ .scale = .{ .wheel_y = event.wheel.y } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_WHEEL) {
         action.* = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_SLASH) {
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.K._SLASH) {
         action.* = .reset;
     }
 }
@@ -165,7 +165,7 @@ fn isQuitEvent(event: sdl.c.SDL_Event) bool {
     if (event.type == sdl.c.SDL_EVENT_QUIT) { // 正常退出
         return true;
     }
-    if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.c.SDLK_ESCAPE) { // ESC 键
+    if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.K._ESCAPE) { // ESC 键
         return true;
     }
     return false;
@@ -190,7 +190,7 @@ fn isDragStartEvent(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
 }
 
 // 方向键的数组
-const DIRECTION_KEYS = [_]sdl.c.SDL_Keycode{ sdl.c.SDLK_UP, sdl.c.SDLK_DOWN, sdl.c.SDLK_LEFT, sdl.c.SDLK_RIGHT };
+const DIRECTION_KEYS = [_]sdl.Keycode{ sdl.K._UP, sdl.K._DOWN, sdl.K._LEFT, sdl.K._RIGHT };
 // 是否是旋转
 fn isRotateEvent(event: sdl.c.SDL_Event) bool {
     return event.type == sdl.c.SDL_EVENT_KEY_DOWN and
@@ -212,12 +212,12 @@ fn handleDragingEvent(event: sdl.c.SDL_Event, action: *EventAction) void {
 }
 
 // 按键映射旋转角度
-fn mapKeyToAngle(key: sdl.c.SDL_Keycode) ?f64 {
+fn mapKeyToAngle(key: sdl.Keycode) ?f64 {
     return switch (key) {
-        sdl.c.SDLK_UP => 0.0,
-        sdl.c.SDLK_DOWN => 180.0,
-        sdl.c.SDLK_LEFT => 270.0,
-        sdl.c.SDLK_RIGHT => 90.0,
+        sdl.K._UP => 0.0,
+        sdl.K._DOWN => 180.0,
+        sdl.K._LEFT => 270.0,
+        sdl.K._RIGHT => 90.0,
         else => null,
     };
 }
