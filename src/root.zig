@@ -15,7 +15,7 @@ pub const remover = @import("ai.zig").remover;
 pub const LoadError = errors.LoadError;
 pub const StepTrace = @import("StepTrace.zig");
 
-const DisplayMode = display.Viewer.Mode;
+const DisplayMode = config.DisplayMode;
 
 // glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
 // 内存会滞留在各自的 arena 中不归还操作系统，导致轮换图片时 RSS 持续上涨。
@@ -104,17 +104,14 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
     return try vips.loader.load(allocator, file_path);
 }
 
-pub fn show(allocator: Allocator, display_mode: []const u8) !void {
-    std.log.info("Display mode: {s}", .{display_mode});
-    const mode: DisplayMode = if (std.mem.eql(u8, display_mode, "preview"))
-        .preview
-    else if (std.mem.eql(u8, display_mode, "gpu"))
-        .gpu
-    else {
-        std.log.err("Unknown display mode: {s}", .{display_mode});
-        return error.UnknownDisplayMode;
-    };
-
+pub fn show(allocator: Allocator, display_mode: ?[]const u8) !void {
+    var mode: DisplayMode = undefined;
+    if (display_mode) |m| {
+        mode = DisplayMode.parse(m) orelse config.get().display_mode;
+    } else {
+        mode = config.get().display_mode;
+    }
+    std.log.info("Display mode: {s}", .{@tagName(mode)});
     display.show(allocator, mode) catch |err| {
         app_env.ensureFatal(err);
         try showDiag(allocator);

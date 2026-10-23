@@ -4,7 +4,7 @@ const h = @import("sdl").h;
 const Gpu = @import("sdl").Gpu;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
-const Mode = @import("Viewer.zig").Mode;
+const DisplayMode = @import("../config.zig").DisplayMode;
 const Overflow = @import("enums.zig").Overflow;
 const ISize = shared.Size2D(i32); // 图片尺寸
 const WSize = shared.Size2D(i32); // 窗口尺寸
@@ -32,7 +32,7 @@ borderless: bool = false,
 dirty: bool = false,
 
 pub const Options = struct {
-    mode: Mode = .preview,
+    mode: DisplayMode = .preview,
     windowed: bool,
     borderless: bool = false,
 };

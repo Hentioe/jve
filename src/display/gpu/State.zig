@@ -54,7 +54,7 @@ show_error: bool = false,
 pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     var state = Self{
         .delta = delta,
-        .mod_key = ModKey.init(config.modKey()),
+        .mod_key = ModKey.init(config.get().mod_key),
         .overflow_hint = OverflowHint.init(1.25, 1.25, 0.9),
         .playback = Playback.init(sdl.getTicks(), deps.animation != null),
         .tex_src = deps.tex_a,

@@ -33,7 +33,7 @@ pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     angle.updateTargetAngular(env.target_angle);
     var state = Self{
         .delta = delta,
-        .mod_key = ModKey.init(config.modKey()),
+        .mod_key = ModKey.init(config.get().mod_key),
         .move_offset = env.move_offset,
         .scale = scale,
         .angle = angle,

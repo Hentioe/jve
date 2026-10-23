@@ -9,14 +9,14 @@ sort = "name"
 [screenshot]
 dir = "screenshots"
 # 截图的输出格式: png | avif | jpg
-format = "jpg"
+format = "png"
 
 [titlebar]
 custom = true
-opacity = 0.25 # 取值范围 0.0 - 1.0，仅对自定义标题栏生效
-no_file_size = true # 不显示文件尺寸
-no_app_name = true # 不显示应用后缀
-no_title_text = false # 不显示整个标题文本，仅对自定义标题栏生效
+opacity = 0.15 # 取值范围 0.0 - 1.0，仅对自定义标题栏生效
+hidden_file_size = true # 隐藏图片尺寸
+hidden_app_name = true # 隐藏应用后缀
+hidden_all_text = false # 隐藏全部文字，仅对自定义标题栏生效
 
 [animation]
 image_switch = true
@@ -26,6 +26,9 @@ dir = "shaders/user"
 # 预设: classic | rainbow | tiles
 # 或自定义 .slang, 背景着色器需放在 background 目录
 background = "tiles"
+
+[shaders.custom.changhong]
+keybind = "mod+5"
 
 [models]
 dir = "models"

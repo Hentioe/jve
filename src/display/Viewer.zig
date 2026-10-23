@@ -1,13 +1,11 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ExitAction = @import("enums.zig").ExitAction;
+const DisplayMode = @import("../config.zig").DisplayMode;
 const Gpu = @import("Gpu.zig");
 const Preview = @import("Preview.zig");
-const InstanceError = @import("errors.zig").Error;
+const Error = @import("errors.zig").Error;
 const Self = @This();
-
-pub const Error = InstanceError || Allocator.Error;
-pub const Mode = enum { preview, gpu };
 
 pub const VTable = struct {
     show: *const fn (*anyopaque) Error!ExitAction,
@@ -37,7 +35,7 @@ ptr: *anyopaque,
 vtable: *const VTable,
 allocator: Allocator,
 
-pub fn create(allocator: Allocator, mode: Mode) Error!Self {
+pub fn create(allocator: Allocator, mode: DisplayMode) Error!Self {
     return switch (mode) {
         .gpu => return make(allocator, Gpu),
         .preview => return make(allocator, Preview),

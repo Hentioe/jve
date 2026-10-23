@@ -1,18 +1,22 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const sdl = @import("sdl");
 const Allocator = std.mem.Allocator;
 
 pub const paths = @import("config/paths.zig");
 pub const loader = @import("config/loader.zig");
-pub const Sort = loader.Sort;
+pub const Resolved = @import("config/Resolved.zig");
+pub const Sort = Resolved.Sort;
+pub const DisplayMode = Resolved.DisplayMode;
+pub const BiRefNetVariant = Resolved.BiRefNetVariant;
 pub const Error = @import("config/errors.zig").Error;
 
 var initialized: bool = false;
-var instance: loader.Loaded = undefined;
+var instance: Resolved = undefined;
 
 pub fn init(allocator: Allocator, config_path: ?[]const u8) Error!void {
-    instance = try loader.load(allocator, config_path);
+    var loaded = try loader.load(allocator, config_path);
+    defer loaded.deinit();
+    instance = try Resolved.resolve(allocator, loaded.config());
     initialized = true;
 }
 
@@ -23,18 +27,8 @@ pub fn deinit() void {
     initialized = false;
 }
 
-pub inline fn get() *const loader.MainConfig {
-    return instance.get();
-}
-
-/// 已解析且保证有效的 Mod 键，外部无需再做错误或空值处理
-pub inline fn modKey() sdl.Key {
-    return instance.mod_key;
-}
-
-/// 已解析且保证有效的排序方式，外部无需再做错误或空值处理
-pub inline fn sort() loader.Sort {
-    return instance.sort;
+pub inline fn get() *const Resolved {
+    return &instance;
 }
 
 /// 将配置目录和输入路径组合，创建完整路径。

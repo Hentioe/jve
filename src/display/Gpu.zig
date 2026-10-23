@@ -115,8 +115,8 @@ pub fn show(self: *Self) Error!ExitAction {
     // 更新窗口尺寸
     app_env.writer().image_shape = image.shape;
     try self.window.setTitle(image.file_name, .{
-        .include_content_size = !(config.get().titlebar.no_file_size orelse false),
-        .include_app_suffix = !(config.get().titlebar.no_app_name orelse false),
+        .include_content_size = !(config.get().titlebar.hidden_file_size),
+        .include_app_suffix = !(config.get().titlebar.hidden_app_name),
     });
     self.window.imageSizeUpdated(image.shape.toSize2D(i32));
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
@@ -130,7 +130,7 @@ pub fn show(self: *Self) Error!ExitAction {
     if (self.window.borderless) {
         const window_size = self.window.fit_size;
         title_bar = try ui.TitleBar.init(self.gpa, window_size, .{
-            .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity orelse 0.25),
+            .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity),
         });
         title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量
     }
@@ -140,7 +140,7 @@ pub fn show(self: *Self) Error!ExitAction {
     // 组件数量是动态的，预先分配已知上限的数组
     var widgets: [MAX_WIDGETS]ui.Widget = undefined;
     if (title_bar) |*tb| {
-        if (!(config.get().titlebar.no_title_text orelse false)) try tb.setText(self.window.getTitle());
+        if (!(config.get().titlebar.hidden_all_text)) try tb.setText(self.window.getTitle());
         widgets[widget_count] = tb.toWidget();
         widget_count += 1;
     }

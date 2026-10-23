@@ -34,10 +34,8 @@ pub fn main() !void {
         // 初始化
         defer jve.deinit();
         try jve.init(allocator, &trace, file_path, res.args.config);
-        // 显示模式
-        const display_mode: []const u8 = res.args.display orelse jve.config.get().display_mode;
         // 显示图像
-        try jve.show(allocator, display_mode);
+        try jve.show(allocator, res.args.display);
     } else if (res.args.display) |d| (if (std.mem.eql(u8, d, "diag")) {
         // 显示诊断模式
         try jve.display_init(allocator);

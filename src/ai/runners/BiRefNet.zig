@@ -15,12 +15,11 @@ const Self = @This();
 
 pub const vtable = OrtRunnable.VTable.of(Self);
 
-const Variant = enum { lite, standard };
 const SIZE = 1024;
 
 api: *const Api,
 session: Session,
-variant: Variant,
+variant: config.BiRefNetVariant,
 
 pub fn init(api: *const Api) Error!Self {
     // 使用 arena 简化分配
@@ -36,7 +35,7 @@ pub fn init(api: *const Api) Error!Self {
     const lite_model_path = try checker.modelFileCheck(a, model_dir, model_config.?.lite_model);
     const standard_model_path = try checker.modelFileCheck(a, model_dir, model_config.?.standard_model);
     // 根据配置决定使用的模型变体
-    const variant: Variant = if (std.mem.eql(u8, model_config.?.used_variant, "standard")) .standard else .lite;
+    const variant = model_config.?.used_variant;
     std.log.info("Using BiRefNet variant: {s}", .{@tagName(variant)});
     // 是否禁用内存优化
     const disable_memory_optimization = model_config.?.disable_memory_optimization;

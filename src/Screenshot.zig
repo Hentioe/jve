@@ -71,7 +71,7 @@ fn outfileAlloc(allocator: Allocator, original_file_name: []const u8) Error![]u8
     // 取文件名主干：去掉目录和最后一个扩展名
     const stem = std.fs.path.stem(original_file_name);
     const ts = std.time.timestamp(); // 秒级 Unix 时间戳（i64）
-    const new_filename = try std.fmt.allocPrint(allocator, "{s}_{d}.{s}", .{ stem, ts, config.get().screenshot.format });
+    const new_filename = try std.fmt.allocPrint(allocator, "{s}_{d}.{f}", .{ stem, ts, config.get().screenshot.format });
 
     // 将文件名与配置中的截图保存目录拼接为完整路径
     if (config.get().screenshot.dir) |dir| {
