@@ -192,23 +192,23 @@ fn updateAction(action: *EventAction, event: sdl.Event, deps: ActionDeps) void {
         action.* = .restored;
     } else if (isToggleEvent(event)) {
         action.* = .toggle;
-    } else if (event.key.key == deps.mod_key.key) {
+    } else if (deps.mod_key.key.matches(event.key.key)) {
         action.* = .{ .mod_key = event.type };
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.K._SLASH) { // / 键重置所有参数
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.slash.matches(event.key.key)) { // / 键重置所有参数
         action.* = .reset;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.K._R and !deps.mod_key.pressed) { // R 键反转颜色
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.r.matches(event.key.key) and !deps.mod_key.pressed) { // R 键反转颜色
         action.* = .invert;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.K._G) { // G 键灰阶化
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.g.matches(event.key.key)) { // G 键灰阶化
         action.* = .grayscale;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.K._S) { // S 键保存截图（如果按下 Mod 键，则包含背景）
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.s.matches(event.key.key)) { // S 键保存截图（如果按下 Mod 键，则包含背景）
         action.* = .{ .save_screenshot = .{ .include_bg = deps.mod_key.pressed } };
-    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.K._R) and !deps.is_busy) { // Mod+R 去除背景
+    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.Key.r) and !deps.is_busy) { // Mod+R 去除背景
         action.* = .start_task;
-    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.K._T)) { // Mod+T 切换自定义着色器的启用状态
+    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.Key.t)) { // Mod+T 切换自定义着色器的启用状态
         action.* = .toggle_custom_shader;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.K._SPACE and !deps.is_busy) { // 空格键暂停/播放动画（繁忙时禁止控制）
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.space.matches(event.key.key) and !deps.is_busy) { // 空格键暂停/播放动画（繁忙时禁止控制）
         action.* = .{ .change_playing = !deps.is_playing };
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and event.key.key == sdl.K._C and (event.key.mod & sdl.c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.c.matches(event.key.key) and (event.key.mod & sdl.c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
         action.* = .copy_screenshot;
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_MIDDLE) { // 横向调节开始
         action.* = .{ .slide_start = .{ .button = event.button.button } };
@@ -230,20 +230,20 @@ fn isToggleEvent(event: sdl.c.SDL_Event) bool {
 
 fn isChannelChangeEvent(event: sdl.c.SDL_Event) bool {
     if ((event.key.mod & sdl.c.SDL_KMOD_RALT) == 0) return false; // 判断右 alt 是否按下
-    return event.key.key == sdl.K._0 or
-        event.key.key == sdl.K._1 or
-        event.key.key == sdl.K._2 or
-        event.key.key == sdl.K._3 or
-        event.key.key == sdl.K._4;
+    return sdl.Key._0.matches(event.key.key) or
+        sdl.Key._1.matches(event.key.key) or
+        sdl.Key._2.matches(event.key.key) or
+        sdl.Key._3.matches(event.key.key) or
+        sdl.Key._4.matches(event.key.key);
 }
 
-fn mapKeyToChannel(key: sdl.Keycode) ?u8 {
-    return switch (key) {
-        sdl.K._0 => 0,
-        sdl.K._1 => 1,
-        sdl.K._2 => 2,
-        sdl.K._3 => 3,
-        sdl.K._4 => 4,
+fn mapKeyToChannel(key: sdl.c.SDL_Keycode) ?u8 {
+    return switch (sdl.Key.from(key) orelse return null) {
+        ._0 => 0,
+        ._1 => 1,
+        ._2 => 2,
+        ._3 => 3,
+        ._4 => 4,
         else => null,
     };
 }

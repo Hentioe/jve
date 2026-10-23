@@ -1,5 +1,6 @@
 const std = @import("std");
 const toml = @import("toml");
+const sdl = @import("sdl");
 const Allocator = std.mem.Allocator;
 const app_env = @import("../app_env.zig");
 const paths = @import("paths.zig");
@@ -44,24 +45,18 @@ pub const MagicTouch = struct {
     model: []const u8, // MagicTouch 模型文件
 };
 
-// 可配置的常用修饰键（与配置字符串一一对应）
-pub const ModKey = enum {
-    left_alt,
-    right_alt,
-    left_ctrl,
-    right_ctrl,
-    left_shift,
-    right_shift,
-    left_gui,
-    right_gui,
-
-    pub const default: ModKey = .left_alt;
-
-    // 将配置字符串映射为修饰键，无法识别时返回 null
-    pub fn parse(name: []const u8) ?ModKey {
-        return std.meta.stringToEnum(ModKey, name);
-    }
+// 可配置的 Mod 键白名单
+const MOD_KEYS = [_]sdl.Key{
+    .left_alt,
+    .right_alt,
+    .left_ctrl,
+    .right_ctrl,
+    .left_shift,
+    .right_shift,
+    .left_gui,
+    .right_gui,
 };
+const default_mod_key: sdl.Key = .left_alt;
 
 // 可配置的文件排序方式（与配置字符串一一对应）
 pub const Sort = enum {
@@ -123,7 +118,7 @@ pub const FromVariant = union(enum) {
 pub const Loaded = struct {
     allocator: Allocator,
     config: FromVariant,
-    mod_key: ModKey, // 加载后解析出的 Mod 键（保证有效）
+    mod_key: sdl.Key, // 加载后解析出的 Mod 键（保证有效）
     sort: Sort, // 加载后解析出的排序方式（保证有效）
 
     pub inline fn get(self: *const Loaded) *const MainConfig {
@@ -186,11 +181,12 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
 }
 
 // 校验配置中的 Mod 键，配置错误时输出警告并回退到默认值
-fn parseModKey(name: []const u8) ModKey {
-    return ModKey.parse(name) orelse {
-        std.log.warn("Invalid mod_key \"{s}\", falling back to default \"{s}\"", .{ name, @tagName(ModKey.default) });
-        return ModKey.default;
-    };
+fn parseModKey(name: []const u8) sdl.Key {
+    if (sdl.Key.parse(name)) |key| {
+        if (std.mem.indexOfScalar(sdl.Key, &MOD_KEYS, key) != null) return key;
+    }
+    std.log.warn("Invalid mod_key \"{s}\", falling back to default \"{s}\"", .{ name, @tagName(default_mod_key) });
+    return default_mod_key;
 }
 
 // 校验配置中的排序方式，配置错误时输出警告并回退到默认值

@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const sdl = @import("sdl");
 const Allocator = std.mem.Allocator;
 
 pub const paths = @import("config/paths.zig");
@@ -27,7 +28,7 @@ pub inline fn get() *const loader.MainConfig {
 }
 
 /// 已解析且保证有效的 Mod 键，外部无需再做错误或空值处理
-pub inline fn modKey() loader.ModKey {
+pub inline fn modKey() sdl.Key {
     return instance.mod_key;
 }
 
