@@ -4,15 +4,15 @@ const shared = @import("shared");
 const config = @import("../../config.zig");
 const checker = @import("../checker.zig");
 const Allocator = std.mem.Allocator;
-const Error = @import("../errors.zig").Error;
 const Image = @import("vips").Image;
 const Api = ort.Api;
 const Session = ort.Session;
-const Timer = @import("../Timer.zig");
 const Point = shared.Point(f32);
 const Input = @import("../processors/Input.zig");
 const Output = @import("../processors/Output.zig");
 const OrtRunnable = @import("../OrtRunnable.zig");
+const StepTrace = @import("../../StepTrace.zig");
+const Error = @import("../errors.zig").Error;
 const Self = @This();
 
 pub const vtable = OrtRunnable.VTable.of(Self);
@@ -52,6 +52,10 @@ pub fn deinit(self: *Self) void {
 pub fn run(self: *const Self, input: Input) Error!Image {
     const allocator = self.api.gpa;
     defer shared.heap.mallocTrim(); // 立即归还空闲堆给操作系统
+    // 创建跟踪器
+    var trace: StepTrace = try .initSafe(allocator);
+    defer trace.deinit();
+    defer trace.report();
     // 打印输入的基本信息
     std.log.info("Image shape: {f}", .{input.shape});
     // 前处理：强制 3 通道、缩放、归一化
@@ -61,6 +65,7 @@ pub fn run(self: *const Self, input: Input) Error!Image {
         .normalized = true,
     });
     defer preprocessed.deinit();
+    try trace.mark("preprocess");
 
     // 确保图片符合 MagicTouch 模型的输入要求：必须是 3 通道的图像，且宽高为 512x512
     std.debug.assert(preprocessed.shape.c == 3);
@@ -96,12 +101,9 @@ pub fn run(self: *const Self, input: Input) Error!Image {
     defer self.api.releaseValue(input_tensor);
 
     // 执行推理并获取输出指针
-    std.log.info("Background removal in progress...", .{});
-    var timer: Timer = try .start();
     const output_sensor = try self.session.run(input_tensor);
     defer self.api.releaseValue(output_sensor);
-    std.log.info("Background removal took {d}ms", .{try timer.finish(.ms)});
-    std.log.info("Background removal completed", .{});
+    try trace.mark("run");
 
     // 后处理：解析输出、添加透明通道、缩放回原始尺寸。
     // MagicTouch 的 ONNX 末端已带 Sigmoid，输出本身就是 [0,1] 概率图，故 apply_sigmoid 传 false。
@@ -119,7 +121,9 @@ pub fn run(self: *const Self, input: Input) Error!Image {
     try image.resize(original_size.w, original_size.h);
     try image.toRgb();
     try image.addAlpha(255.0);
+    try trace.mark("postprocess");
 
+    trace.complete();
     return image;
 }
 

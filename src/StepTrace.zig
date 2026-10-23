@@ -3,7 +3,7 @@ const Allocator = std.mem.Allocator;
 const Timer = std.time.Timer;
 const Self = @This();
 
-pub const Error = Allocator.Error;
+pub const Error = std.time.Timer.Error || Allocator.Error;
 
 pub const Mark = struct {
     name: []const u8,
@@ -15,10 +15,19 @@ timer: Timer,
 marks: std.ArrayList(Mark) = .empty,
 completed: bool = false,
 
+/// 初始化跟踪器，如果 `std.time.Timer` 不可用将直接崩溃。
 pub fn init(allocator: Allocator) Self {
     return .{
         .allocator = allocator,
         .timer = Timer.start() catch @panic("monotonic clock unavailable"),
+    };
+}
+
+/// 安全版 init，返回 Error 而不是崩溃。
+pub fn initSafe(allocator: Allocator) Error!Self {
+    return .{
+        .allocator = allocator,
+        .timer = try Timer.start(),
     };
 }
 

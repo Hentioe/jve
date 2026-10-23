@@ -1,6 +1,7 @@
 const OrtError = @import("ort").Error;
 const ConfigError = @import("../config.zig").Error;
 const VipsError = @import("vips").Error;
+const StepTraceError = @import("../StepTrace.zig").Error;
 
 pub const CustomError = error{
     ModelNotConfigured,
@@ -14,4 +15,4 @@ pub const CustomError = error{
 /// Timer 的错误集
 pub const TimerError = error{ TimerNotStarted, TimerUnsupported };
 
-pub const Error = CustomError || TimerError || OrtError || ConfigError || VipsError;
+pub const Error = CustomError || TimerError || OrtError || ConfigError || VipsError || StepTraceError;
