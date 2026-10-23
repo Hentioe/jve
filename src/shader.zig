@@ -1,4 +1,5 @@
 pub const loader = @import("shader/loader.zig");
+pub const loaded = @import("shader/loaded.zig");
 pub const cleaner = @import("shader/cleaner.zig");
 pub const Scanner = @import("shader/Scanner.zig");
 pub const Cache = @import("shader/Cache.zig").Cache;

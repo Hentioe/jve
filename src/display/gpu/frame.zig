@@ -129,6 +129,15 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
             state.tex_dst = tmp;
         }
     }
+    // 手动触发的管线
+    if (state.manual) |pl| {
+        pl.bind(cmd, state.tex_dst, state.tex_src, deps.sampler, &deps.verts_binding);
+        pl.draw();
+        pl.end();
+        const tmp = state.tex_src;
+        state.tex_src = state.tex_dst;
+        state.tex_dst = tmp;
+    }
 
     // 截图包含背景：背景作为链上的一趟垫在内容下面
     if (state.screenshot_include_bg) {

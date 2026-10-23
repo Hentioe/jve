@@ -40,6 +40,8 @@ pub const EVENT_MOUSE_BUTTON_DOWN = c.SDL_EVENT_MOUSE_BUTTON_DOWN;
 pub const EVENT_MOUSE_BUTTON_UP = c.SDL_EVENT_MOUSE_BUTTON_UP;
 pub const EVENT_WINDOW_MINIMIZED = c.SDL_EVENT_WINDOW_MINIMIZED;
 pub const EVENT_WINDOW_RESTORED = c.SDL_EVENT_WINDOW_RESTORED;
+pub const EVENT_KEY_DOWN = c.SDL_EVENT_KEY_DOWN;
+pub const EVENT_KEY_UP = c.SDL_EVENT_KEY_UP;
 // 光标
 pub const Cursor = c.SDL_Cursor;
 pub const SystemCursor = c.SDL_SystemCursor;
@@ -122,12 +124,12 @@ pub const Key = enum(Keycode) {
         return @intFromEnum(self);
     }
 
-    /// 从 SDL 键码解析，未知按键返回 null
+    /// 从 SDL 键码解析，未知按键返回 `null`。
     pub fn from(key: Keycode) ?Key {
         return std.meta.intToEnum(Key, key) catch null;
     }
 
-    /// 从字符串解析按键名，未知按键返回 null
+    /// 从字符串解析按键名，未知按键返回 `null`。注意：数字键不需要 `_` 前缀。
     pub fn parse(name: []const u8) ?Key {
         // 枚举字段不能以数字开头，数字键的枚举名带 _ 前缀
         if (name.len == 1 and std.ascii.isDigit(name[0])) { // 仅处理单个数字的字符串
@@ -137,7 +139,7 @@ pub const Key = enum(Keycode) {
         return std.meta.stringToEnum(Key, name);
     }
 
-    /// 判断 SDL 键码是否为当前按键
+    /// 判断 SDL 键码是否为当前按键。
     pub fn matches(self: Key, key: Keycode) bool {
         return self.code() == key;
     }

@@ -15,7 +15,6 @@ const events = @import("gpu/events.zig");
 const pipelines = @import("../pipelines.zig");
 const loop = @import("gpu/loop.zig");
 const ExitAction = @import("enums.zig").ExitAction;
-const Shaders = std.ArrayList(*sdl.GPUShader);
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -25,7 +24,7 @@ const MAX_WIDGETS = 1; // 当前仅有 title_bar 组件
 gpa: Allocator,
 window: *Window,
 device: *const sdl.Gpu,
-shaders: ?Shaders,
+shaders: ?shader.loaded.All,
 ass_renderer: ass.Renderer,
 
 pub fn init(allocator: Allocator) Error!Self {
@@ -59,7 +58,7 @@ pub fn init(allocator: Allocator) Error!Self {
     // }
 
     // 扫描和加载用户着色器（包括背景）
-    var shaders: ?Shaders = null;
+    var shaders: ?shader.loaded.All = null;
     if (config.get().base_dir) |base_dir| if (shared.pathExists(base_dir)) {
         // 检查着色器目录是否存在
         const full_path = try config.allocFullPath(allocator, config.get().shaders.dir);
@@ -93,8 +92,8 @@ pub fn init(allocator: Allocator) Error!Self {
 pub fn deinit(self: *Self) void {
     std.log.debug("Deinitializing GPU mode", .{});
     if (self.shaders) |*shaders| { // 着色器释放时依赖 gpu
-        for (shaders.items) |s| self.device.releaseGPUShader(s);
-        shaders.deinit(self.gpa);
+        for (shaders.list.items) |item| self.device.releaseGPUShader(item.shader);
+        shaders.deinit();
     }
     self.window.destroy();
     self.ass_renderer.deinit("gpu mode");
@@ -108,7 +107,6 @@ pub fn show(self: *Self) Error!ExitAction {
     const image = try gallery.current();
     // 当来自于模式切换（预览 -> GPU），立即释放内存
     if (app_env.reader().preview_initialized) shared.heap.mallocTrim();
-    const shaders: ?[]const *sdl.GPUShader = if (self.shaders) |*s| s.items else null;
     // UI 组件共享的管线注册表
     try pipelines.registry.init(self.gpa, self.window, self.device);
     defer pipelines.registry.deinit();
@@ -150,7 +148,7 @@ pub fn show(self: *Self) Error!ExitAction {
         self.window,
         self.device,
         image,
-        shaders,
+        self.shaders,
         widgets[0..widget_count],
         &error_banner,
     );

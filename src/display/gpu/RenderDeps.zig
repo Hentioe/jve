@@ -3,13 +3,14 @@ const sdl = @import("sdl");
 const shared = @import("shared");
 const consts = @import("../consts.zig");
 const ui = @import("../../ui.zig");
+const pipelines = @import("../../pipelines.zig");
 const LImage = @import("vips").LImage;
 const Animation = @import("vips").Animation;
 const Vertex = shared.Vertex;
 const Window = @import("../window.zig");
 const Device = @import("../../Device.zig");
-const pipelines = @import("../../pipelines.zig");
 const shader = @import("../../shader.zig");
+const Manuals = std.AutoHashMap(*const shader.loaded.Item, *pipelines.Post);
 const Error = @import("../errors.zig").Error;
 const Self = @This();
 
@@ -47,8 +48,10 @@ marker: pipelines.Base,
 // 离屏纹理（乒乓）
 tex_a: *sdl.c.SDL_GPUTexture,
 tex_b: *sdl.c.SDL_GPUTexture,
-// 自定义管线（堆分配，便于释放）
+// 自定义管线列表
 custom: std.ArrayList(*pipelines.Post),
+// 手动激活的管线列表
+manuals: Manuals,
 // 组件列表
 widgets: []ui.Widget,
 // 错误消息横幅
@@ -59,7 +62,7 @@ pub fn init(
     window: *Window,
     device: *const sdl.Gpu,
     image: LImage,
-    shaders: ?[]const *sdl.GPUShader,
+    shaders: ?shader.loaded.All,
     widgets: []ui.Widget,
     error_banner: *ui.TextBanner,
 ) Error!Self {
@@ -177,18 +180,33 @@ pub fn init(
     const marker_pl = try pipelines.Base.init(device, window.sdl_window, .{ .vert = marker_vert_shader, .frag = marker_frag_shader }, null);
 
     // 添加自定义管线
-    var custom = std.ArrayList(*pipelines.Post).empty;
-    if (shaders) |list| {
-        for (list) |frag| {
+    var custom: std.ArrayList(*pipelines.Post) = .empty;
+    if (shaders) |all| {
+        var list = try all.defaults(allocator);
+        defer list.deinit(allocator);
+        for (list.items) |item| {
             const pl = try allocator.create(pipelines.Post); // 在堆上创建，避免被作用域回收
             pl.* = try pl_builder.build(
                 .custom,
-                .{ .vert = vert_shader, .frag = frag },
+                .{ .vert = vert_shader, .frag = item.shader },
             );
             try custom.append(allocator, pl);
         }
     }
-
+    // 添加手动激活管线
+    var manuals: Manuals = .init(allocator);
+    if (shaders) |all| {
+        var list = try all.manuals(allocator);
+        defer list.deinit(allocator);
+        for (list.items) |item| {
+            const pl = try allocator.create(pipelines.Post); // 在堆上创建，避免被作用域回收
+            pl.* = try pl_builder.build(
+                .custom,
+                .{ .vert = vert_shader, .frag = item.shader },
+            );
+            try manuals.put(item, pl);
+        }
+    }
     // 统一提交本次初始化中所有组件的资源上传
     try uploader.submit();
 
@@ -223,6 +241,7 @@ pub fn init(
         .tex_a = tex_a,
         .tex_b = tex_b,
         .custom = custom,
+        .manuals = manuals,
         .widgets = widgets,
         .error_banner = error_banner,
     };
@@ -243,6 +262,12 @@ pub fn deinit(self: *Self) void {
         self.allocator.destroy(pl);
     }
     self.custom.deinit(self.allocator);
+    var iter = self.manuals.valueIterator();
+    while (iter.next()) |pl| {
+        pl.*.deinit(self.device);
+        self.allocator.destroy(pl.*);
+    }
+    self.manuals.deinit();
     self.background.deinit();
     self.device.releaseGPUGraphicsPipeline(self.base_pipeline);
     self.device.releaseGPUShader(self.mask_shader);

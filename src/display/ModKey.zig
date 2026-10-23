@@ -1,5 +1,4 @@
 const sdl = @import("sdl");
-const c = sdl.c;
 const Self = @This();
 
 key: sdl.Key,
@@ -11,19 +10,11 @@ pub fn init(key: sdl.Key) Self {
 
 // 根据输入类型（方向），自动管理 pressed 状态
 pub fn input(self: *Self, event_type: u32) void {
-    if (event_type == c.SDL_EVENT_KEY_DOWN) {
+    if (event_type == sdl.EVENT_KEY_DOWN) {
         self.pressed = true;
-    } else if (event_type == c.SDL_EVENT_KEY_UP) {
+    } else if (event_type == sdl.EVENT_KEY_UP) {
         self.pressed = false;
     }
-}
-
-pub fn down(self: *Self) void {
-    self.pressed = true;
-}
-
-pub fn up(self: *Self) void {
-    self.pressed = false;
 }
 
 pub fn pressedAndInput(self: *const Self, event: sdl.Event, event_type: u32, key: sdl.Key) bool {
@@ -31,5 +22,5 @@ pub fn pressedAndInput(self: *const Self, event: sdl.Event, event_type: u32, key
 }
 
 pub fn pressedAndKeyDown(self: *const Self, event: sdl.Event, key: sdl.Key) bool {
-    return self.pressedAndInput(event, c.SDL_EVENT_KEY_DOWN, key);
+    return self.pressedAndInput(event, sdl.EVENT_KEY_DOWN, key);
 }

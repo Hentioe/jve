@@ -106,8 +106,11 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
 
 pub fn show(allocator: Allocator, display_mode: ?[]const u8) !void {
     var mode: DisplayMode = undefined;
-    if (display_mode) |m| {
-        mode = DisplayMode.parse(m) orelse config.get().display_mode;
+    if (display_mode) |s| {
+        mode = DisplayMode.parse(s) orelse fallback: {
+            std.log.warn("Unrecognized display mode: \"{s}\", falling back to default: \"{f}\"", .{ s, config.get().display_mode });
+            break :fallback config.get().display_mode;
+        };
     } else {
         mode = config.get().display_mode;
     }

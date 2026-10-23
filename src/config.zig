@@ -5,8 +5,9 @@ const Allocator = std.mem.Allocator;
 pub const paths = @import("config/paths.zig");
 pub const loader = @import("config/loader.zig");
 pub const Resolved = @import("config/Resolved.zig");
-pub const Sort = Resolved.Sort;
+pub const Keybinding = @import("config/Keybinding.zig");
 pub const DisplayMode = Resolved.DisplayMode;
+pub const Sort = Resolved.Sort;
 pub const BiRefNetVariant = Resolved.BiRefNetVariant;
 pub const Error = @import("config/errors.zig").Error;
 

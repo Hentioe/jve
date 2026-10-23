@@ -7,6 +7,7 @@ const Keybinding = @import("Keybinding.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
+pub const DEFAULT_BASE_DIR: []const u8 = ".";
 pub const DEFAULT_MOD_KEY: sdl.Key = .left_alt;
 pub const DEFAULT_MIN_SCALE: f32 = 0.5;
 pub const DEFAULT_MAX_SCALE: f32 = 3.0;
@@ -28,6 +29,10 @@ pub const DisplayMode = enum {
     /// 将配置字符串映射为显示模式，无法识别时返回 `null`。
     pub fn parse(name: []const u8) ?DisplayMode {
         return std.meta.stringToEnum(DisplayMode, name);
+    }
+
+    pub fn format(self: *const DisplayMode, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        try writer.print("{s}", .{@tagName(self.*)});
     }
 };
 
@@ -144,18 +149,6 @@ pub const MagicTouch = struct {
     model: []const u8, // MagicTouch 模型文件
 };
 
-// 可配置的 Mod 键白名单
-const MOD_KEYS = [_]sdl.Key{
-    .left_alt,
-    .right_alt,
-    .left_ctrl,
-    .right_ctrl,
-    .left_shift,
-    .right_shift,
-    .left_gui,
-    .right_gui,
-};
-
 allocator: Allocator,
 arena: ArenaAllocator,
 base_dir: ?[]const u8, // 基础目录
@@ -174,7 +167,7 @@ pub fn default(allocator: Allocator) Self {
     return Self{
         .allocator = allocator,
         .arena = ArenaAllocator.init(allocator),
-        .base_dir = null,
+        .base_dir = DEFAULT_BASE_DIR,
         .display_mode = DisplayMode.default,
         .min_scale = DEFAULT_MIN_SCALE,
         .max_scale = DEFAULT_MAX_SCALE,
@@ -188,24 +181,26 @@ pub fn default(allocator: Allocator) Self {
     };
 }
 
-pub fn resolve(allocator: Allocator, config: ?UnResolved) Error!Self {
-    if (config == null) return default(allocator);
+pub fn resolve(gpa: Allocator, config: ?UnResolved) Error!Self {
+    if (config == null) return default(gpa);
     const loaded = config.?;
-    var arena = ArenaAllocator.init(allocator);
-    const base_dir = loaded.base_dir;
+    var arena = ArenaAllocator.init(gpa);
+    const a = arena.allocator();
+    var base_dir = DEFAULT_BASE_DIR;
+    if (loaded.base_dir) |d| base_dir = try a.dupe(u8, d);
     const display_mode = resolveDisplayMode(loaded.display_mode);
     const min_scale = loaded.min_scale;
     const max_scale = loaded.max_scale;
     const mod_key = resolveModKey(loaded.mod_key);
     const sort = resolveSort(loaded.sort);
-    const screenshot = resolveScreenshot(loaded.screenshot);
+    const screenshot = try resolveScreenshot(a, loaded.screenshot);
     const titlebar = resolveTitlebar(loaded.titlebar);
     const animation = resolveAnimation(loaded.animation);
-    const shaders = try resolveShaders(allocator, arena.allocator(), loaded.shaders);
-    const models = try resolveModels(loaded.models);
+    const shaders = try resolveShaders(gpa, a, loaded.shaders);
+    const models = try resolveModels(a, loaded.models);
 
     return Self{
-        .allocator = allocator,
+        .allocator = gpa,
         .arena = arena,
         .base_dir = base_dir,
         .display_mode = display_mode,
@@ -236,9 +231,7 @@ fn resolveDisplayMode(display_mode: []const u8) DisplayMode {
 }
 
 fn resolveModKey(name: []const u8) sdl.Key {
-    if (sdl.Key.parse(name)) |key| {
-        if (std.mem.indexOfScalar(sdl.Key, &MOD_KEYS, key) != null) return key;
-    }
+    if (sdl.Key.parse(name)) |key| if (Keybinding.isModifier(key)) return key;
     std.log.warn("Invalid mod_key \"{s}\", falling back to default: \"{s}\"", .{ name, @tagName(DEFAULT_MOD_KEY) });
     return DEFAULT_MOD_KEY;
 }
@@ -250,7 +243,7 @@ fn resolveSort(name: []const u8) Sort {
     };
 }
 
-fn resolveScreenshot(config: UnResolved.ScreenshotConfig) Screenshot {
+fn resolveScreenshot(arena: Allocator, config: UnResolved.ScreenshotConfig) Error!Screenshot {
     var format: ScreenshotFormat = ScreenshotFormat.default;
     if (config.format) |s| if (ScreenshotFormat.parse(s)) |f| {
         format = f;
@@ -258,8 +251,11 @@ fn resolveScreenshot(config: UnResolved.ScreenshotConfig) Screenshot {
         std.log.warn("Invalid screenshot format \"{s}\", falling back to default: \"{f}\"", .{ s, ScreenshotFormat.default });
     };
 
+    var dir: ?[]u8 = null;
+    if (config.dir) |d| dir = try arena.dupe(u8, d);
+
     return Screenshot{
-        .dir = config.dir,
+        .dir = dir,
         .format = format,
     };
 }
@@ -294,19 +290,25 @@ fn resolveShaders(gap: Allocator, arena: Allocator, config: UnResolved.ShadersCo
         }
         custom_shaders = tmp;
     }
+
+    var dir = DEFAULT_SHADERS_DIR;
+    if (config.dir) |d| dir = try arena.dupe(u8, d);
+    var background: ?[]u8 = null;
+    if (config.background) |b| background = try arena.dupe(u8, b);
+
     return .{
-        .dir = config.dir orelse DEFAULT_SHADERS_DIR,
-        .background = config.background,
+        .dir = dir,
+        .background = background,
         .custom = custom_shaders,
     };
 }
 
-fn resolveModels(config: UnResolved.ModelsConfig) Error!Models {
+fn resolveModels(arena: Allocator, config: UnResolved.ModelsConfig) Error!Models {
     var birefnet: ?BiRefNet = null;
     if (config.birefnet) |b| {
         birefnet = .{
-            .standard_model = b.standard_model,
-            .lite_model = b.lite_model,
+            .standard_model = try arena.dupe(u8, b.standard_model),
+            .lite_model = try arena.dupe(u8, b.lite_model),
             .used_variant = BiRefNetVariant.parse(b.used_variant) orelse return Error.BiRefNetVariantInvalid,
             .disable_memory_optimization = b.disable_memory_optimization orelse false,
         };
@@ -314,11 +316,13 @@ fn resolveModels(config: UnResolved.ModelsConfig) Error!Models {
     var magic_touch: ?MagicTouch = null;
     if (config.magic_touch) |m| {
         magic_touch = .{
-            .model = m.model,
+            .model = try arena.dupe(u8, m.model),
         };
     }
+    var dir = DEFAULT_MODELS_DIR;
+    if (config.dir) |d| dir = try arena.dupe(u8, d);
     return .{
-        .dir = config.dir orelse DEFAULT_MODELS_DIR,
+        .dir = dir,
         .birefnet = birefnet,
         .magic_touch = magic_touch,
     };

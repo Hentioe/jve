@@ -1,7 +1,9 @@
 const sdl = @import("sdl");
 const shared = @import("shared");
 const config = @import("../../config.zig");
+const pipelines = @import("../../pipelines.zig");
 const Delta = @import("../Delta.zig");
+const Modifiers = @import("../Modifiers.zig");
 const ModKey = @import("../ModKey.zig");
 const OverflowHint = @import("../OverflowHint.zig");
 const Playback = @import("../Playback.zig");
@@ -19,8 +21,10 @@ toggle: bool = false,
 dirty: bool = false,
 // 动图播放状态（静态图时 playing 为 false，不参与渲染循环）
 playback: Playback,
-// 其它开关
+// 修饰键
+modifiers: Modifiers,
 mod_key: ModKey,
+// 其它开关
 custom_shader_enabled: bool = false,
 // 基础着色器控制变量
 is_inverted: bool = false, // 是否反转颜色
@@ -48,12 +52,15 @@ overflow_hint: OverflowHint,
 // 乒乓纹理
 tex_src: *sdl.GPUTexture,
 tex_dst: *sdl.GPUTexture,
+// 手动触发的管线
+manual: ?*pipelines.Post = null,
 // 是否显示错误
 show_error: bool = false,
 
 pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     var state = Self{
         .delta = delta,
+        .modifiers = Modifiers.init(),
         .mod_key = ModKey.init(config.get().mod_key),
         .overflow_hint = OverflowHint.init(1.25, 1.25, 0.9),
         .playback = Playback.init(sdl.getTicks(), deps.animation != null),
@@ -62,4 +69,8 @@ pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     };
     if (deps.window.overflow != .none) state.overflow_hint.trigger();
     return state;
+}
+
+pub fn deinit(self: *Self) void {
+    self.* = undefined;
 }

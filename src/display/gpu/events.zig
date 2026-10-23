@@ -1,6 +1,7 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const Task = @import("../Task.zig");
+const Modifiers = @import("../Modifiers.zig");
 const ModKey = @import("../ModKey.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");
@@ -73,21 +74,41 @@ pub const EventAction = union(enum) {
 };
 
 const ActionDeps = struct {
+    modifiers: *Modifiers,
     mod_key: *ModKey,
     is_sliding: bool,
     is_busy: bool,
     is_playing: bool,
 };
 
+/// 处理按键绑定事件
+pub fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *State) bool {
+    var iter = deps.manuals.keyIterator();
+    while (iter.next()) |item| if (item.*.keybinding) |binding| {
+        var matched = false;
+        if (event.type == sdl.EVENT_KEY_DOWN and binding.key.matches(event.key.key)) {
+            matched = if (binding.modifier) |modifier| state.modifiers.working(modifier) else true;
+        }
+
+        if (matched) if (deps.manuals.get(item.*)) |pl| {
+            state.manual = if (state.manual == null or state.manual != pl) pl else null;
+            return true;
+        };
+    };
+    return false;
+}
+
 // 从事件中更新动作（可跨多个事件累积）
-pub fn handle(event: *sdl.Event, action: *EventAction, state: *State) void {
-    const deps: ActionDeps = .{
+pub fn handle(event: *const sdl.Event, action: *EventAction, deps: *const RenderDeps, state: *State) void {
+    if (handleBinding(event, deps, state)) return; // 绑定的事件触发，直接跳过后续事件处理
+    const action_deps: ActionDeps = .{
+        .modifiers = &state.modifiers,
         .mod_key = &state.mod_key,
         .is_sliding = state.is_sliding,
         .is_busy = state.is_busy,
         .is_playing = state.playback.playing,
     };
-    updateAction(action, event.*, deps);
+    updateAction(action, event.*, action_deps);
 }
 
 // 根据动作修改状态
@@ -184,6 +205,8 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
 }
 
 fn updateAction(action: *EventAction, event: sdl.Event, deps: ActionDeps) void {
+    deps.modifiers.input(&event); // 更新修饰键状态
+
     if (event.type == sdl.EVENT_QUIT) {
         action.* = .quit;
     } else if (event.type == sdl.EVENT_WINDOW_MINIMIZED) {

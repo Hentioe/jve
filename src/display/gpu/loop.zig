@@ -18,6 +18,7 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
     var event: sdl.c.SDL_Event = undefined;
     var delta: Delta = .init();
     var state: State = .init(deps, &delta);
+    defer state.deinit();
     context.bindEvents(&state);
 
     var action: events.EventAction = .none;
@@ -50,8 +51,8 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
 
         if (!state.dirty) {
             var wait_event: sdl.Event = undefined;
-            if (sdl.c.SDL_WaitEvent(&wait_event)) {
-                events.handle(&wait_event, &action, &state); // 从事件中更新动作
+            if (sdl.waitEvent(&wait_event)) {
+                events.handle(&wait_event, &action, deps, &state); // 从事件中更新动作
                 if (ui.Event.fromSdl(&wait_event)) |ui_event| { // 阻塞唤醒的事件同样要分发给 widget
                     for (deps.widgets) |*w| w.event(&ui_event);
                 }
@@ -59,8 +60,8 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
             delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
 
-        while (sdl.c.SDL_PollEvent(&event)) {
-            events.handle(&event, &action, &state); // 从事件中更新动作
+        while (sdl.pollEvent(&event)) {
+            events.handle(&event, &action, deps, &state); // 从事件中更新动作
             if (ui.Event.fromSdl(&event)) |ui_event| { // 构造 ui 事件结构体
                 // 分发 ui 事件给所有 widget
                 for (deps.widgets) |*w| w.event(&ui_event);

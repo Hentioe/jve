@@ -22,13 +22,16 @@ hidden_all_text = false # 隐藏全部文字，仅对自定义标题栏生效
 image_switch = true
 
 [shaders]
-dir = "shaders/user"
+dir = "test/shaders"
 # 预设: classic | rainbow | tiles
 # 或自定义 .slang, 背景着色器需放在 background 目录
 background = "tiles"
 
-[shaders.custom.changhong]
-keybind = "mod+5"
+# 手动激活的着色器（绑定快捷键）
+[shaders.custom.o]
+keybind = "left_shift+o"
+[shaders.custom.p]
+keybind = "left_shift+p"
 
 [models]
 dir = "models"

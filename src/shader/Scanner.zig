@@ -4,12 +4,11 @@ const slang = @import("slang");
 const config = @import("../config.zig");
 const app_env = @import("../app_env.zig");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
 const loader = @import("loader.zig");
+const loaded = @import("loaded.zig");
 const Cache = @import("Cache.zig");
 const Scanner = @import("../Scanner.zig");
 const Device = @import("../Device.zig");
-const Shaders = ArrayList(*sdl.GPUShader);
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -40,7 +39,8 @@ pub fn scan(self: *Self) Error!void {
     try self.scanner.scan();
 }
 
-pub fn loadAll(allocator: Allocator, gpu: *const sdl.Gpu, shader_dir: []const u8) Error!Shaders {
+pub fn loadAll(allocator: Allocator, gpu: *const sdl.Gpu, shader_dir: []const u8) Error!loaded.All {
+    std.log.debug("{s}", .{config.get().shaders.dir});
     var self = try Self.init(allocator, shader_dir);
     defer self.deinit();
     var cache = try Cache.init(allocator, slang.DEFAULT_PROFILE);
@@ -50,15 +50,16 @@ pub fn loadAll(allocator: Allocator, gpu: *const sdl.Gpu, shader_dir: []const u8
     return try self.compileShaders(self.allocator, gpu, &cache);
 }
 
-pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu, cache: *Cache) Error!Shaders {
+pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu, cache: *Cache) Error!loaded.All {
     const base_dir = self.scanner.dir_path;
     const files = self.scanner.items();
-    if (files.len == 0) return try Shaders.initCapacity(allocator, 0);
 
-    var shaders = try Shaders.initCapacity(allocator, 0);
+    var loaded_all: loaded.All = try .init(allocator);
+    if (files.len == 0) return loaded_all;
+
     errdefer {
-        for (shaders.items) |shader| gpu.releaseGPUShader(shader);
-        shaders.deinit(allocator);
+        for (loaded_all.list.items) |item| gpu.releaseGPUShader(item.shader);
+        loaded_all.deinit();
     }
 
     for (files) |file| {
@@ -71,11 +72,24 @@ pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu, ca
         const shader = loader.load(gpu, bytes, "main", .fragment, .{ .samplers = 1, .buffers = 0 }) catch |err| {
             return app_env.report(err, @src(), "着色器 `{s}` 加载失败", .{file});
         };
-        try shaders.append(allocator, shader);
+
+        const key = std.fs.path.stem(file);
+        if (config.get().shaders.custom) |c| (if (c.get(key)) |cs| {
+            try loaded_all.add(.{
+                .activation = .manual,
+                .keybinding = cs.keybinding,
+                .shader = shader,
+            });
+        }) else {
+            try loaded_all.add(.{
+                .activation = .default,
+                .shader = shader,
+            });
+        }
     }
 
     try cache.save();
-    return shaders;
+    return loaded_all;
 }
 
 /// 加载背景着色器，仅允许调用一次
