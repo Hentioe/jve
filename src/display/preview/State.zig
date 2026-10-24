@@ -2,7 +2,7 @@ const sdl = @import("sdl");
 const shared = @import("shared");
 const config = @import("../../config.zig");
 const Delta = @import("../Delta.zig");
-const ModKey = @import("../ModKey.zig");
+const Modifiers = @import("../Modifiers.zig");
 const Animated = @import("../Animated.zig");
 const SlideIn = @import("../SlideIn.zig");
 const Window = @import("../window.zig");
@@ -15,7 +15,7 @@ const Self = @This();
 running: bool = true,
 delta: *const Delta,
 dst_rect: sdl.c.SDL_FRect = .{},
-mod_key: ModKey,
+modifiers: Modifiers,
 is_dragging: bool = false,
 move_offset: Point,
 scale: Animated,
@@ -33,7 +33,7 @@ pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     angle.updateTargetAngular(env.target_angle);
     var state = Self{
         .delta = delta,
-        .mod_key = ModKey.init(config.get().mod_key),
+        .modifiers = Modifiers.init(config.get().mod_key),
         .move_offset = env.move_offset,
         .scale = scale,
         .angle = angle,

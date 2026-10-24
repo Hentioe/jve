@@ -1,24 +1,22 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const app_env = @import("../../app_env.zig");
 const config = @import("../../config.zig");
 const gallery = @import("../../gallery.zig");
+const Key = sdl.Key;
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");
-const ModKey = @import("../ModKey.zig");
-const app_env = @import("../../app_env.zig");
+const Modifiers = @import("../Modifiers.zig");
 const Error = @import("../errors.zig").Error;
-
-const EventType = @FieldType(sdl.c.union_SDL_Event, "type");
 
 pub const EventAction = union(enum) {
     none,
-    mod_key: EventType,
     quit,
     toggle,
     drag_start: struct { button_x: f32, button_y: f32 },
     drag_stop: struct { button_x: f32, button_y: f32 },
     dragging: struct { xrel: f32, yrel: f32 },
-    rotate: struct { key: sdl.Key },
+    rotate: struct { key: Key },
     delete,
     scale: struct { wheel_y: f32 },
     next_or_prev: struct { wheel_y: f32 },
@@ -26,31 +24,31 @@ pub const EventAction = union(enum) {
 };
 
 const ActionDeps = struct {
-    mod_key: *ModKey,
+    modifiers: *Modifiers,
     dst_rect: *sdl.c.SDL_FRect,
     is_dragging: bool,
 };
 
 // 从事件中更新动作（可跨多个事件累积）
-pub fn handle(event: *sdl.c.SDL_Event, action: *EventAction, state: *State) void {
-    const deps: ActionDeps = .{
-        .mod_key = &state.mod_key,
+pub fn handle(event: *const sdl.Event, action: *EventAction, state: *State) void {
+    const action_deps: ActionDeps = .{
+        .modifiers = &state.modifiers,
         .dst_rect = &state.dst_rect,
         .is_dragging = state.is_dragging,
     };
-    updateActionFromEvent(action, event.*, deps);
+    state.modifiers.input(event); // 更新修饰键状态（在动作更新之前）
+    updateAction(action, event.*, action_deps); // 更新动作
 }
 
 // 根据动作修改状态
-pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error!void {
+pub fn apply(action: EventAction, deps: *RenderDeps, state: *State) Error!void {
     // 其它控制常量
     const max_scale = config.get().max_scale;
     const min_scale = config.get().min_scale;
     const slide_animation = config.get().animation.image_switch; // 切换图片时是否播放侧滑自旋动画
 
-    switch (action.*) {
+    switch (action) {
         .none => {},
-        .mod_key => |event_type| state.mod_key.input(event_type), // 根据类型，自动管理 Mod 按下状态
         .quit => state.running = false,
         .toggle => {
             state.running = false;
@@ -134,29 +132,27 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
     }
 }
 
-fn updateActionFromEvent(action: *EventAction, event: sdl.c.SDL_Event, deps: ActionDeps) void {
-    if (deps.mod_key.key.matches(event.key.key)) {
-        action.* = .{ .mod_key = event.type };
-    } else if (isQuitEvent(event)) {
-        action.* = .quit;
+fn updateAction(ptr: *EventAction, event: sdl.Event, deps: ActionDeps) void {
+    if (isQuitEvent(event)) {
+        ptr.* = .quit;
     } else if (isToggleEvent(event, deps.dst_rect)) {
-        action.* = .toggle;
+        ptr.* = .toggle;
     } else if (isDragStartEvent(event, deps.dst_rect)) {
-        action.* = .{ .drag_start = .{ .button_x = event.button.x, .button_y = event.button.y } };
+        ptr.* = .{ .drag_start = .{ .button_x = event.button.x, .button_y = event.button.y } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == sdl.c.SDL_BUTTON_LEFT) {
-        action.* = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
+        ptr.* = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_MOTION and deps.is_dragging) {
-        handleDragingEvent(event, action);
+        handleDragingEvent(event, ptr);
     } else if (rotateKey(event)) |key| {
-        action.* = .{ .rotate = .{ .key = key } };
-    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.Key.d)) {
-        action.* = .delete;
+        ptr.* = .{ .rotate = .{ .key = key } };
+    } else if (deps.modifiers.primaryPressedBoth(event, Key.d)) {
+        ptr.* = .delete;
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_WHEEL and (sdl.c.SDL_GetModState() & sdl.c.SDL_KMOD_CTRL) != 0) {
-        action.* = .{ .scale = .{ .wheel_y = event.wheel.y } };
+        ptr.* = .{ .scale = .{ .wheel_y = event.wheel.y } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_WHEEL) {
-        action.* = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.slash.matches(event.key.key)) {
-        action.* = .reset;
+        ptr.* = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.slash.matches(event.key.key)) {
+        ptr.* = .reset;
     }
 }
 
@@ -165,7 +161,7 @@ fn isQuitEvent(event: sdl.c.SDL_Event) bool {
     if (event.type == sdl.c.SDL_EVENT_QUIT) { // 正常退出
         return true;
     }
-    if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.escape.matches(event.key.key)) { // ESC 键
+    if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.escape.matches(event.key.key)) { // ESC 键
         return true;
     }
     return false;
@@ -190,12 +186,12 @@ fn isDragStartEvent(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
 }
 
 // 方向键的数组
-const DIRECTION_KEYS = [_]sdl.Key{ .up, .down, .left, .right };
+const DIRECTION_KEYS = [_]Key{ .up, .down, .left, .right };
 // 旋转事件的按键，非旋转事件返回 null
-fn rotateKey(event: sdl.c.SDL_Event) ?sdl.Key {
+fn rotateKey(event: sdl.c.SDL_Event) ?Key {
     if (event.type != sdl.c.SDL_EVENT_KEY_DOWN) return null;
-    const key = sdl.Key.from(event.key.key) orelse return null;
-    return if (std.mem.indexOfScalar(sdl.Key, &DIRECTION_KEYS, key) != null) key else null;
+    const key = Key.from(event.key.key) orelse return null;
+    return if (std.mem.indexOfScalar(Key, &DIRECTION_KEYS, key) != null) key else null;
 }
 
 fn handleDragingEvent(event: sdl.c.SDL_Event, action: *EventAction) void {
@@ -213,7 +209,7 @@ fn handleDragingEvent(event: sdl.c.SDL_Event, action: *EventAction) void {
 }
 
 // 按键映射旋转角度
-fn mapKeyToAngle(key: sdl.Key) ?f64 {
+fn mapKeyToAngle(key: Key) ?f64 {
     return switch (key) {
         .up => 0.0,
         .down => 180.0,

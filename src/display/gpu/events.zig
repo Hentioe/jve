@@ -1,8 +1,8 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const Key = sdl.Key;
 const Task = @import("../Task.zig");
 const Modifiers = @import("../Modifiers.zig");
-const ModKey = @import("../ModKey.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");
 const Screenshot = @import("../../Screenshot.zig");
@@ -45,11 +45,10 @@ pub const Context = struct {
 
     pub fn minimize(self: *Self, _: void) void {
         std.log.debug("Minimize button clicked", .{});
-        self.deps.window.minimize() catch |err| std.log.err("Failed to minimize window: {any}", .{err});
+        self.deps.window.minimize() catch |err| std.log.err("Failed to minimize window: {s}", .{@errorName(err)});
     }
 };
 
-const EventType = @FieldType(sdl.c.union_SDL_Event, "type");
 const slide_sensitivity = 100; // 横向滑动灵敏度
 
 pub const EventAction = union(enum) {
@@ -58,7 +57,6 @@ pub const EventAction = union(enum) {
     minimize,
     restored,
     toggle,
-    mod_key: EventType,
     reset,
     invert,
     grayscale,
@@ -76,7 +74,6 @@ pub const EventAction = union(enum) {
 
 const ActionDeps = struct {
     modifiers: *Modifiers,
-    mod_key: *ModKey,
     is_sliding: bool,
     is_busy: bool,
     is_playing: bool,
@@ -117,21 +114,24 @@ pub fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *S
 }
 
 // 从事件中更新动作（可跨多个事件累积）
-pub fn handle(event: *const sdl.Event, action: *EventAction, deps: *const RenderDeps, state: *State) void {
+pub fn handle(event: *const sdl.Event, action: *EventAction, deps: *RenderDeps, state: *State) void {
     if (handleBinding(event, deps, state)) return; // 绑定的事件触发，直接跳过后续事件处理
     const action_deps: ActionDeps = .{
         .modifiers = &state.modifiers,
-        .mod_key = &state.mod_key,
         .is_sliding = state.is_sliding,
         .is_busy = state.is_busy,
         .is_playing = state.playback.playing,
     };
-    updateAction(action, event.*, action_deps);
+    state.modifiers.input(event); // 更新修饰键状态（在动作更新之前）
+    updateAction(action, event.*, action_deps); // 更新动作
+    if (state.modifiers.takePrimaryPressedChanged()) { // 如果主修饰键按下状态发生变化
+        deps.window.is_draggable = !state.modifiers.primaryPressed(); // 窗口在主 mod 未按下时才能拖动
+    }
 }
 
-// 根据动作修改状态
-pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error!void {
-    switch (action.*) {
+/// 根据动作修改状态。
+pub fn applyAction(action: EventAction, deps: *const RenderDeps, state: *State) Error!void {
+    switch (action) {
         .none => {},
         .quit => state.running = false,
         .minimize => {
@@ -143,10 +143,6 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
         .toggle => {
             state.toggle = true;
             state.running = false;
-        },
-        .mod_key => |event_type| {
-            state.mod_key.input(event_type); // 根据类型，自动管理按下状态
-            deps.window.is_draggable = !state.mod_key.pressed; // Mod 键盘没有按下时才能拖动
         },
         .invert => state.is_inverted = !state.is_inverted,
         .grayscale => state.is_grayscale = !state.is_grayscale,
@@ -223,45 +219,41 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
     }
 }
 
-fn updateAction(action: *EventAction, event: sdl.Event, deps: ActionDeps) void {
-    deps.modifiers.input(&event); // 更新修饰键状态
-
+fn updateAction(ptr: *EventAction, event: sdl.Event, deps: ActionDeps) void {
     if (event.type == sdl.EVENT_QUIT) {
-        action.* = .quit;
+        ptr.* = .quit;
     } else if (event.type == sdl.EVENT_WINDOW_MINIMIZED) {
-        action.* = .minimize;
+        ptr.* = .minimize;
     } else if (event.type == sdl.EVENT_WINDOW_RESTORED) {
-        action.* = .restored;
+        ptr.* = .restored;
     } else if (isToggleEvent(event)) {
-        action.* = .toggle;
-    } else if (deps.mod_key.key.matches(event.key.key)) {
-        action.* = .{ .mod_key = event.type };
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.slash.matches(event.key.key)) { // / 键重置所有参数
-        action.* = .reset;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.r.matches(event.key.key) and !deps.mod_key.pressed) { // R 键反转颜色
-        action.* = .invert;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.g.matches(event.key.key)) { // G 键灰阶化
-        action.* = .grayscale;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.s.matches(event.key.key)) { // S 键保存截图（如果按下 Mod 键，则包含背景）
-        action.* = .{ .save_screenshot = .{ .include_bg = deps.mod_key.pressed } };
-    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.Key.r) and !deps.is_busy) { // Mod+R 去除背景
-        action.* = .start_task;
-    } else if (deps.mod_key.pressedAndKeyDown(event, sdl.Key.t)) { // Mod+T 切换自定义着色器的启用状态
-        action.* = .toggle_custom_shader;
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.space.matches(event.key.key) and !deps.is_busy) { // 空格键暂停/播放动画（繁忙时禁止控制）
-        action.* = .{ .change_playing = !deps.is_playing };
-    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and sdl.Key.c.matches(event.key.key) and (event.key.mod & sdl.c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
-        action.* = .copy_screenshot;
+        ptr.* = .toggle;
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.slash.matches(event.key.key)) { // / 键重置所有参数
+        ptr.* = .reset;
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.r.matches(event.key.key) and !deps.modifiers.primaryPressed()) { // R 键反转颜色
+        ptr.* = .invert;
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.g.matches(event.key.key)) { // G 键灰阶化
+        ptr.* = .grayscale;
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.s.matches(event.key.key)) { // S 键保存截图（如果按下 Mod 键，则包含背景）
+        ptr.* = .{ .save_screenshot = .{ .include_bg = deps.modifiers.primaryPressed() } };
+    } else if (deps.modifiers.primaryPressedBoth(event, Key.r) and !deps.is_busy) { // Mod+R 去除背景
+        ptr.* = .start_task;
+    } else if (deps.modifiers.primaryPressedBoth(event, Key.t)) { // Mod+T 切换自定义着色器的启用状态
+        ptr.* = .toggle_custom_shader;
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.space.matches(event.key.key) and !deps.is_busy) { // 空格键暂停/播放动画（繁忙时禁止控制）
+        ptr.* = .{ .change_playing = !deps.is_playing };
+    } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.c.matches(event.key.key) and (event.key.mod & sdl.c.SDL_KMOD_CTRL) != 0) { // Ctrl+C 复制截图
+        ptr.* = .copy_screenshot;
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_MIDDLE) { // 横向调节开始
-        action.* = .{ .slide_start = .{ .button = event.button.button } };
+        ptr.* = .{ .slide_start = .{ .button = event.button.button } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == sdl.c.SDL_BUTTON_MIDDLE) { // 横向调节结束
-        action.* = .{ .slide_stop = .{ .button = event.button.button } };
+        ptr.* = .{ .slide_stop = .{ .button = event.button.button } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_MOTION and deps.is_sliding) { // 滑动中
-        handleSlidingEvent(event, action);
+        handleSlidingEvent(event, ptr);
     } else if (isChannelChangeEvent(event)) {
-        if (mapKeyToChannel(event.key.key)) |channel| action.* = .{ .channel_change = channel };
-    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_LEFT and deps.mod_key.pressed) { // Mod + 鼠标左键单击，获取位置
-        action.* = .{ .marker = .{ .x = event.button.x, .y = event.button.y } };
+        if (mapKeyToChannel(event.key.key)) |channel| ptr.* = .{ .channel_change = channel };
+    } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_LEFT and deps.modifiers.primaryPressed()) { // Mod + 鼠标左键单击，获取位置
+        ptr.* = .{ .marker = .{ .x = event.button.x, .y = event.button.y } };
     }
 }
 
@@ -272,15 +264,15 @@ fn isToggleEvent(event: sdl.c.SDL_Event) bool {
 
 fn isChannelChangeEvent(event: sdl.c.SDL_Event) bool {
     if ((event.key.mod & sdl.c.SDL_KMOD_RALT) == 0) return false; // 判断右 alt 是否按下
-    return sdl.Key._0.matches(event.key.key) or
-        sdl.Key._1.matches(event.key.key) or
-        sdl.Key._2.matches(event.key.key) or
-        sdl.Key._3.matches(event.key.key) or
-        sdl.Key._4.matches(event.key.key);
+    return Key._0.matches(event.key.key) or
+        Key._1.matches(event.key.key) or
+        Key._2.matches(event.key.key) or
+        Key._3.matches(event.key.key) or
+        Key._4.matches(event.key.key);
 }
 
 fn mapKeyToChannel(key: sdl.c.SDL_Keycode) ?u8 {
-    return switch (sdl.Key.from(key) orelse return null) {
+    return switch (Key.from(key) orelse return null) {
         ._0 => 0,
         ._1 => 1,
         ._2 => 2,

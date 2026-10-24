@@ -4,12 +4,13 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Unresolved = @import("Unresolved.zig");
 const Keybinding = @import("Keybinding.zig");
+const Modifier = Keybinding.Modifier;
 const Custom = std.StringHashMapUnmanaged(CustomShader);
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
 pub const DEFAULT_BASE_DIR: []const u8 = ".";
-pub const DEFAULT_MOD_KEY: sdl.Key = .left_alt;
+pub const DEFAULT_MOD_KEY: Modifier = .left_alt;
 pub const DEFAULT_MIN_SCALE: f32 = 0.5;
 pub const DEFAULT_MAX_SCALE: f32 = 3.0;
 pub const DEFAULT_TITLEBAR_CUSTOM: bool = true;
@@ -156,7 +157,7 @@ base_dir: ?[]const u8, // 基础目录
 display_mode: DisplayMode, // 默认显示模式
 min_scale: f32, // 最小缩放
 max_scale: f32, // 最大缩放
-mod_key: sdl.Key, // 修饰键
+mod_key: Keybinding.Modifier, // 修饰键
 sort: Sort, // 文件排序方式
 screenshot: Screenshot, // 截图配置
 titlebar: Titlebar, // 标题栏配置
@@ -233,14 +234,14 @@ fn resolveDisplayMode(display_mode: ?[]const u8) DisplayMode {
     return mode;
 }
 
-fn resolveModKey(name: ?[]const u8) sdl.Key {
-    var key: sdl.Key = DEFAULT_MOD_KEY;
-    if (name) |n| (if (sdl.Key.parse(n)) |k| if (Keybinding.isModifier(k)) {
-        key = k;
+fn resolveModKey(name: ?[]const u8) Modifier {
+    var mod_key: Modifier = DEFAULT_MOD_KEY;
+    if (name) |n| (if (sdl.Key.parse(n)) |k| if (Modifier.from(k)) |m| {
+        mod_key = m;
     } else {
         std.log.warn("Invalid mod_key \"{s}\", falling back to default: \"{s}\"", .{ n, @tagName(DEFAULT_MOD_KEY) });
     });
-    return key;
+    return mod_key;
 }
 
 fn resolveSort(name: ?[]const u8) Sort {

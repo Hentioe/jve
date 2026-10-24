@@ -6,7 +6,6 @@ const pipelines = @import("../../pipelines.zig");
 const Point = shared.Point(f32);
 const Delta = @import("../Delta.zig");
 const Modifiers = @import("../Modifiers.zig");
-const ModKey = @import("../ModKey.zig");
 const OverflowHint = @import("../OverflowHint.zig");
 const Playback = @import("../Playback.zig");
 const Task = @import("../Task.zig");
@@ -35,7 +34,6 @@ dirty: bool = false,
 playback: Playback,
 // 修饰键
 modifiers: Modifiers,
-mod_key: ModKey,
 // 其它开关
 custom_shader_enabled: bool = false,
 // 基础着色器控制变量
@@ -70,8 +68,7 @@ show_error: bool = false,
 pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     var state = Self{
         .delta = delta,
-        .modifiers = Modifiers.init(),
-        .mod_key = ModKey.init(config.get().mod_key),
+        .modifiers = Modifiers.init(config.get().mod_key),
         .overflow_hint = OverflowHint.init(1.25, 1.25, 0.9),
         .playback = Playback.init(sdl.getTicks(), deps.animation != null),
         .tex_src = deps.tex_a,

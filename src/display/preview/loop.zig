@@ -23,14 +23,14 @@ pub fn run(deps: *RenderDeps) Error!ExitAction {
 
         if (!state.dirty) {
             var wait_event: sdl.Event = undefined;
-            if (sdl.c.SDL_WaitEvent(&wait_event)) events.handle(&wait_event, &action, &state);
+            if (sdl.waitEvent(&wait_event)) events.handle(&wait_event, &action, &state);
             delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
         // 从事件中更新动作
-        while (sdl.c.SDL_PollEvent(&event)) events.handle(&event, &action, &state);
+        while (sdl.pollEvent(&event)) events.handle(&event, &action, &state);
 
         // 根据动作修改状态
-        try events.apply(deps, &action, &state);
+        try events.apply(action, deps, &state);
         // 根据状态执行渲染
         try frame.render(deps, &state);
         // 记录首次渲染完成
