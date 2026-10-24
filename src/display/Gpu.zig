@@ -2,23 +2,23 @@ const std = @import("std");
 const sdl = @import("sdl");
 const ass = @import("ass");
 const shared = @import("shared");
-const config = @import("../config.zig");
-const ui = @import("../ui.zig");
-const gallery = @import("../gallery.zig");
-const Window = @import("window.zig");
-const Device = @import("../Device.zig");
 const app_env = @import("../app_env.zig");
+const config = @import("../config.zig");
+const gallery = @import("../gallery.zig");
+const ui = @import("../ui.zig");
 const shader = @import("../shader.zig");
 const Allocator = std.mem.Allocator;
+const Window = @import("window.zig");
+const Device = @import("../Device.zig");
+const pipelines = @import("../pipelines.zig");
 const RenderDeps = @import("gpu/RenderDeps.zig");
 const events = @import("gpu/events.zig");
-const pipelines = @import("../pipelines.zig");
 const loop = @import("gpu/loop.zig");
 const ExitAction = @import("enums.zig").ExitAction;
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
-// 组件总量
+// UI 组件总量
 const MAX_WIDGETS = 1; // 当前仅有 title_bar 组件
 
 gpa: Allocator,
@@ -34,15 +34,19 @@ pub fn init(allocator: Allocator) Error!Self {
     const image_size = image.shape.toSize2D(i32);
     // 创建窗口
     const borderless = config.get().titlebar.custom;
-    const window = try Window.create(allocator, image_size, .{ .windowed = true, .mode = .gpu, .borderless = borderless });
+    const window = try Window.create(allocator, image_size, .{
+        .windowed = true,
+        .mode = .gpu,
+        .borderless = borderless,
+    });
     errdefer window.destroy();
     try app_env.trace_mark("Window.create");
     // 获取显示层共享的 GPU 设备
     const device = try Device.getGpu();
+    window.gpu_device = device;
     // 绑定窗口到 GPU 设备
     try device.claimWindow(window.sdl_window);
     try app_env.trace_mark("gpu_init");
-    window.gpu_device = device;
     // 关闭垂直同步（修改交换链的 Present Mode）
     // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
     // 注意：目前垂直同步关闭已被取消，sdl_gpu 仍然是默认状态。
@@ -123,24 +127,23 @@ pub fn show(self: *Self) Error!ExitAction {
     var error_banner: ui.TextBanner = try .init(self.gpa, &self.ass_renderer, self.window.fit_size, .{});
     defer error_banner.deinit();
 
-    // 顶部标题栏（自带 close / minimize 按钮）
+    // 组件列表
+    var widgets_buf: [MAX_WIDGETS]ui.Widget = undefined;
+    var widgets: std.ArrayList(ui.Widget) = .initBuffer(&widgets_buf);
+
+    // 标题栏组件（可选，按配置）
     var title_bar: ?ui.TitleBar = null;
+    defer if (title_bar) |*tb| tb.deinit();
     if (self.window.borderless) {
-        const window_size = self.window.fit_size;
-        title_bar = try ui.TitleBar.init(self.gpa, window_size, .{
+        title_bar = try ui.TitleBar.init(self.gpa, self.window.fit_size, .{
             .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity),
         });
+        try app_env.trace_mark("TitleBar.init");
         title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量
-    }
-    defer if (title_bar) |*tb| tb.deinit();
-
-    var widget_count: usize = 0;
-    // 组件数量是动态的，预先分配已知上限的数组
-    var widgets: [MAX_WIDGETS]ui.Widget = undefined;
-    if (title_bar) |*tb| {
-        if (!(config.get().titlebar.hidden_all_text)) try tb.setText(self.window.getTitle());
-        widgets[widget_count] = tb.toWidget();
-        widget_count += 1;
+        // 设置标题文本
+        if (!config.get().titlebar.hidden_all_text) try title_bar.?.setText(self.window.getTitle());
+        // 添加到组件列表
+        try widgets.appendBounded(title_bar.?.toWidget());
     }
 
     var deps = try RenderDeps.init(
@@ -149,7 +152,7 @@ pub fn show(self: *Self) Error!ExitAction {
         self.device,
         image,
         self.shaders,
-        widgets[0..widget_count],
+        widgets.items,
         &error_banner,
     );
     errdefer deps.deinit();
