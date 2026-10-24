@@ -226,41 +226,41 @@ pub fn deinit(self: *Self) void {
 }
 
 fn resolveDisplayMode(display_mode: ?[]const u8) DisplayMode {
-    var mode = DisplayMode.default;
+    var mode: DisplayMode = .default;
     if (display_mode) |d| (if (DisplayMode.parse(d)) |m| {
         mode = m;
     } else {
-        std.log.warn("Unrecognized display mode: \"{s}\", falling back to default: \"{s}\"", .{ d, @tagName(mode) });
+        std.log.warn("Invalid display mode: \"{s}\", falling back to: \"{s}\"", .{ d, @tagName(mode) });
     });
     return mode;
 }
 
 fn resolveModKey(name: ?[]const u8) Modifier {
-    var mod_key: Modifier = DEFAULT_MOD_KEY;
+    var mod_key = DEFAULT_MOD_KEY;
     if (name) |n| (if (sdl.Key.parse(n)) |k| if (Modifier.from(k)) |m| {
         mod_key = m;
     } else {
-        std.log.warn("Invalid mod_key \"{s}\", falling back to default: \"{s}\"", .{ n, @tagName(DEFAULT_MOD_KEY) });
+        std.log.warn("Invalid mod_key \"{s}\", falling back to: \"{s}\"", .{ n, @tagName(mod_key) });
     });
     return mod_key;
 }
 
 fn resolveSort(name: ?[]const u8) Sort {
-    var sort = Sort.default;
+    var sort: Sort = .default;
     if (name) |n| (if (Sort.parse(n)) |s| {
         sort = s;
     } else {
-        std.log.warn("Invalid sort \"{s}\", falling back to default: \"{s}\"", .{ n, @tagName(Sort.default) });
+        std.log.warn("Invalid sort \"{s}\", falling back to: \"{s}\"", .{ n, @tagName(sort) });
     });
     return sort;
 }
 
 fn resolveScreenshot(arena: Allocator, config: Unresolved.ScreenshotConfig) Error!Screenshot {
-    var format: ScreenshotFormat = ScreenshotFormat.default;
+    var format: ScreenshotFormat = .default;
     if (config.format) |s| if (ScreenshotFormat.parse(s)) |f| {
         format = f;
     } else {
-        std.log.warn("Invalid screenshot format \"{s}\", falling back to default: \"{f}\"", .{ s, ScreenshotFormat.default });
+        std.log.warn("Invalid screenshot format \"{s}\", falling back to: \"{f}\"", .{ s, format });
     };
 
     var dir: ?[]u8 = null;
