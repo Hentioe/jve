@@ -214,6 +214,7 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
             state.slide_value = 0;
             state.marker_pos = null;
             state.custom_shader_enabled = false;
+            state.manual = null;
             if (state.tex_mask) |tex| { // 移除遮罩
                 deps.device.releaseGPUTexture(tex);
                 state.tex_mask = null;
