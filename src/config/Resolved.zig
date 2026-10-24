@@ -2,8 +2,9 @@ const std = @import("std");
 const sdl = @import("sdl");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const UnResolved = @import("UnResolved.zig");
+const Unresolved = @import("Unresolved.zig");
 const Keybinding = @import("Keybinding.zig");
+const Custom = std.StringHashMapUnmanaged(CustomShader);
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -16,7 +17,7 @@ pub const DEFAULT_TITLEBAR_OPACITY: f32 = 0.15;
 pub const DEFAULT_TITLEBAR_HIDDEN_FILE_SIZE: bool = true;
 pub const DEFAULT_TITLEBAR_HIDDEN_APP_NAME: bool = true;
 pub const DEFAULT_TITLEBAR_HIDDEN_ALL_TEXT: bool = false;
-pub const DEFAULT_IMAGE_SWITCH_ANIMATION: bool = true;
+pub const DEFAULT_ANIMATION_IMAGE_SWITCH: bool = true;
 pub const DEFAULT_SHADERS_DIR: []const u8 = "shaders";
 pub const DEFAULT_MODELS_DIR: []const u8 = "models";
 
@@ -97,13 +98,13 @@ pub const Titlebar = struct {
 pub const Animation = struct {
     image_switch: bool, // 是否启用图片切换动画
 
-    pub const default: Animation = .{ .image_switch = DEFAULT_IMAGE_SWITCH_ANIMATION };
+    pub const default: Animation = .{ .image_switch = DEFAULT_ANIMATION_IMAGE_SWITCH };
 };
 
 pub const Shaders = struct {
     dir: []const u8, // 着色器目录
     background: ?[]const u8, // 背景着色器
-    custom: ?std.StringHashMap(CustomShader), // 自定义着色器配置
+    custom: ?Custom, // 自定义着色器配置
 
     pub const default: Shaders = .{
         .dir = DEFAULT_SHADERS_DIR,
@@ -181,22 +182,23 @@ pub fn default(allocator: Allocator) Self {
     };
 }
 
-pub fn resolve(gpa: Allocator, config: ?UnResolved) Error!Self {
+pub fn resolve(gpa: Allocator, config: ?Unresolved) Error!Self {
     if (config == null) return default(gpa);
     const loaded = config.?;
     var arena = ArenaAllocator.init(gpa);
-    const a = arena.allocator();
+    errdefer arena.deinit();
+    const a = arena.allocator(); // 注意：后续所有的容器使用 Unmanaged 版本，避免持有 resolve 调用栈的 arena
     var base_dir = DEFAULT_BASE_DIR;
     if (loaded.base_dir) |d| base_dir = try a.dupe(u8, d);
     const display_mode = resolveDisplayMode(loaded.display_mode);
-    const min_scale = loaded.min_scale;
-    const max_scale = loaded.max_scale;
+    const min_scale = loaded.min_scale orelse DEFAULT_MIN_SCALE;
+    const max_scale = loaded.max_scale orelse DEFAULT_MAX_SCALE;
     const mod_key = resolveModKey(loaded.mod_key);
     const sort = resolveSort(loaded.sort);
     const screenshot = try resolveScreenshot(a, loaded.screenshot);
     const titlebar = resolveTitlebar(loaded.titlebar);
     const animation = resolveAnimation(loaded.animation);
-    const shaders = try resolveShaders(gpa, a, loaded.shaders);
+    const shaders = try resolveShaders(a, loaded.shaders);
     const models = try resolveModels(a, loaded.models);
 
     return Self{
@@ -217,33 +219,41 @@ pub fn resolve(gpa: Allocator, config: ?UnResolved) Error!Self {
 }
 
 pub fn deinit(self: *Self) void {
-    if (self.shaders.custom) |*c| c.deinit();
+    if (self.shaders.custom) |*c| c.deinit(self.arena.allocator());
     self.arena.deinit();
 }
 
-fn resolveDisplayMode(display_mode: []const u8) DisplayMode {
-    if (DisplayMode.parse(display_mode)) |mode| {
-        return mode;
+fn resolveDisplayMode(display_mode: ?[]const u8) DisplayMode {
+    var mode = DisplayMode.default;
+    if (display_mode) |d| (if (DisplayMode.parse(d)) |m| {
+        mode = m;
     } else {
-        std.log.warn("Unrecognized display mode: \"{s}\", falling back to default: \"{s}\"", .{ display_mode, @tagName(DisplayMode.default) });
-        return DisplayMode.default;
-    }
+        std.log.warn("Unrecognized display mode: \"{s}\", falling back to default: \"{s}\"", .{ d, @tagName(mode) });
+    });
+    return mode;
 }
 
-fn resolveModKey(name: []const u8) sdl.Key {
-    if (sdl.Key.parse(name)) |key| if (Keybinding.isModifier(key)) return key;
-    std.log.warn("Invalid mod_key \"{s}\", falling back to default: \"{s}\"", .{ name, @tagName(DEFAULT_MOD_KEY) });
-    return DEFAULT_MOD_KEY;
+fn resolveModKey(name: ?[]const u8) sdl.Key {
+    var key: sdl.Key = DEFAULT_MOD_KEY;
+    if (name) |n| (if (sdl.Key.parse(n)) |k| if (Keybinding.isModifier(k)) {
+        key = k;
+    } else {
+        std.log.warn("Invalid mod_key \"{s}\", falling back to default: \"{s}\"", .{ n, @tagName(DEFAULT_MOD_KEY) });
+    });
+    return key;
 }
 
-fn resolveSort(name: []const u8) Sort {
-    return Sort.parse(name) orelse {
-        std.log.warn("Invalid sort \"{s}\", falling back to default: \"{s}\"", .{ name, @tagName(Sort.default) });
-        return Sort.default;
-    };
+fn resolveSort(name: ?[]const u8) Sort {
+    var sort = Sort.default;
+    if (name) |n| (if (Sort.parse(n)) |s| {
+        sort = s;
+    } else {
+        std.log.warn("Invalid sort \"{s}\", falling back to default: \"{s}\"", .{ n, @tagName(Sort.default) });
+    });
+    return sort;
 }
 
-fn resolveScreenshot(arena: Allocator, config: UnResolved.ScreenshotConfig) Error!Screenshot {
+fn resolveScreenshot(arena: Allocator, config: Unresolved.ScreenshotConfig) Error!Screenshot {
     var format: ScreenshotFormat = ScreenshotFormat.default;
     if (config.format) |s| if (ScreenshotFormat.parse(s)) |f| {
         format = f;
@@ -260,7 +270,7 @@ fn resolveScreenshot(arena: Allocator, config: UnResolved.ScreenshotConfig) Erro
     };
 }
 
-fn resolveTitlebar(config: UnResolved.TitlebarConfig) Titlebar {
+fn resolveTitlebar(config: Unresolved.TitlebarConfig) Titlebar {
     return .{
         .custom = config.custom orelse DEFAULT_TITLEBAR_CUSTOM,
         .opacity = config.opacity orelse DEFAULT_TITLEBAR_OPACITY,
@@ -270,25 +280,25 @@ fn resolveTitlebar(config: UnResolved.TitlebarConfig) Titlebar {
     };
 }
 
-fn resolveAnimation(config: UnResolved.AnimationConfig) Animation {
+fn resolveAnimation(config: Unresolved.AnimationConfig) Animation {
     return .{
-        .image_switch = config.image_switch,
+        .image_switch = config.image_switch orelse DEFAULT_ANIMATION_IMAGE_SWITCH,
     };
 }
 
-fn resolveShaders(gap: Allocator, arena: Allocator, config: UnResolved.ShadersConfig) Error!Shaders {
-    var custom_shaders: ?std.StringHashMap(CustomShader) = null;
-    if (config.custom) |custom| {
-        var iter = custom.map.iterator();
-        var tmp = std.StringHashMap(CustomShader).init(gap);
+fn resolveShaders(arena: Allocator, config: Unresolved.ShadersConfig) Error!Shaders {
+    var custom: ?Custom = null;
+    if (config.custom) |c| {
+        var iter = c.map.iterator();
+        var tmp: Custom = .empty;
         while (iter.next()) |kv| {
             const key = try arena.dupe(u8, kv.key_ptr.*);
             const value: CustomShader = .{
                 .keybinding = try Keybinding.parse(kv.value_ptr.keybind),
             };
-            try tmp.put(key, value);
+            try tmp.put(arena, key, value);
         }
-        custom_shaders = tmp;
+        custom = tmp;
     }
 
     var dir = DEFAULT_SHADERS_DIR;
@@ -299,11 +309,11 @@ fn resolveShaders(gap: Allocator, arena: Allocator, config: UnResolved.ShadersCo
     return .{
         .dir = dir,
         .background = background,
-        .custom = custom_shaders,
+        .custom = custom,
     };
 }
 
-fn resolveModels(arena: Allocator, config: UnResolved.ModelsConfig) Error!Models {
+fn resolveModels(arena: Allocator, config: Unresolved.ModelsConfig) Error!Models {
     var birefnet: ?BiRefNet = null;
     if (config.birefnet) |b| {
         birefnet = .{

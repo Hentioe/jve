@@ -3,17 +3,17 @@ const toml = @import("toml");
 const app_env = @import("../app_env.zig");
 const paths = @import("paths.zig");
 const Allocator = std.mem.Allocator;
-const UnResolved = @import("UnResolved.zig");
+const Unresolved = @import("Unresolved.zig");
 const Error = @import("errors.zig").Error;
 
 pub const Loaded = struct {
-    parsed: ?toml.Parsed(UnResolved) = null,
+    parsed: ?toml.Parsed(Unresolved) = null,
 
     pub fn deinit(self: *Loaded) void {
         if (self.parsed) |p| p.deinit();
     }
 
-    pub fn config(self: *const Loaded) ?UnResolved {
+    pub fn config(self: *const Loaded) ?Unresolved {
         if (self.parsed) |p| return p.value;
         return null;
     }
@@ -35,7 +35,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
     if (path) |p| {
         std.log.info("Loading config file: {s}", .{p});
 
-        var parser = toml.Parser(UnResolved).init(allocator);
+        var parser = toml.Parser(Unresolved).init(allocator);
         defer parser.deinit();
 
         const parsed = parser.parseFile(p) catch |err| {
