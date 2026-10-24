@@ -1,15 +1,13 @@
 const std = @import("std");
 const sdl = @import("sdl");
-const h = @import("sdl").h;
 const shared = @import("shared");
 const structs = @import("../structs.zig");
-const Screenshot = @import("../../Screenshot.zig");
+const Size2D = shared.Size2D;
 const Device = @import("../../Device.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");
 const Error = @import("../errors.zig").Error;
-
-const Size2D = shared.Size2D;
+// -- uniforms --
 const BaseUniforms = structs.BaseUniforms;
 const SharpenUniforms = structs.SharpenUniforms;
 const FogUniforms = structs.FogUniforms;
@@ -73,7 +71,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 state.tex_mask = new_mask;
                 std.log.info("Task result read complete", .{});
             },
-            .failure => |err| try showError(deps, state, "任务出错：{s}", .{@errorName(err)}),
+            .failure => |err| try state.showError(deps, "任务出错：{s}", .{@errorName(err)}),
         };
     };
 
@@ -140,7 +138,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     }
 
     // 截图包含背景：背景作为链上的一趟垫在内容下面
-    if (state.screenshot_include_bg) {
+    if (state.screenshot.include_bg) {
         try deps.background.composite(cmd, state.tex_src);
     }
 
@@ -151,7 +149,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
             // 开启屏幕渲染
             try deps.screen.begin(cmd, tex_swp);
             // tex_src 已包含背景时不再重复绘制
-            if (!state.screenshot_include_bg) {
+            if (!state.screenshot.include_bg) {
                 // 绑定背景管线，绘制背景
                 deps.background.bind(deps.screen.render_pass); // 绑定到屏幕通道
                 deps.background.draw();
@@ -168,7 +166,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
                 const marker_loc_uniforms: MarkerVertUniforms = .fromViewportPoint(pos.x, pos.y, viewport_size.w, viewport_size.h);
                 deps.marker.pushVertexUniforms(cmd, 0, &marker_loc_uniforms, @sizeOf(MarkerVertUniforms));
                 // 传递标记大小
-                const marker_size_uniforms: MarkerFragUniforms = .{ .radius = State.marker_radius, .border_width = 2.0 };
+                const marker_size_uniforms: MarkerFragUniforms = .{ .radius = State.MARKER_RADIUS, .border_width = 2.0 };
                 deps.marker.pushFragmentUniforms(cmd, 0, &marker_size_uniforms, @sizeOf(MarkerFragUniforms));
                 // 绘制标记
                 deps.marker.draw();
@@ -196,31 +194,5 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
         }
     }
     // 提交命令，渲染到屏幕
-    try h.check(sdl.c.SDL_SubmitGPUCommandBuffer(cmd));
-
-    // 处理截图保存和复制
-    if (state.save_screenshot or state.copy_screenshot) {
-        // 创建截图器
-        var screenshot = Screenshot.init(deps.allocator, device, state.tex_src, &deps.image) catch |err| fallback: {
-            try showError(deps, state, "截图失败：{s}", .{@errorName(err)});
-            break :fallback null;
-        };
-        if (screenshot) |*s| {
-            defer s.deinit();
-            if (state.save_screenshot) s.saveToFile() catch |err| try showError(deps, state, "保存失败：{s}", .{@errorName(err)});
-            if (state.copy_screenshot) s.copyToClipboard();
-        }
-
-        // 重置控制参数
-        state.save_screenshot = false;
-        state.copy_screenshot = false;
-        state.screenshot_include_bg = false;
-    }
-}
-
-fn showError(deps: *RenderDeps, state: *State, comptime fmt: []const u8, args: anytype) Error!void {
-    const message = try std.fmt.allocPrint(deps.allocator, fmt, args);
-    defer deps.allocator.free(message);
-    try deps.error_banner.setText(message);
-    state.show_error = true;
+    try sdl.h.check(sdl.c.SDL_SubmitGPUCommandBuffer(cmd));
 }

@@ -5,6 +5,7 @@ const Modifiers = @import("../Modifiers.zig");
 const ModKey = @import("../ModKey.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const State = @import("State.zig");
+const Screenshot = @import("../../Screenshot.zig");
 const ui = @import("../../ui.zig");
 const Error = @import("../errors.zig").Error;
 
@@ -81,6 +82,23 @@ const ActionDeps = struct {
     is_playing: bool,
 };
 
+/// 处理截图相关事件
+pub fn handleScreenshot(deps: *RenderDeps, state: *State) Error!void {
+    // 创建截图器
+    var s = Screenshot.init(deps.allocator, deps.device, state.tex_src, &deps.image) catch |err| {
+        try state.showError(deps, "截图失败：{s}", .{@errorName(err)});
+        return;
+    };
+
+    defer s.deinit();
+    const action = state.screenshot.action;
+    if (action == .save) s.saveToFile() catch |err| try state.showError(deps, "保存失败：{s}", .{@errorName(err)});
+    if (action == .copy) s.copyToClipboard();
+
+    // 重置截图输入
+    state.screenshot = .default;
+}
+
 /// 处理按键绑定事件
 pub fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *State) bool {
     var iter = deps.manuals.keyIterator();
@@ -133,10 +151,10 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
         .invert => state.is_inverted = !state.is_inverted,
         .grayscale => state.is_grayscale = !state.is_grayscale,
         .save_screenshot => |payload| {
-            state.save_screenshot = true;
-            state.screenshot_include_bg = payload.include_bg;
+            state.screenshot.action = .save;
+            state.screenshot.include_bg = payload.include_bg;
         },
-        .copy_screenshot => state.copy_screenshot = true,
+        .copy_screenshot => state.screenshot.action = .copy,
         .start_task => {
             if (state.task == null) {
                 state.is_busy = true;
@@ -176,7 +194,7 @@ pub fn apply(deps: *RenderDeps, action: *const EventAction, state: *State) Error
                 const dx = payload.x - prev.x;
                 const dy = payload.y - prev.y;
                 // 二次点击落在标记范围内，则移除标记
-                if (dx * dx + dy * dy <= State.marker_radius * State.marker_radius) {
+                if (dx * dx + dy * dy <= State.MARKER_RADIUS * State.MARKER_RADIUS) {
                     state.marker_pos = null;
                     removed = true;
                     std.log.debug("Marker removed", .{});

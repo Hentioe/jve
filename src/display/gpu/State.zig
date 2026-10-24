@@ -1,7 +1,9 @@
+const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const config = @import("../../config.zig");
 const pipelines = @import("../../pipelines.zig");
+const Point = shared.Point(f32);
 const Delta = @import("../Delta.zig");
 const Modifiers = @import("../Modifiers.zig");
 const ModKey = @import("../ModKey.zig");
@@ -9,11 +11,21 @@ const OverflowHint = @import("../OverflowHint.zig");
 const Playback = @import("../Playback.zig");
 const Task = @import("../Task.zig");
 const RenderDeps = @import("RenderDeps.zig");
-const Point = shared.Point(f32);
+const Error = @import("../errors.zig").Error;
 const Self = @This();
 
+/// 截图输入状态
+pub const ScreenshotInput = struct {
+    pub const Action = enum { save, copy, none };
+
+    action: Action = .none, // 截图动作
+    include_bg: bool = false, // 是否包含背景
+
+    pub const default: ScreenshotInput = .{};
+};
+
 /// 标记半径（像素），同时作为二次点击移除的判定范围
-pub const marker_radius: f32 = 18.0;
+pub const MARKER_RADIUS: f32 = 18.0;
 
 running: bool = true,
 delta: *const Delta,
@@ -33,10 +45,8 @@ brightness: f32 = 0, // 亮度调整值（暂未实现）
 contrast: f32 = 1, // 对比度调整值（暂未实现）
 gamma: f32 = 1, // Gamma 校正值（暂未实现）
 channel: i32 = 0, // 0: 正常全彩, 1: R, 2: G, 3: B, 4: A
-// 截图
-save_screenshot: bool = false,
-screenshot_include_bg: bool = false,
-copy_screenshot: bool = false,
+// 截图输入
+screenshot: ScreenshotInput = .default,
 // 是否正在繁忙处理
 is_busy: bool = false,
 // 横向滑动控制变量
@@ -73,4 +83,11 @@ pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
 
 pub fn deinit(self: *Self) void {
     self.* = undefined;
+}
+
+pub fn showError(self: *Self, deps: *RenderDeps, comptime fmt: []const u8, args: anytype) Error!void {
+    const message = try std.fmt.allocPrint(deps.allocator, fmt, args);
+    defer deps.allocator.free(message);
+    try deps.error_banner.setText(message);
+    self.show_error = true;
 }

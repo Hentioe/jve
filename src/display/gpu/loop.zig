@@ -74,6 +74,8 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         advanceAnimation(deps, &state);
         // 根据状态执行渲染
         try frame.render(deps, &state);
+        // 处理截图保存和复制
+        if (state.screenshot.action != .none) try events.handleScreenshot(deps, &state);
         // 记录首次渲染完成
         if (!first_render_logged) {
             // 首次渲染完成
