@@ -40,7 +40,6 @@ pub fn scan(self: *Self) Error!void {
 }
 
 pub fn loadAll(allocator: Allocator, gpu: *const sdl.Gpu, shader_dir: []const u8) Error!loaded.All {
-    std.log.debug("{s}", .{config.get().shaders.dir});
     var self = try Self.init(allocator, shader_dir);
     defer self.deinit();
     var cache = try Cache.init(allocator, slang.DEFAULT_PROFILE);
