@@ -32,6 +32,16 @@ background = "tiles"
 keybind = "left_shift+o"
 [shaders.custom.p]
 keybind = "left_shift+p"
+[shaders.custom.5]
+keybind = "left_shift+5"
+[shaders.custom.6]
+keybind = "left_shift+6"
+[shaders.custom.7]
+keybind = "left_shift+7"
+[shaders.custom.8]
+keybind = "left_shift+8"
+[shaders.custom.9]
+keybind = "left_shift+9"
 
 [models]
 dir = "models"
