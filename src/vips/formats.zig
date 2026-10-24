@@ -3,7 +3,7 @@ const c = @import("c.zig").c;
 const h = @import("helper.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const Suffixes = std.StringArrayHashMap(void);
+const Suffixes = std.StringArrayHashMapUnmanaged(void);
 const Error = @import("errors.zig").Error;
 
 // vips 格式黑名单
@@ -22,7 +22,7 @@ const Cache = struct {
         errdefer arena.deinit(); // 避免后续错误导致内存不释放
         const a = arena.allocator();
         // 申请内存
-        var suffixes: Suffixes = .init(a);
+        var suffixes: Suffixes = .empty;
         // 逐个复制
         var i: usize = 0;
         while (i < len) : (i += 1) {
@@ -31,13 +31,16 @@ const Cache = struct {
                 a.free(s);
                 continue;
             }
-            try suffixes.put(s, {});
+            try suffixes.put(a, s, {});
         }
 
         return Cache{ .arena = arena, .suffixes = suffixes };
     }
 
     pub fn deinit(self: *Cache) void {
+        // 分配器必须从当前的 arena 现取：Cache 被返回时 arena 已经搬动过一次，
+        // 沿用构造期间的 allocator 会指向失效地址。
+        self.suffixes.deinit(self.arena.allocator());
         self.arena.deinit();
         self.* = undefined;
     }
