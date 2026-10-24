@@ -56,7 +56,7 @@ pub fn run(self: *const Self, input: Input) Error!Image {
     const allocator = self.api.gpa;
     defer shared.heap.mallocTrim(); // 完成后立即归还堆内存
     // 创建跟踪器
-    var trace: StepTrace = try .initSafe(allocator);
+    var trace: StepTrace = try .initSafe(allocator, "BiRefNet model");
     defer trace.deinit();
     defer trace.report();
     // 打印输入的基本信息

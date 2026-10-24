@@ -28,7 +28,7 @@ pub fn main() !void {
         try jve.clearCache(allocator, res.args.config);
     } else if (res.positionals[0]) |file_path| { // 取位置参数作为路径
         // 启动跟踪
-        var trace = jve.StepTrace.init(allocator);
+        var trace = jve.StepTrace.init(allocator, "startup");
         defer trace.deinit();
         defer trace.report(); // 输出跟踪报告
         // 初始化

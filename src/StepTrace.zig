@@ -11,22 +11,25 @@ pub const Mark = struct {
 };
 
 allocator: Allocator,
+name: []const u8,
 timer: Timer,
 marks: std.ArrayList(Mark) = .empty,
 completed: bool = false,
 
 /// 初始化跟踪器，如果 `std.time.Timer` 不可用将直接崩溃。
-pub fn init(allocator: Allocator) Self {
+pub fn init(allocator: Allocator, name: []const u8) Self {
     return .{
         .allocator = allocator,
+        .name = name,
         .timer = Timer.start() catch @panic("monotonic clock unavailable"),
     };
 }
 
 /// 安全版 init，返回 Error 而不是崩溃。
-pub fn initSafe(allocator: Allocator) Error!Self {
+pub fn initSafe(allocator: Allocator, name: []const u8) Error!Self {
     return .{
         .allocator = allocator,
+        .name = name,
         .timer = try Timer.start(),
     };
 }
@@ -47,19 +50,20 @@ pub fn mark(self: *Self, name: []const u8) Error!void {
 
 /// 统一输出
 pub fn report(self: *const Self) void {
-    std.debug.print("{s:<16} {s:>12} {s:>12}\n", .{ "stage", "delta(ms)", "total(ms)" });
+    std.debug.print("Step tracking report for: {s}\n", .{self.name});
+    std.debug.print(" {s:<16} {s:>12} {s:>12}\n", .{ "stage", "delta(ms)", "total(ms)" });
     var prev: u64 = 0;
     for (self.marks.items) |m| {
         const delta_ms = toMs(m.ns - prev);
         const total_ms = toMs(m.ns);
-        std.debug.print("{s:<16} {d:>12.3} {d:>12.3}\n", .{ m.name, delta_ms, total_ms });
+        std.debug.print(" {s:<16} {d:>12.3} {d:>12.3}\n", .{ m.name, delta_ms, total_ms });
         prev = m.ns;
     }
 }
 
-/// 标记 StepTrace 已完成
+/// 标记跟踪器已完成，并输出总耗时。
 pub fn complete(self: *Self) void {
-    std.log.info("StepTrace completed", .{});
+    std.log.info("Step tracking complete (total {d:.0}ms)", .{toMs(self.timer.read())});
     self.completed = true;
 }
 

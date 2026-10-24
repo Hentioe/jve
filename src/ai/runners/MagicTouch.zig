@@ -52,7 +52,7 @@ pub fn run(self: *const Self, input: Input) Error!Image {
     const allocator = self.api.gpa;
     defer shared.heap.mallocTrim(); // 立即归还空闲堆给操作系统
     // 创建跟踪器
-    var trace: StepTrace = try .initSafe(allocator);
+    var trace: StepTrace = try .initSafe(allocator, "MagicTouch model");
     defer trace.deinit();
     defer trace.report();
     // 打印输入的基本信息
