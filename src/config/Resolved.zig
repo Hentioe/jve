@@ -1,5 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const app_env = @import("../app_env.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Unresolved = @import("Unresolved.zig");
@@ -295,7 +296,7 @@ fn resolveShaders(arena: Allocator, config: Unresolved.ShadersConfig) Error!Shad
         while (iter.next()) |kv| {
             const key = try arena.dupe(u8, kv.key_ptr.*);
             const value: CustomShader = .{
-                .keybinding = try Keybinding.parse(kv.value_ptr.keybind),
+                .keybinding = Keybinding.parse(kv.value_ptr.keybind) catch |err| return app_env.report(err, @src(), "按键绑定无效：{s}", .{kv.value_ptr.keybind}),
             };
             try tmp.put(arena, key, value);
         }
