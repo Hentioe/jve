@@ -29,6 +29,11 @@ pub fn strdup(s: []const u8) Allocator.Error![*:0]u8 {
     return buf.ptr;
 }
 
+/// 字节转 KB(1 KB = 1024 字节)，直接截断小数部分。
+pub fn bytesToKb(bytes: u64) u64 {
+    return bytes / 1024;
+}
+
 /// 用系统默认浏览器打开 URL（Linux，依赖 xdg-open）
 pub fn openUrl(allocator: Allocator, url: []const u8) OpenUrlError!void {
     var child = std.process.Child.init(&.{ "xdg-open", url }, allocator);

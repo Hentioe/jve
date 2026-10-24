@@ -78,9 +78,8 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         if (state.screenshot.action != .none) try events.handleScreenshot(deps, &state);
         // 记录首次渲染完成
         if (!first_render_logged) {
-            // 首次渲染完成
             try app_env.trace_mark("first_rendering");
-            app_env.trace_complete();
+            app_env.trace_complete(); // 首次渲染完成，跟踪结束
             first_render_logged = true;
         }
     }

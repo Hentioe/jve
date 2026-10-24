@@ -1,7 +1,7 @@
 const structs = @import("shared/structs.zig");
 const errors = @import("shared/errors.zig");
-const helper = @import("shared/helper.zig");
 
+pub const helper = @import("shared/helper.zig");
 pub const heap = @import("shared/heap.zig");
 pub const Fatal = @import("shared/Fatal.zig");
 pub const Vertex = structs.Vertex;
