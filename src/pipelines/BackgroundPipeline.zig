@@ -1,3 +1,4 @@
+const std = @import("std");
 const c = @import("sdl").c;
 const h = @import("sdl").h;
 const Gpu = @import("sdl").Gpu;
@@ -32,15 +33,33 @@ pub fn init(gpu: *const Gpu, format: c.SDL_GPUTextureFormat) Error!Self {
             .src_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA,
             .dst_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE,
             .alpha_blend_op = c.SDL_GPU_BLENDOP_ADD,
+            .color_write_mask = c.SDL_GPU_COLORCOMPONENT_R |
+                c.SDL_GPU_COLORCOMPONENT_G |
+                c.SDL_GPU_COLORCOMPONENT_B |
+                c.SDL_GPU_COLORCOMPONENT_A,
             .enable_color_write_mask = false,
+            .padding1 = 0,
+            .padding2 = 0,
         },
     };
     const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
         .vertex_shader = vert_shader, // 编译好的顶点着色器
         .fragment_shader = frag_shader, // 编译好的片段着色器
-        .vertex_input_state = .{},
+        .vertex_input_state = std.mem.zeroes(c.SDL_GPUVertexInputState),
         .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-        .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
+        .target_info = .{
+            .num_color_targets = 1,
+            .color_target_descriptions = &color_target_desc,
+            .depth_stencil_format = c.SDL_GPU_TEXTUREFORMAT_INVALID,
+            .has_depth_stencil_target = false,
+            .padding1 = 0,
+            .padding2 = 0,
+            .padding3 = 0,
+        },
+        .rasterizer_state = std.mem.zeroes(c.SDL_GPURasterizerState),
+        .multisample_state = std.mem.zeroes(c.SDL_GPUMultisampleState),
+        .depth_stencil_state = std.mem.zeroes(c.SDL_GPUDepthStencilState),
+        .props = 0,
     };
     return Self{
         .gpu = gpu,
@@ -72,8 +91,18 @@ pub fn draw(self: *const Self) void {
 pub fn composite(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, target: *c.SDL_GPUTexture) Error!void {
     const color_target: c.SDL_GPUColorTargetInfo = .{
         .texture = target,
+        .mip_level = 0,
+        .layer_or_depth_plane = 0,
+        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 },
         .load_op = c.SDL_GPU_LOADOP_LOAD,
         .store_op = c.SDL_GPU_STOREOP_STORE,
+        .resolve_texture = null,
+        .resolve_mip_level = 0,
+        .resolve_layer = 0,
+        .cycle = false,
+        .cycle_resolve_texture = false,
+        .padding1 = 0,
+        .padding2 = 0,
     };
     self.render_pass = try h.check(c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null));
     c.SDL_BindGPUGraphicsPipeline(self.render_pass, self.pipeline);

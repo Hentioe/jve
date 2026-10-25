@@ -46,7 +46,7 @@ pub fn load(allocator: std.mem.Allocator, path: []const u8) Error!LoadedImage {
         .file_path = file_path,
         .file_name = std.fs.path.basename(file_path),
         .shape = .{ .w = image.width, .h = image.height, .c = image.channels },
-        .format = @intFromEnum(image.format),
+        .format = @backingInt(image.format),
         .size = out.data_size,
         .pixels_ptr = @ptrCast(@alignCast(out.data_ptr)),
         ._out = out,

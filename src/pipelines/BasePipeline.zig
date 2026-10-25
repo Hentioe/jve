@@ -1,8 +1,10 @@
+const std = @import("std");
 const sdl = @import("sdl");
 const c = sdl.c;
 const Gpu = sdl.Gpu;
-const Error = @import("errors.zig").Error;
 const ShaderPair = @import("structs.zig").ShaderPair;
+const zeroes = std.mem.zeroes;
+const Error = @import("errors.zig").Error;
 const Self = @This();
 
 gpu: *const Gpu,
@@ -46,6 +48,12 @@ fn initInternal(
             .dst_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
             .alpha_blend_op = c.SDL_GPU_BLENDOP_ADD,
             .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
+            .padding1 = 0,
+            .padding2 = 0,
+            .color_write_mask = sdl.c.SDL_GPU_COLORCOMPONENT_R |
+                sdl.c.SDL_GPU_COLORCOMPONENT_G |
+                sdl.c.SDL_GPU_COLORCOMPONENT_B |
+                sdl.c.SDL_GPU_COLORCOMPONENT_A,
         },
     };
 
@@ -53,8 +61,20 @@ fn initInternal(
         .vertex_shader = shaders.vert, // 编译好的顶点着色器
         .fragment_shader = shaders.frag, // 编译好的片段着色器
         .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-        .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
-        .vertex_input_state = vertex_input_state orelse .{},
+        .target_info = .{
+            .num_color_targets = 1,
+            .color_target_descriptions = &color_target_desc,
+            .depth_stencil_format = 0,
+            .has_depth_stencil_target = false,
+            .padding1 = 0,
+            .padding2 = 0,
+            .padding3 = 0,
+        },
+        .vertex_input_state = vertex_input_state orelse zeroes(sdl.c.SDL_GPUVertexInputState),
+        .multisample_state = zeroes(sdl.c.SDL_GPUMultisampleState),
+        .depth_stencil_state = zeroes(sdl.c.SDL_GPUDepthStencilState),
+        .rasterizer_state = zeroes(sdl.c.SDL_GPURasterizerState),
+        .props = 0,
     };
 
     errdefer {

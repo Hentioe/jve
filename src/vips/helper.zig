@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("vips_c");
 const VipsError = @import("errors.zig").VipsError;
 
 /// 根据传入值的类型，在编译期推导成功时的返回类型：

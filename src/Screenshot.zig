@@ -12,6 +12,8 @@ const Self = @This();
 
 pub const Error = extractor.Error || vips.Error || config.Error || std.mem.Allocator.Error || error{CreateScreenshotDirFailed};
 
+const io = std.Io.Threaded.global_single_threaded.io();
+
 allocator: Allocator,
 extracted: extractor.Extracted,
 image: *const LImage,
@@ -33,14 +35,12 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn saveToFile(self: *const Self) Error!void {
-    // 用 sfa 处理路径分配（大概 3 条）
-    var sfa = std.heap.stackFallback(256 * 3, self.allocator);
-    const a = sfa.get();
+    var arena_state = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
     // 创建输出文件路径
-    const outfile = try allocOutfile(a, self.image.file_name);
-    defer a.free(outfile);
-    const outfile_z = try a.dupeZ(u8, outfile);
-    defer a.free(outfile_z);
+    const outfile = try allocOutfile(arena, self.image.file_name);
+    const outfile_z = try arena.dupeSentinel(u8, outfile, 0);
     // 写入到文件
     const data = self.extracted.data;
     try writer.savePixelsToFile(data.ptr, self.image.shape, outfile_z);
@@ -72,7 +72,7 @@ pub fn copyToClipboard(self: *const Self) void {
 fn allocOutfile(allocator: Allocator, original_name: []const u8) Error![]u8 {
     // 取文件名主干：去掉目录和最后一个扩展名
     const stem = std.fs.path.stem(original_name);
-    const ts = std.time.timestamp(); // 秒级 Unix 时间戳（i64）
+    const ts = shared.timestamp(); // 秒级 Unix 时间戳（i64）
     const new_name = try std.fmt.allocPrint(allocator, "{s}_{d}.{f}", .{ stem, ts, config.get().screenshot.format });
 
     // 将文件名与配置中的截图保存目录拼接为完整路径
@@ -81,7 +81,7 @@ fn allocOutfile(allocator: Allocator, original_name: []const u8) Error![]u8 {
         // 获取输出目录
         const out_dir = try config.allocFullPath(allocator, dir);
         // 创建输出目录
-        std.fs.cwd().makePath(out_dir) catch return Error.CreateScreenshotDirFailed;
+        std.Io.Dir.cwd().createDirPath(io, out_dir) catch return Error.CreateScreenshotDirFailed;
         // 创建完整文件路径
         return try std.fs.path.join(allocator, &.{ out_dir, new_name });
     } else {

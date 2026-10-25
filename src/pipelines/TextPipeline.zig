@@ -26,8 +26,19 @@ pub fn init(window: *const Window, gpu: *const sdl.Gpu, vert_shader: *sdl.c.SDL_
         .min_filter = sdl.c.SDL_GPU_FILTER_LINEAR,
         .mag_filter = sdl.c.SDL_GPU_FILTER_LINEAR,
         .mipmap_mode = sdl.c.SDL_GPU_SAMPLERMIPMAPMODE_LINEAR,
+        .address_mode_w = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
         .address_mode_u = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
         .address_mode_v = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .mip_lod_bias = 0.0,
+        .max_anisotropy = 0.0,
+        .compare_op = sdl.c.SDL_GPU_COMPAREOP_INVALID,
+        .min_lod = 0.0,
+        .max_lod = 0.0,
+        .enable_anisotropy = false,
+        .enable_compare = false,
+        .padding1 = 0,
+        .padding2 = 0,
+        .props = 0,
     };
     const sampler = try gpu.createGPUSampler(&sampler_desc);
 

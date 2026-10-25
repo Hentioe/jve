@@ -2,6 +2,7 @@ const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
+const Environ = std.process.Environ;
 const IShape = shared.IShape;
 const Point = shared.Point(f32);
 const extractor = @import("extractor.zig");
@@ -15,20 +16,33 @@ pub const Error = sdl.Error || std.mem.Allocator.Error || StepTrace.Error;
 var instance: Self = undefined;
 var initialized: bool = false;
 
+fn fatalMutexIo() std.Io {
+    return std.Io.Threaded.global_single_threaded.io();
+}
+
+environ_map: ?*const Environ.Map,
+trace: ?*StepTrace,
 image_shape: IShape(i32) = undefined,
-trace: ?*StepTrace = null,
 target_angle: f64 = 0.0,
 target_scale: f64 = 1.0,
 move_offset: Point = .{},
 preview_initialized: bool = false,
 window_dirty: bool = false, // 窗口状态已脏（如预览模式轮换）
-fatal_mutex: std.Thread.Mutex = .{},
+fatal_mutex: std.Io.Mutex = .init,
 fatal_slot: ?shared.Fatal = null,
 extracted: ?extractor.Extracted = null, // 已提取的纹理（模式切换时复用）
 
-pub fn init(trace: ?*StepTrace) void {
+pub const InitOptions = struct {
+    environ_map: ?*const Environ.Map = null,
+    trace: ?*StepTrace = null,
+};
+
+pub fn init(options: InitOptions) void {
     if (initialized) return;
-    instance = Self{ .trace = trace };
+    instance = Self{
+        .environ_map = options.environ_map,
+        .trace = options.trace,
+    };
     initialized = true;
 }
 
@@ -57,9 +71,22 @@ pub fn writer() *Self {
     return &instance;
 }
 
+pub fn getEnvVar(self: *const Self, name: []const u8) ?[]const u8 {
+    const map = self.environ_map orelse @panic("environment map not initialized");
+    return map.get(name);
+}
+
+pub fn getEnvVarOwned(self: *const Self, allocator: Allocator, name: []const u8) error{OutOfMemory}!?[]u8 {
+    if (self.getEnvVar(name)) |val| {
+        return try allocator.dupe(u8, val);
+    } else {
+        return null;
+    }
+}
+
 pub fn report(err: anytype, src: std.builtin.SourceLocation, comptime fmt: []const u8, args: anytype) @TypeOf(err) {
-    instance.fatal_mutex.lock();
-    defer instance.fatal_mutex.unlock();
+    instance.fatal_mutex.lockUncancelable(fatalMutexIo());
+    defer instance.fatal_mutex.unlock(fatalMutexIo());
     if (instance.fatal_slot != null) return err; // 只保留第一个
 
     var f: shared.Fatal = .{ .err = err, .src = src };
@@ -75,8 +102,8 @@ pub fn report(err: anytype, src: std.builtin.SourceLocation, comptime fmt: []con
 
 /// 顶层兜底：如果还没人记录，就至少记下错误名
 pub fn ensureFatal(err: anyerror) void {
-    instance.fatal_mutex.lock();
-    defer instance.fatal_mutex.unlock();
+    instance.fatal_mutex.lockUncancelable(fatalMutexIo());
+    defer instance.fatal_mutex.unlock(fatalMutexIo());
     if (instance.fatal_slot == null) {
         var f: shared.Fatal = .{ .err = err, .src = @src() };
         const s = std.fmt.bufPrint(&f.msg_buf, "{s}", .{@errorName(err)}) catch unreachable;
@@ -87,8 +114,8 @@ pub fn ensureFatal(err: anyerror) void {
 
 /// 诊断模式调用：取出并清空
 pub fn takeFatal(self: *Self) ?shared.Fatal {
-    self.fatal_mutex.lock();
-    defer self.fatal_mutex.unlock();
+    self.fatal_mutex.lockUncancelable(fatalMutexIo());
+    defer self.fatal_mutex.unlock(fatalMutexIo());
     if (self.fatal_slot) |slot| {
         self.fatal_slot = null;
         return slot;

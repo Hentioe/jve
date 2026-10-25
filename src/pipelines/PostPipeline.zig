@@ -88,9 +88,18 @@ pub fn bind(
 ) void {
     const color_target: c.SDL_GPUColorTargetInfo = .{
         .texture = tex_dst,
+        .mip_level = 0,
+        .layer_or_depth_plane = 0,
+        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
         .load_op = c.SDL_GPU_LOADOP_CLEAR,
         .store_op = c.SDL_GPU_STOREOP_STORE,
-        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
+        .resolve_texture = null,
+        .resolve_mip_level = 0,
+        .resolve_layer = 0,
+        .cycle = false,
+        .cycle_resolve_texture = false,
+        .padding1 = 0,
+        .padding2 = 0,
     };
     // 开始渲染通道
     self.render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null);
@@ -117,9 +126,18 @@ pub fn bindWithMaskTex(
 ) void {
     const color_target: c.SDL_GPUColorTargetInfo = .{
         .texture = tex_dst,
+        .mip_level = 0,
+        .layer_or_depth_plane = 0,
+        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
         .load_op = c.SDL_GPU_LOADOP_CLEAR,
         .store_op = c.SDL_GPU_STOREOP_STORE,
-        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
+        .resolve_texture = null,
+        .resolve_mip_level = 0,
+        .resolve_layer = 0,
+        .cycle = false,
+        .cycle_resolve_texture = false,
+        .padding1 = 0,
+        .padding2 = 0,
     };
     // 开始渲染通道
     self.render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null);

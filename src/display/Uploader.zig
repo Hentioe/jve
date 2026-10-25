@@ -94,7 +94,7 @@ pub fn init(allocator: Allocator, gpu: *const Gpu) Self {
     return .{
         .gpu = gpu,
         .allocator = allocator,
-        .tasks = .{},
+        .tasks = .empty,
     };
 }
 
@@ -230,6 +230,7 @@ pub fn submit(self: *Self) Error!void {
     const transfer_info = c.SDL_GPUTransferBufferCreateInfo{
         .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
         .size = total_buffer_size,
+        .props = 0,
     };
     const transfer_buf = try self.gpu.createGPUTransferBuffer(&transfer_info);
     defer self.gpu.releaseGPUTransferBuffer(transfer_buf);
@@ -257,12 +258,19 @@ pub fn submit(self: *Self) Error!void {
                 const src = c.SDL_GPUTextureTransferInfo{
                     .transfer_buffer = transfer_buf,
                     .offset = current_offset,
+                    .pixels_per_row = 0,
+                    .rows_per_layer = 0,
                 };
                 const dst = c.SDL_GPUTextureRegion{
                     .texture = t.texture,
                     .w = t.size.w,
                     .h = t.size.h,
                     .d = 1,
+                    .x = 0,
+                    .y = 0,
+                    .z = 0,
+                    .layer = 0,
+                    .mip_level = 0,
                 };
 
                 c.SDL_UploadToGPUTexture(copy_pass, &src, &dst, t.cycle);

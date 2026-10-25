@@ -14,7 +14,7 @@ const Self = @This();
 
 running: bool = true,
 delta: *const Delta,
-dst_rect: sdl.c.SDL_FRect = .{},
+dst_rect: sdl.c.SDL_FRect = .{ .x = 0, .y = 0, .w = 0, .h = 0 },
 modifiers: Modifiers,
 is_dragging: bool = false,
 move_offset: Point,

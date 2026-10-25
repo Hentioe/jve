@@ -13,4 +13,4 @@ const CustomError = error{
 };
 
 pub const Error = CustomError || SlangError || SdlError || ConfigError || ScannerError ||
-    std.mem.Allocator.Error || std.posix.AccessError || std.fs.Dir.DeleteTreeError;
+    std.mem.Allocator.Error || std.Io.Dir.AccessError || std.Io.Dir.DeleteTreeError;

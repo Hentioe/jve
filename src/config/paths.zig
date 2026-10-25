@@ -7,11 +7,13 @@
 const std = @import("std");
 const errors = @import("errors.zig");
 const xdg = @import("xdg");
+const app_env = @import("../app_env.zig");
 const fs = std.fs;
-const process = std.process;
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
-const GetEnvVarOwnedError = std.process.GetEnvVarOwnedError;
 const Error = errors.Error;
+
+const io = std.Io.Threaded.global_single_threaded.io();
 
 /// 一条候选路径及来源
 pub const Candidate = struct {
@@ -21,16 +23,12 @@ pub const Candidate = struct {
 
 /// 按优先级依次检查候选路径，返回第一个存在的文件路径（找不到则返回 null）。
 /// 返回值由调用者负责 free。
-pub fn findConfigFile(
-    allocator: Allocator,
-    app_name: []const u8,
-    file_name: []const u8,
-) Error!?[]u8 {
+pub fn findConfigFile(allocator: Allocator, app_name: []const u8, file_name: []const u8) Error!?[]u8 {
     const candidates = try listCandidates(allocator, app_name, file_name);
     defer freeCandidates(allocator, candidates);
 
     for (candidates) |c| {
-        fs.accessAbsolute(c.path, .{}) catch continue;
+        Io.Dir.accessAbsolute(io, c.path, .{}) catch continue;
         return try allocator.dupe(u8, c.path);
     }
     return null;
@@ -38,11 +36,7 @@ pub fn findConfigFile(
 
 /// 按优先级列出所有候选路径（不检查是否存在）。
 /// 返回的 []Candidate 及其内部 path 字符串都由调用者用 freeCandidates 释放。
-pub fn listCandidates(
-    allocator: Allocator,
-    app_name: []const u8,
-    file_name: []const u8,
-) Error![]Candidate {
+pub fn listCandidates(allocator: Allocator, app_name: []const u8, file_name: []const u8) Error![]Candidate {
     var list = try std.ArrayList(Candidate).initCapacity(allocator, 0);
     errdefer {
         for (list.items) |c| allocator.free(c.path);
@@ -50,7 +44,7 @@ pub fn listCandidates(
     }
 
     // 1. 用户层：$XDG_CONFIG_HOME/<app>/<file>
-    const config_home = try getConfigHome(allocator);
+    const config_home = try xdg.getConfigHomeOwned(allocator);
     defer allocator.free(config_home);
     const user_path = try fs.path.join(allocator, &.{ config_home, app_name, file_name });
     try list.append(allocator, .{ .path = user_path, .source = "XDG_CONFIG_HOME" });
@@ -66,10 +60,6 @@ pub fn listCandidates(
     return list.toOwnedSlice(allocator);
 }
 
-/// 读取 `$XDG_CONFIG_HOME`，若未设置则回退为 `$HOME/.config`。
-/// 复用通用 XDG 解析，返回的字符串由调用者释放。
-pub const getConfigHome = xdg.getConfigHome;
-
 /// 读取 $XDG_CONFIG_DIRS（':' 分隔），未设置则回退为 ["/etc/xdg"]。
 /// 返回的 slice 及其中每个字符串都需要调用者释放（用 freeConfigDirs）。
 pub fn getConfigDirs(allocator: Allocator) Error![][]u8 {
@@ -79,15 +69,13 @@ pub fn getConfigDirs(allocator: Allocator) Error![][]u8 {
         list.deinit(allocator);
     }
 
-    if (process.getEnvVarOwned(allocator, "XDG_CONFIG_DIRS")) |val| {
+    if (try app_env.reader().getEnvVarOwned(allocator, "XDG_CONFIG_DIRS")) |val| {
         defer allocator.free(val);
         var it = std.mem.splitScalar(u8, val, ':');
         while (it.next()) |dir| {
             if (dir.len == 0) continue;
             try list.append(allocator, try allocator.dupe(u8, dir));
         }
-    } else |err| {
-        if (err != GetEnvVarOwnedError.EnvironmentVariableNotFound) return err;
     }
 
     if (list.items.len == 0) {

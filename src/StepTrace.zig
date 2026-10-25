@@ -1,36 +1,28 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Timer = std.time.Timer;
+const Io = std.Io;
 const Self = @This();
 
-pub const Error = std.time.Timer.Error || Allocator.Error;
+pub const Error = Allocator.Error;
 
 pub const Mark = struct {
     name: []const u8,
     ns: u64,
 };
 
+const io = std.Io.Threaded.global_single_threaded.io();
+
 allocator: Allocator,
 name: []const u8,
-timer: Timer,
+start: Io.Timestamp,
 marks: std.ArrayList(Mark) = .empty,
 completed: bool = false,
 
-/// 初始化跟踪器，如果 `std.time.Timer` 不可用将直接崩溃。
 pub fn init(allocator: Allocator, name: []const u8) Self {
     return .{
         .allocator = allocator,
         .name = name,
-        .timer = Timer.start() catch @panic("monotonic clock unavailable"),
-    };
-}
-
-/// 安全版 init，返回 Error 而不是崩溃。
-pub fn initSafe(allocator: Allocator, name: []const u8) Error!Self {
-    return .{
-        .allocator = allocator,
-        .name = name,
-        .timer = try Timer.start(),
+        .start = Io.Clock.awake.now(io),
     };
 }
 
@@ -39,12 +31,18 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
+/// 从 init 到现在经过的纳秒数
+fn elapsedNs(self: *const Self) u64 {
+    const d = self.start.untilNow(io, .awake);
+    return @intCast(d.toNanoseconds());
+}
+
 /// 打点
 pub fn mark(self: *Self, name: []const u8) Error!void {
     if (self.completed) return;
-    try self.marks.append(self.allocator, Mark{
+    try self.marks.append(self.allocator, .{
         .name = name,
-        .ns = self.timer.read(),
+        .ns = self.elapsedNs(),
     });
 }
 
@@ -63,7 +61,7 @@ pub fn report(self: *const Self) void {
 
 /// 标记跟踪器已完成，并输出总耗时。
 pub fn complete(self: *Self) void {
-    std.log.info("Step tracking complete (total {d:.0}ms)", .{toMs(self.timer.read())});
+    std.log.info("Step tracking complete (total {d:.0}ms)", .{toMs(self.elapsedNs())});
     self.completed = true;
 }
 

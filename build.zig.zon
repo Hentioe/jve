@@ -2,23 +2,27 @@
     .name = .jve,
     .version = "0.0.0",
     .fingerprint = 0xfebcdc43c4343364, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
-        .sdl = .{ // 此分提交特用于 0.15
-            .url = "git+https://github.com/castholm/SDL.git#76ee7f13177b5dfad124e7066dec29c90f7db275",
-            .hash = "sdl-0.4.2+3.4.4-SDL--nF2pQHiRAibwjhZ6jBJu0Omc3x4EoxPn6gxfnAi",
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c?ref=2.0.2#c11030012dc325d446474d17b78c242fd1d622ec",
+            .hash = "translate_c-2.0.2-Q_BUWvBNBwBgPKQJPblip6M7AHNK_IPNPmyv4rSIQMQc",
         },
-        .clap = .{ // 此提交特用于 0.15
-            .url = "git+https://github.com/Hejsil/zig-clap#c499116264c348e4a98d939917b2446cad79d5fb",
-            .hash = "clap-0.11.0-oBajB-TnAQC7yPLnZRT5WzHZ_4Ly4dX2OILskli74b9H",
+        .sdl = .{ // 此版本并未稳定支持 0.17
+            .url = "git+https://github.com/castholm/SDL.git?ref=v0.6.0+3.4.18#dbcb19aa3583c318556ecae3ecbeb29b102d37c5",
+            .hash = "sdl-0.6.0+3.4.18-SDL--p-gqAGWpnfTLlhs0dgjDtc4P4_CHeNLGY_SX_Fv",
         },
-        .toml = .{ // 此提交特用于 0.15
-            .url = "git+https://github.com/sam701/zig-toml#475b03c630c802f8b6bd3e239d8fc2279b4fadb8",
-            .hash = "toml-0.3.0-bV14BfV7AQD8DkuQI7skP8ekQTaBYKTO0MY_35Cw_EXo",
+        .clap = .{ // 此提交并未稳定支持 0.17
+            .url = "git+https://github.com/Hejsil/zig-clap#05faf3905e8548f5cc269a8836e154065e70128d",
+            .hash = "clap-0.12.0-oBajB4XpAQCF1WRKnD5KOKPsnwwT_NNdAJ7Ww3irYJac",
         },
-        .slang = .{ // 此提交特用于 0.15
-            .url = "git+https://github.com/Hentioe/slang#638bad20478c33282f90c4641b32ba60187102cb",
-            .hash = "slang-0.0.0-mZrlVu0NhAEJDJAZ0h6K4r-3CY4-ikkNuDwQci8nD0kJ",
+        .toml = .{
+            .url = "git+https://github.com/sam701/zig-toml?ref=zig-0.17#4a13e49ce7d19ac2df8b87962d9f23c0f5dd5bdd",
+            .hash = "toml-0.3.0-bV14BRmkAQDSILPPyXc31aAXPtJa1Uh8Frug3i6InAUc",
+        },
+        .slang = .{
+            .url = "git+https://github.com/Hentioe/slang#ffe067d9c53c742d3fa445e0b078112dfb38f0f1",
+            .hash = "slang-0.0.0-mZrlVsUZhAFiI3zd_amyTGoPGN6JUsgC1ZuZgTuYUJaF",
         },
     },
     .paths = .{

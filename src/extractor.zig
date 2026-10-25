@@ -27,6 +27,7 @@ pub fn extract(allocator: Allocator, gpu: *const sdl.Gpu, texture: ?*sdl.GPUText
     const buf_create_info: c.SDL_GPUTransferBufferCreateInfo = .{
         .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD,
         .size = @intCast(size),
+        .props = 0,
     };
     const download_buf = try gpu.createGPUTransferBuffer(&buf_create_info);
     defer gpu.releaseGPUTransferBuffer(download_buf); // 释放缓冲区
@@ -35,6 +36,11 @@ pub fn extract(allocator: Allocator, gpu: *const sdl.Gpu, texture: ?*sdl.GPUText
     const copy_pass = c.SDL_BeginGPUCopyPass(cmd_buf);
     const src: c.SDL_GPUTextureRegion = .{
         .texture = texture,
+        .mip_level = 0,
+        .layer = 0,
+        .x = 0,
+        .y = 0,
+        .z = 0,
         .w = shape.w,
         .h = shape.h,
         .d = 1,

@@ -1,7 +1,7 @@
 with import <nixpkgs> { };
 let
   # 覆盖 Zig 命令，使用 zvm 运行 Zig
-  custom-zig = writeShellScriptBin "zig" "exec zvm run 0.15.2 $@";
+  custom-zig = writeShellScriptBin "zig" "exec zvm run 0.17.0 $@";
   # 启用 ROCm 支持的 ONNX Runtime（此处暂时禁用）
   onnxruntime-rocm = (onnxruntime.override { rocmSupport = false; });
   # 给 webpload 补 sequential flag，避免动画首次访问时全量物化整条 roll
@@ -11,7 +11,8 @@ let
   # 本地开发所需工具
   nativeTools = [
     custom-zig # 受 zvm 管理的 Zig
-    zon2nix # 转换 Zig 依赖为 Nix 依赖
+    zon2nix # 转换 Zig 依赖为 Nix 表达式
+    nix-prefetch-git # zon2nix 需要
     pkg-config # 系统库搜索
   ];
   # 运行时所需工具

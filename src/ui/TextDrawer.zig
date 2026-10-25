@@ -55,6 +55,8 @@ pub fn init(
         .height = raster.height,
         .layer_count_or_depth = 1,
         .num_levels = 1,
+        .sample_count = 1,
+        .props = 0,
     };
     const texture = try uploader.uploadTextureBorrowed(&texture_create_info, staging_pixels.ptr, .{ .w = raster.width, .h = raster.height });
 
@@ -64,7 +66,7 @@ pub fn init(
     const verts = buildVerts(raster, frame_size, layout.position);
     @memcpy(staging_verts, &verts);
     const verts_size: u32 = @intCast(@sizeOf(Vertex) * staging_verts.len);
-    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
+    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size, .props = 0 };
     const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(staging_verts.ptr), verts_size);
 
     return Self{

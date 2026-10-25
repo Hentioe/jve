@@ -1,7 +1,7 @@
 const std = @import("std");
 const errors = @import("sdl/errors.zig");
 
-pub const c = @import("sdl/c.zig").c;
+pub const c = @import("sdl_c");
 pub const h = @import("sdl/helper.zig");
 pub const Gpu = @import("sdl/Gpu.zig");
 pub const Renderer = @import("sdl/Renderer.zig");
@@ -121,12 +121,12 @@ pub const Key = enum(Keycode) {
 
     /// 转换为 SDL 键码
     pub fn code(self: Key) Keycode {
-        return @intFromEnum(self);
+        return @backingInt(self);
     }
 
     /// 从 SDL 键码解析，未知按键返回 `null`。
     pub fn from(key: Keycode) ?Key {
-        return std.meta.intToEnum(Key, key) catch null;
+        return std.enums.fromInt(Key, key);
     }
 
     /// 从字符串解析按键名，未知按键返回 `null`。注意：数字键不需要 `_` 前缀。

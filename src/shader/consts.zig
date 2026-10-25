@@ -1,4 +1,5 @@
 pub const FORMAT_VERSION: u32 = 1;
+pub const BACKGROUND_DIR = "background";
 pub const CACHE_APP = "jve";
 pub const CACHE_SUBDIR = "shaders";
 pub const MANIFEST_NAME = "manifest.json";

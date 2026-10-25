@@ -147,7 +147,7 @@ pub fn setTitle(self: *Self, title: []const u8, options: TitleOptions) Error!voi
     else if (options.include_app_suffix)
         try std.fmt.allocPrintSentinel(self.allocator, "{s} - {s}", .{ title, APP_NAME }, 0)
     else
-        try self.allocator.dupeZ(u8, title);
+        try self.allocator.dupeSentinel(u8, title, 0);
     defer self.allocator.free(titile_z);
     try h.check(c.SDL_SetWindowTitle(self.sdl_window, titile_z));
 }

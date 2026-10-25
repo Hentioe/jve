@@ -1,3 +1,4 @@
+const std = @import("std");
 const c = @import("sdl").c;
 const Error = @import("errors.zig").Error;
 const Gpu = @import("sdl").Gpu;
@@ -20,7 +21,19 @@ pub fn createPipeline(
             .vertex_attributes = vert_attrs,
         },
         .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-        .target_info = .{ .num_color_targets = 1, .color_target_descriptions = color_target_desc },
+        .target_info = .{
+            .num_color_targets = 1,
+            .color_target_descriptions = color_target_desc,
+            .depth_stencil_format = c.SDL_GPU_TEXTUREFORMAT_INVALID,
+            .has_depth_stencil_target = false,
+            .padding1 = 0,
+            .padding2 = 0,
+            .padding3 = 0,
+        },
+        .rasterizer_state = std.mem.zeroes(c.SDL_GPURasterizerState),
+        .multisample_state = std.mem.zeroes(c.SDL_GPUMultisampleState),
+        .depth_stencil_state = std.mem.zeroes(c.SDL_GPUDepthStencilState),
+        .props = 0,
     };
     return try gpu.createGPUGraphicsPipeline(&pipeline_info);
 }

@@ -1,8 +1,11 @@
 const std = @import("std");
 const errors = @import("errors.zig");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
+const Environ = std.process.Environ;
 
 pub const app_env = @import("app_env.zig");
+pub const xdg = @import("xdg");
 pub const config = @import("config.zig");
 pub const vips = @import("vips");
 pub const slang = @import("slang");
@@ -17,39 +20,74 @@ pub const StepTrace = @import("StepTrace.zig");
 
 const DisplayMode = config.DisplayMode;
 
+const io = std.Io.Threaded.global_single_threaded.io();
+
 // glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
 // 内存会滞留在各自的 arena 中不归还操作系统，导致轮换图片时 RSS 持续上涨。
 // 限制 arena 数量即可让这些缓冲被复用（此为 glibc 常量 M_ARENA_MAX）。
 const M_ARENA_MAX: c_int = -8;
 extern "c" fn mallopt(param: c_int, value: c_int) c_int;
 
-pub fn init(allocator: std.mem.Allocator, trace: *StepTrace, file_path: []const u8, config_path: ?[]const u8) !void {
-    // 限制 malloc arena 数量，避免工作线程造成的内存滞留
-    if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
-    app_env.init(trace);
-    try trace.mark("app_env.init");
-    config.init(allocator, config_path) catch |err| return showInitDiag(allocator, err);
-    try trace.mark("config.init");
-    vips.init(allocator) catch |err| return showInitDiag(allocator, err);
-    try trace.mark("vips.init");
-    gallery.init(allocator, file_path) catch |err| return showInitDiag(allocator, err);
-    try trace.mark("gallery.init");
-    try ui.init();
-    try trace.mark("ui.init");
-    try display.init(allocator);
-    try trace.mark("display.init");
-}
+pub const Subsystems = struct {
+    pub const Name = enum { app_env, xdg, config, vips, gallery, ui, display, remover };
+    pub const NameSet = std.EnumSet(Name);
+    pub const Opts = struct {
+        environ_map: *const Environ.Map,
+        config_path: ?[]const u8 = null,
+        file_path: ?[]const u8 = null,
+    };
 
-pub fn deinit() void {
-    // 和 init 的顺序相反，先 deinit 后初始化的组件
-    remover.deinit(); // remover 是按需延迟初始化的，无需在此处初始化
-    display.deinit();
-    ui.deinit();
-    gallery.deinit();
-    vips.deinit();
-    config.deinit();
-    app_env.deinit();
-}
+    pub const all: NameSet = .full;
+
+    pub fn buildOpts(options: std.process.Init) Opts {
+        return Opts{
+            .environ_map = options.environ_map,
+        };
+    }
+
+    pub fn init(systems: NameSet, allocator: Allocator, opts: Opts, trace: *StepTrace) !void {
+        // 限制 malloc arena 数量，避免工作线程造成的内存滞留
+        if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
+
+        if (systems.contains(.app_env)) {
+            app_env.init(.{ .trace = trace, .environ_map = opts.environ_map });
+            try trace.mark("app_env.init");
+        }
+        if (systems.contains(.xdg)) {
+            xdg.init(opts.environ_map);
+        }
+        if (systems.contains(.config)) {
+            config.init(allocator, opts.config_path) catch |err| return showInitDiag(allocator, err);
+            try trace.mark("config.init");
+        }
+        if (systems.contains(.vips)) {
+            vips.init(allocator) catch |err| return showInitDiag(allocator, err);
+            try trace.mark("vips.init");
+        }
+        if (systems.contains(.gallery)) {
+            gallery.init(allocator, opts.file_path orelse ".") catch |err| return showInitDiag(allocator, err);
+            try trace.mark("gallery.init");
+        }
+        if (systems.contains(.ui)) {
+            try ui.init();
+            try trace.mark("ui.init");
+        }
+        if (systems.contains(.display)) {
+            try display.init(allocator);
+            try trace.mark("display.init");
+        }
+    }
+
+    pub fn deinit(systems: NameSet) void {
+        remover.deinit(); // remover 是按需延迟初始化的，无需在显式初始化
+        if (systems.contains(.display)) display.deinit();
+        if (systems.contains(.ui)) ui.deinit();
+        if (systems.contains(.gallery)) gallery.deinit();
+        if (systems.contains(.vips)) vips.deinit();
+        if (systems.contains(.config)) config.deinit();
+        if (systems.contains(.app_env)) app_env.deinit();
+    }
+};
 
 pub fn vips_init(allocator: Allocator) !void {
     try vips.init(allocator);
@@ -60,7 +98,7 @@ pub fn vips_deinit() void {
 }
 
 pub fn display_init(allocator: Allocator) !void {
-    app_env.init(null);
+    app_env.init(.{});
     try ui.init();
     try display.init(allocator);
 }
@@ -76,7 +114,7 @@ pub fn extensions() ![]const []const u8 {
 }
 
 pub fn clearCache(allocator: Allocator, config_path: ?[]const u8) !void {
-    app_env.init(null);
+    app_env.init(.{});
     defer app_env.deinit();
     try config.init(allocator, config_path);
     defer config.deinit();
@@ -98,7 +136,7 @@ pub fn clearCache(allocator: Allocator, config_path: ?[]const u8) !void {
 
 pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
     // 检查文件的可访问性
-    const stat = std.fs.cwd().statFile(file_path) catch |err| return err;
+    const stat = Io.Dir.cwd().statFile(io, file_path, .{}) catch |err| return err;
     // 检查输入是否为文件
     if (stat.kind != .file) return LoadError.NotAFile;
     return try vips.loader.load(allocator, file_path);

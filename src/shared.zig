@@ -14,3 +14,5 @@ pub const pathExists = helper.pathExists;
 pub const pathAccessible = helper.pathAccessible;
 pub const strdup = helper.strdup;
 pub const openUrl = helper.openUrl;
+pub const milliTimestamp = helper.milliTimestamp;
+pub const timestamp = helper.timestamp;

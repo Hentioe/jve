@@ -92,8 +92,9 @@ pub fn castScalar(comptime U: type, x: anytype) U {
 /// 结构体转换：按字段名逐个转换，目标结构体 Dst 决定每个字段的目标类型
 pub fn castFields(comptime Dst: type, src: anytype) Dst {
     var out: Dst = undefined;
-    inline for (@typeInfo(Dst).@"struct".fields) |f| {
-        @field(out, f.name) = castScalar(f.type, @field(src, f.name));
+    const info = @typeInfo(Dst);
+    inline for (info.@"struct".field_names, info.@"struct".field_types) |name, T| {
+        @field(out, name) = castScalar(T, @field(src, name));
     }
     return out;
 }

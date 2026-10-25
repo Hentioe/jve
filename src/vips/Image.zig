@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("vips_c");
 const h = @import("helper.zig");
 const shared = @import("shared");
 const consts = @import("consts.zig");
@@ -42,7 +42,7 @@ pub fn init(input_ptr: *const anyopaque, shape: IShape(i32), format: Format) Err
         shape.w,
         shape.h,
         shape.c,
-        @intFromEnum(format),
+        @backingInt(format),
     ));
 
     return Self{
@@ -67,7 +67,7 @@ fn isHeifExtension(extension: []const u8) bool {
 /// 从文件加载图像，返回 Image 实例
 pub fn initFromFile(allocator: std.mem.Allocator, path: []const u8) Error!Self {
     const ext = std.fs.path.extension(path);
-    const filename = try allocator.dupeZ(u8, path);
+    const filename = try allocator.dupeSentinel(u8, path, 0);
     defer allocator.free(filename);
 
     // 从文件创建 Vips 图像指针

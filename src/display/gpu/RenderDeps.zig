@@ -79,6 +79,8 @@ pub fn init(
         .height = texture_size.h,
         .layer_count_or_depth = 1,
         .num_levels = 1,
+        .sample_count = sdl.c.SDL_GPU_SAMPLECOUNT_1,
+        .props = 0,
     };
     const texture = try uploader.uploadTextureBorrowed(&texture_info, image.pixels_ptr, texture_size);
 
@@ -92,7 +94,7 @@ pub fn init(
     // -- 顶点 (Vertex) --
     const verts: [6]Vertex = consts.base_verts;
     const verts_size = @sizeOf(Vertex) * verts.len;
-    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
+    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size, .props = 0 };
     const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&verts), verts_size);
     const verts_binding: sdl.c.SDL_GPUBufferBinding = .{ .buffer = verts_buffer, .offset = 0 };
 
@@ -103,13 +105,24 @@ pub fn init(
         .mipmap_mode = sdl.c.SDL_GPU_SAMPLERMIPMAPMODE_LINEAR,
         .address_mode_u = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
         .address_mode_v = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_w = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .mip_lod_bias = 0,
+        .max_anisotropy = 0,
+        .compare_op = sdl.c.SDL_GPU_COMPAREOP_INVALID,
+        .min_lod = 0,
+        .max_lod = 0,
+        .enable_anisotropy = false,
+        .enable_compare = false,
+        .padding1 = 0,
+        .padding2 = 0,
+        .props = 0,
     };
     const sampler = try device.createGPUSampler(&sampler_desc);
 
     // -- 图形管线 (Graphics Pipeline) --
     const vert_attrs: [2]sdl.c.SDL_GPUVertexAttribute = .{
-        .{ .location = 0, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = @offsetOf(Vertex, "x") }, // Position
-        .{ .location = 1, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u") }, // UV
+        .{ .location = 0, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = @offsetOf(Vertex, "x"), .buffer_slot = 0 }, // Position
+        .{ .location = 1, .format = sdl.c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u"), .buffer_slot = 0 }, // UV
     };
     // 所有颜色目标统一为 R8G8B8A8_UNORM
     // 基础 pass 输入非预乘图像，用 SRC_ALPHA 混合写入透明目标，写入后即为预乘 Alpha
@@ -125,7 +138,7 @@ pub fn init(
     };
     const vert_shader = try shader.loader.load(device, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
     const frag_shader = try shader.loader.load(device, @embedFile("base.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
-    const vert_buffer_desc: sdl.c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.c.SDL_GPU_VERTEXINPUTRATE_VERTEX };
+    const vert_buffer_desc: sdl.c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.c.SDL_GPU_VERTEXINPUTRATE_VERTEX, .instance_step_rate = 0 };
     const pipeline_info: sdl.c.SDL_GPUGraphicsPipelineCreateInfo = .{
         .vertex_shader = vert_shader, // 编译好的顶点着色器
         .fragment_shader = frag_shader, // 编译好的片段着色器
@@ -136,7 +149,19 @@ pub fn init(
             .vertex_attributes = &vert_attrs,
         },
         .primitive_type = sdl.c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-        .target_info = .{ .num_color_targets = 1, .color_target_descriptions = &color_target_desc },
+        .target_info = .{
+            .num_color_targets = 1,
+            .color_target_descriptions = &color_target_desc,
+            .depth_stencil_format = sdl.c.SDL_GPU_TEXTUREFORMAT_INVALID,
+            .has_depth_stencil_target = false,
+            .padding1 = 0,
+            .padding2 = 0,
+            .padding3 = 0,
+        },
+        .rasterizer_state = std.mem.zeroes(sdl.c.SDL_GPURasterizerState),
+        .multisample_state = std.mem.zeroes(sdl.c.SDL_GPUMultisampleState),
+        .depth_stencil_state = std.mem.zeroes(sdl.c.SDL_GPUDepthStencilState),
+        .props = 0,
     };
     // 基础着色器（负责图像渲染）
     const base_pl = try device.createGPUGraphicsPipeline(&pipeline_info);
@@ -152,6 +177,8 @@ pub fn init(
         .height = texture_size.h,
         .layer_count_or_depth = 1,
         .num_levels = 1,
+        .sample_count = sdl.c.SDL_GPU_SAMPLECOUNT_1,
+        .props = 0,
     };
     const tex_a = try device.createGPUTexture(&offscreen_info);
     const tex_b = try device.createGPUTexture(&offscreen_info);
@@ -307,7 +334,13 @@ fn blendState() sdl.c.SDL_GPUColorTargetBlendState {
         .src_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
         .dst_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
         .alpha_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
+        .color_write_mask = sdl.c.SDL_GPU_COLORCOMPONENT_R |
+            sdl.c.SDL_GPU_COLORCOMPONENT_G |
+            sdl.c.SDL_GPU_COLORCOMPONENT_B |
+            sdl.c.SDL_GPU_COLORCOMPONENT_A,
         .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
+        .padding1 = 0,
+        .padding2 = 0,
     };
 }
 
@@ -321,6 +354,12 @@ fn premultipliedBlendState() sdl.c.SDL_GPUColorTargetBlendState {
         .src_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
         .dst_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
         .alpha_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
+        .color_write_mask = sdl.c.SDL_GPU_COLORCOMPONENT_R |
+            sdl.c.SDL_GPU_COLORCOMPONENT_G |
+            sdl.c.SDL_GPU_COLORCOMPONENT_B |
+            sdl.c.SDL_GPU_COLORCOMPONENT_A,
         .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
+        .padding1 = 0,
+        .padding2 = 0,
     };
 }

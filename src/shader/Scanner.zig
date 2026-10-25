@@ -3,6 +3,8 @@ const sdl = @import("sdl");
 const slang = @import("slang");
 const config = @import("../config.zig");
 const app_env = @import("../app_env.zig");
+const consts = @import("consts.zig");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const loader = @import("loader.zig");
 const loaded = @import("loaded.zig");
@@ -12,7 +14,7 @@ const Device = @import("../Device.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
-const BACKGROUND_DIR = "background";
+const io = std.Io.Threaded.global_single_threaded.io();
 
 /// 内建背景着色器的名字和 @embedFile 的映射
 pub const BUILTIN_BG_SHADERS = std.StaticStringMap([]const u8).initComptime(.{
@@ -103,9 +105,9 @@ pub fn loadBackground(allocator: Allocator, gpu: *const sdl.Gpu, cache: *Cache, 
             return;
         }
         // 再尝试加载文件，走与用户着色器一致的缓存
-        const cache_name = try std.fs.path.join(allocator, &.{ BACKGROUND_DIR, name });
+        const cache_name = try std.fs.path.join(allocator, &.{ consts.BACKGROUND_DIR, name });
         defer allocator.free(cache_name);
-        const full_path = try std.fs.path.join(allocator, &.{ shader_dir, BACKGROUND_DIR, name });
+        const full_path = try std.fs.path.join(allocator, &.{ shader_dir, consts.BACKGROUND_DIR, name });
         defer allocator.free(full_path);
         std.log.info("Loading background shader from file: {s}", .{full_path});
 
@@ -123,10 +125,10 @@ pub fn loadBackground(allocator: Allocator, gpu: *const sdl.Gpu, cache: *Cache, 
 /// 获取某个着色器的 SPIR-V：优先命中缓存，未命中则编译并写回。
 /// 返回的字节由调用方释放。
 fn resolveSpirv(allocator: Allocator, cache: *Cache, name: []const u8, full_path: []const u8) Error![]u8 {
-    const stat = std.fs.cwd().statFile(full_path) catch |err| {
+    const stat = Io.Dir.cwd().statFile(io, full_path, .{}) catch |err| {
         return app_env.report(err, @src(), "着色器 `{s}` 读取失败：{s}", .{ name, @errorName(err) });
     };
-    const mtime = stat.mtime;
+    const mtime = stat.mtime.nanoseconds;
     const size: u64 = @intCast(stat.size);
 
     // mtime 与 size 都一致：视作未变，直接读缓存
@@ -138,11 +140,11 @@ fn resolveSpirv(allocator: Allocator, cache: *Cache, name: []const u8, full_path
     };
 
     // 读取源码并计算内容哈希
-    const source = std.fs.cwd().readFileAllocOptions(
-        allocator,
+    const source = std.Io.Dir.cwd().readFileAllocOptions(
+        io,
         full_path,
-        stat.size,
-        null,
+        allocator,
+        .unlimited,
         .of(u8),
         0,
     ) catch return Error.ShaderReadFailed;

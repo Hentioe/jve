@@ -18,8 +18,18 @@ pub fn render(deps: *RenderDeps, _: *const State) Error!void {
     }
     var color_target: sdl.c.SDL_GPUColorTargetInfo = .{
         .texture = tex_swap,
+        .mip_level = 0,
+        .layer_or_depth_plane = 0,
+        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 },
         .load_op = sdl.c.SDL_GPU_LOADOP_CLEAR,
         .store_op = sdl.c.SDL_GPU_STOREOP_STORE,
+        .resolve_texture = null,
+        .resolve_mip_level = 0,
+        .resolve_layer = 0,
+        .cycle = false,
+        .cycle_resolve_texture = false,
+        .padding1 = 0,
+        .padding2 = 0,
     };
     // 开启渲染通道
     const pass = try sdl.Gpu.beginRenderPass(cmd, &color_target, 1, null);

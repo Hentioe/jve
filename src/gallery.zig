@@ -1,8 +1,11 @@
 const std = @import("std");
 const root = @import("root.zig");
-const LImage = @import("vips").LImage;
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
+const LImage = @import("vips").LImage;
 const Scanner = @import("Scanner.zig");
+
+const io = std.Io.Threaded.global_single_threaded.io();
 
 const GalleryError = error{
     GalleryNoImageSelected,
@@ -12,7 +15,7 @@ const GalleryError = error{
 
 const PathJoinError = error{PathJoinFailed};
 
-pub const Error = GalleryError || PathJoinError || root.LoadError || Scanner.Error || std.posix.UnlinkError;
+pub const Error = GalleryError || PathJoinError || root.LoadError || Scanner.Error || std.Io.Dir.DeleteFileError;
 
 // 全局缓存
 const Cache = struct {
@@ -98,7 +101,7 @@ pub fn deleteCurrentGetNext() Error!LImage {
         };
         defer cache.allocator.free(full_path);
         std.log.info("Deleting current image: {s}", .{full_path});
-        try std.fs.cwd().deleteFile(full_path);
+        try Io.Dir.cwd().deleteFile(io, full_path);
         // 重新扫描
         try cache.scanner.rescan();
         if (try next() == null) return Error.GalleryNoImageLeft;

@@ -1,4 +1,4 @@
-const c = @import("c.zig").c;
+const c = @import("ass_c");
 const h = @import("helper.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();

@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("ort_c");
 const h = @import("helper.zig");
 const accelerator = @import("accelerator.zig");
 const Allocator = std.mem.Allocator;
@@ -16,16 +16,13 @@ provider_list: std.ArrayList([]const u8),
 provider_options_list: std.ArrayList(ProviderOptions),
 
 pub fn init(gpa: Allocator, logid: []const u8) Error!Self {
-    var sf = std.heap.stackFallback(512, gpa);
-    const sfa = sf.get();
-
     // 获取 ONNX Runtime API 句柄
     const base = c.OrtGetApiBase();
     const ort_api = base.*.GetApi.?(c.ORT_API_VERSION);
 
     // 创建 Env
-    const logid_z = try sfa.dupeZ(u8, logid);
-    defer sfa.free(logid_z);
+    const logid_z = try gpa.dupeSentinel(u8, logid, 0);
+    defer gpa.free(logid_z);
     var env: ?*c.OrtEnv = null;
     try h.check(ort_api, ort_api.*.CreateEnv.?(c.ORT_LOGGING_LEVEL_WARNING, logid_z, &env));
 

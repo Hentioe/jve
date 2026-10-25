@@ -1,4 +1,4 @@
-const c = @import("c.zig").c;
+const c = @import("vips_c");
 const h = @import("helper.zig");
 const shared = @import("shared");
 const consts = @import("consts.zig");

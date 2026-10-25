@@ -60,7 +60,7 @@ pub const Context = struct {
 
     pub fn bannerClick(self: *Self, _: void) void {
         std.log.debug("Banner clicked", .{});
-        shared.openUrl(self.allocator, "https://github.com/Hentioe/jve") catch {
+        shared.openUrl("https://github.com/Hentioe/jve") catch {
             self.deps.banner.setText("打开仓库链接失败了") catch |err| std.log.err("Failed to set banner text: {}", .{err});
             self.deps.banner.setColor(.rgba(1.0, 0.0, 0.0, 0.5));
         };

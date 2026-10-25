@@ -23,10 +23,10 @@ bg_verts_buffer: *sdl.GPUBuffer,
 bg_verts_binding: sdl.GPUBufferBinding,
 
 pub fn init(allocator: Allocator, window: *Window, gpu: *const sdl.Gpu, widgets: []Widget, banner: *TextBanner) Error!Self {
-    const vert_buffer_desc: sdl.GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.GPU_VERTEXINPUTRATE_VERTEX };
+    const vert_buffer_desc: sdl.GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.GPU_VERTEXINPUTRATE_VERTEX, .instance_step_rate = 0 };
     const vert_attrs: [2]sdl.GPUVertexAttribute = .{
-        .{ .location = 0, .format = sdl.GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = @offsetOf(Vertex, "x") }, // Position
-        .{ .location = 1, .format = sdl.GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u") }, // UV
+        .{ .location = 0, .format = sdl.GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = @offsetOf(Vertex, "x"), .buffer_slot = 0 }, // Position
+        .{ .location = 1, .format = sdl.GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = @offsetOf(Vertex, "u"), .buffer_slot = 0 }, // UV
     };
     const vertex_input_state: sdl.GPUVertexInputState = .{
         .num_vertex_buffers = 1,
@@ -46,7 +46,7 @@ pub fn init(allocator: Allocator, window: *Window, gpu: *const sdl.Gpu, widgets:
     // 上传全屏顶点
     const verts = consts.base_verts;
     const verts_size = @sizeOf(Vertex) * verts.len;
-    const verts_buffer_info = sdl.GPUBufferCreateInfo{ .usage = sdl.GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
+    const verts_buffer_info = sdl.GPUBufferCreateInfo{ .usage = sdl.GPU_BUFFERUSAGE_VERTEX, .size = verts_size, .props = 0 };
     const bg_verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&verts), verts_size);
 
     try uploader.submit();

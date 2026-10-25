@@ -1,4 +1,4 @@
-const c = @import("c.zig").c;
+const c = @import("slang_c");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 

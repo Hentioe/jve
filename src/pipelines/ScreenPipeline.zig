@@ -45,9 +45,18 @@ pub fn deinit(self: *Self) void {
 pub fn begin(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, swapchain_texture: ?*c.SDL_GPUTexture) Error!void {
     const color_target: c.SDL_GPUColorTargetInfo = .{
         .texture = swapchain_texture,
+        .mip_level = 0,
+        .layer_or_depth_plane = 0,
+        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 },
         .load_op = c.SDL_GPU_LOADOP_CLEAR,
         .store_op = c.SDL_GPU_STOREOP_STORE,
-        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 },
+        .resolve_texture = null,
+        .resolve_mip_level = 0,
+        .resolve_layer = 0,
+        .cycle = false,
+        .cycle_resolve_texture = false,
+        .padding1 = 0,
+        .padding2 = 0,
     };
     self.render_pass = try h.check(c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null));
 }

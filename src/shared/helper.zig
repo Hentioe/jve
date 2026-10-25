@@ -1,23 +1,22 @@
 const std = @import("std");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const errors = @import("errors.zig");
 const OpenUrlError = errors.OpenUrlError;
 
+const io = std.Io.Threaded.global_single_threaded.io();
+
 // 输入一个路径，检查是否存在
 pub fn pathExists(path: []const u8) bool {
-    const cwd = std.fs.cwd();
-    cwd.access(path, .{}) catch |err| {
-        if (err == std.fs.Dir.AccessError.FileNotFound) {
-            return false;
-        }
+    Io.Dir.cwd().access(io, path, .{}) catch |err| {
+        if (err == std.Io.Dir.AccessError.FileNotFound) return false;
     };
     return true;
 }
 
 // 输入一个路径，检查是否可访问
 pub fn pathAccessible(path: []const u8) bool {
-    const cwd = std.fs.cwd();
-    cwd.access(path, .{}) catch |err| {
+    Io.Dir.cwd().access(io, path, .{}) catch |err| {
         std.log.warn("Failed to access path: {}", .{err});
         return false;
     };
@@ -25,7 +24,7 @@ pub fn pathAccessible(path: []const u8) bool {
 }
 
 pub fn strdup(s: []const u8) Allocator.Error![*:0]u8 {
-    const buf = try std.heap.raw_c_allocator.dupeZ(u8, s);
+    const buf = try std.heap.c_allocator.dupeSentinel(u8, s, 0);
     return buf.ptr;
 }
 
@@ -35,15 +34,28 @@ pub fn bytesToKb(bytes: u64) u64 {
 }
 
 /// 用系统默认浏览器打开 URL（Linux，依赖 xdg-open）
-pub fn openUrl(allocator: Allocator, url: []const u8) OpenUrlError!void {
-    var child = std.process.Child.init(&.{ "xdg-open", url }, allocator);
-    child.stdin_behavior = .Ignore;
-    child.stdout_behavior = .Ignore;
-    child.stderr_behavior = .Ignore;
+pub fn openUrl(url: []const u8) OpenUrlError!void {
+    var child = try std.process.spawn(io, .{
+        .argv = &.{ "xdg-open", url },
+        .stdin = .ignore,
+        .stdout = .ignore,
+        .stderr = .ignore,
+    });
 
-    const term = try child.spawnAndWait();
+    const term = try child.wait(io);
     switch (term) {
-        .Exited => |code| if (code != 0) return OpenUrlError.OpenUrlFailed,
+        .exited => |code| if (code != 0) return OpenUrlError.OpenUrlFailed,
         else => return OpenUrlError.OpenUrlFailed,
     }
+}
+
+/// 当前 Unix 毫秒时间戳(挂钟时间,可能被 NTP 调整,不保证单调)
+pub fn milliTimestamp() i64 {
+    const now = std.Io.Clock.real.now(io);
+    return @intCast(now.toMilliseconds());
+}
+
+/// 当前 Unix 秒级时间戳(挂钟时间,可能被 NTP 调整,不保证单调)
+pub fn timestamp() i64 {
+    return Io.Clock.real.now(io).toSeconds();
 }

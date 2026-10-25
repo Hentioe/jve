@@ -3,11 +3,14 @@ const xdg = @import("xdg");
 const shared = @import("shared");
 const slang = @import("slang");
 const consts = @import("consts.zig");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const config = @import("../config.zig");
 const Cache = @import("Cache.zig");
 const Scanner = @import("../Scanner.zig");
 const Error = @import("errors.zig").Error;
+
+const io = std.Io.Threaded.global_single_threaded.io();
 
 pub const Result = struct {
     // 是否删除目录
@@ -29,7 +32,7 @@ pub fn deleteInvalidCache(allocator: Allocator) Error!Result {
     // 初始化一个空的清理结果
     var r: Result = .{};
     // 获取缓存目录路径
-    const home = try xdg.getCacheHome(a);
+    const home = try xdg.getCacheHomeOwned(a);
     const cache_path = try std.fs.path.join(a, &.{ home, consts.CACHE_APP, consts.CACHE_SUBDIR });
     if (!shared.pathExists(cache_path)) { // 目录不存在，直接返回
         std.log.debug("Cache directory does not exist: {s}", .{cache_path});
@@ -40,7 +43,7 @@ pub fn deleteInvalidCache(allocator: Allocator) Error!Result {
     defer cache.deinit();
     // 检查 profile 是否不同
     if (!std.mem.eql(u8, cache.manifest_profile, slang.DEFAULT_PROFILE)) { // profile 不同，删除整个缓存目录后返回
-        try std.fs.cwd().deleteTree(cache_path);
+        try Io.Dir.cwd().deleteTree(io, cache_path);
         r.deleted_dir = true;
         return r;
     }
@@ -102,7 +105,7 @@ pub fn deleteInvalidCache(allocator: Allocator) Error!Result {
         };
         if (!found) {
             const file_path = try std.fs.path.join(a, &.{ cache_path, name });
-            try std.fs.cwd().deleteFile(file_path);
+            try Io.Dir.cwd().deleteFile(io, file_path);
             std.log.info("Deleted shader file not in cache: {s}", .{name});
             r.deleted_count += 1;
         }

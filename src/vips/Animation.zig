@@ -1,12 +1,14 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("vips_c");
 const h = @import("helper.zig");
 const shared = @import("shared");
 const consts = @import("consts.zig");
-const Error = @import("errors.zig").Error;
+const Allocator = std.mem.Allocator;
 const Image = @import("Image.zig");
 const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
 const Size2D = shared.Size2D;
+const milliTimestamp = shared.milliTimestamp;
+const Error = @import("errors.zig").Error;
 const Self = @This();
 
 pub const Format = enum { gif, webp, jxl };
@@ -66,10 +68,10 @@ frame_bytes: usize,
 scratch: ?Image.Out,
 
 /// 尝试把文件当作动图打开。不是 GIF/WebP/JXL、只有一帧或缺少 delay 元数据时返回 null。
-pub fn init(allocator: std.mem.Allocator, path: []const u8, options: Options) Error!?Self {
+pub fn init(allocator: Allocator, path: []const u8, options: Options) Error!?Self {
     const format = detectFormat(path) orelse return null;
 
-    const path_z = try allocator.dupeZ(u8, path);
+    const path_z = try allocator.dupeSentinel(u8, path, 0);
     var roll: ?*c.VipsImage = null;
     var delays_ms: []u32 = &.{};
     var pts_ms: []u64 = &.{};
@@ -285,20 +287,20 @@ fn extractAt(self: *Self, index: usize) Error!void {
 
     // 临时诊断：只输出首次抽帧的各阶段耗时，用于定位首次换帧的卡顿
     const log_first = !first_extract_logged;
-    const started = std.time.milliTimestamp();
+    const started = milliTimestamp();
     if (log_first) std.log.debug("First animation frame decode started (index {d}/{d}, 0-based)", .{ index, self.count });
 
     var page: ?*c.VipsImage = null;
     try h.check(c.vips_crop(roll, &page, 0, top, self.width, self.page_height, VIPS_ARGUMENT_NULL));
-    const cropped = std.time.milliTimestamp();
+    const cropped = milliTimestamp();
 
     // crop 出的页由 Image 接管所有权，转换完成后再转成连续内存。
     var image = Image.initFromVips(page.?);
     defer image.deinit();
     try image.toSrgb();
-    const converted = std.time.milliTimestamp();
+    const converted = milliTimestamp();
     try image.addAlpha(255.0);
-    const alpha_added = std.time.milliTimestamp();
+    const alpha_added = milliTimestamp();
 
     if (image.width != self.width or image.height != self.page_height) return Error.AnimationFrameSize;
 
@@ -306,7 +308,7 @@ fn extractAt(self: *Self, index: usize) Error!void {
     // 真正触发 roll 解码的是 write_to_memory（即下面的导出步骤）。
     var out = try image.allocOutInMemory();
     errdefer out.deinit();
-    const written = std.time.milliTimestamp();
+    const written = milliTimestamp();
 
     if (log_first) {
         first_extract_logged = true;

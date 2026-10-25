@@ -1,4 +1,5 @@
 const std = @import("std");
+const app_env = @import("app_env.zig");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 
@@ -66,15 +67,13 @@ fn expandHome(allocator: Allocator, path: []const u8) Error![]const u8 {
 const getHomeDir = if (builtin.os.tag == .windows) getHomeDirWindows else getHomeDirPosix;
 
 fn getHomeDirPosix(allocator: Allocator) Error![]u8 {
-    return try std.process.getEnvVarOwned(allocator, "HOME");
+    return try app_env.reader().getEnvVarOwned(allocator, "HOME") orelse return Error.GetHomeDirFailed;
 }
 
 fn getHomeDirWindows(allocator: Allocator) Error![]u8 {
-    if (std.process.getEnvVarOwned(allocator, "USERPROFILE")) |profile| {
+    if (app_env.reader().getEnvVarOwned(allocator, "USERPROFILE")) |profile| {
         if (profile.len > 0) return profile;
         allocator.free(profile);
-    } else |err| {
-        if (err != error.EnvironmentVariableNotFound) return err;
     }
 
     // 回退到旧式 HOMEDRIVE + HOMEPATH

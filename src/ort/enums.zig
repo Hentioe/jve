@@ -1,4 +1,4 @@
-const c = @import("c.zig").c;
+const c = @import("ort_c");
 
 pub const ProviderOptions = union(enum) {
     migraphx: c.OrtMIGraphXProviderOptions,

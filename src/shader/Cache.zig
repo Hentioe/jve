@@ -12,10 +12,13 @@
 const std = @import("std");
 const xdg = @import("xdg");
 const consts = @import("consts.zig");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Error = @import("errors.zig").Error;
-const Cache = @This();
+const Self = @This();
+
+const io = std.Io.Threaded.global_single_threaded.io();
 
 /// 单个着色器的摘要信息（manifest 中的条目）。
 pub const Entry = struct {
@@ -54,11 +57,11 @@ has_manifest: bool = false,
 entries: std.StringArrayHashMapUnmanaged(Entry) = .empty,
 dirty: bool = false,
 
-pub fn init(gpa: Allocator, profile: []const u8) Error!Cache {
+pub fn init(gpa: Allocator, profile: []const u8) Error!Self {
     var self = try load(gpa, profile);
     errdefer self.deinit();
 
-    std.fs.cwd().makePath(self.dir_path) catch |err| {
+    Io.Dir.cwd().createDirPath(io, self.dir_path) catch |err| {
         std.log.err("Failed to create shader cache directory {s}: {s}", .{ self.dir_path, @errorName(err) });
         return Error.CacheDirCreationFailed;
     };
@@ -72,15 +75,15 @@ pub fn init(gpa: Allocator, profile: []const u8) Error!Cache {
 /// 与 `init` 的区别：`init` 校验失败时丢弃全部条目；本函数原样返回摘要中的
 /// `manifest_version`、`manifest_profile` 和所有条目，供需要自行判断旧缓存
 /// （例如 cleaner）的调用方使用。摘要不存在时返回空缓存且 `has_manifest` 为 false。
-pub fn load(gpa: Allocator, profile: []const u8) Error!Cache {
+pub fn load(gpa: Allocator, profile: []const u8) Error!Self {
     var arena = ArenaAllocator.init(gpa);
     errdefer arena.deinit();
     const a = arena.allocator();
 
-    const home = try xdg.getCacheHome(a);
+    const home = try xdg.getCacheHomeOwned(a);
     const dir_path = try std.fs.path.join(a, &.{ home, consts.CACHE_APP, consts.CACHE_SUBDIR });
 
-    var self = Cache{
+    var self = Self{
         .gpa = gpa,
         .arena = arena,
         .dir_path = dir_path,
@@ -92,7 +95,7 @@ pub fn load(gpa: Allocator, profile: []const u8) Error!Cache {
 
 /// 按 `profile` 与 `consts.FORMAT_VERSION` 校验已加载的摘要，
 /// 不匹配时清空内存中的条目（磁盘内容不动）。
-fn invalidateIfStale(self: *Cache) void {
+fn invalidateIfStale(self: *Self) void {
     if (!self.has_manifest) return;
     if (self.manifest_version == consts.FORMAT_VERSION and std.mem.eql(u8, self.manifest_profile, self.profile)) return;
 
@@ -100,17 +103,17 @@ fn invalidateIfStale(self: *Cache) void {
     self.entries.clearRetainingCapacity();
 }
 
-pub fn deinit(self: *Cache) void {
+pub fn deinit(self: *Self) void {
     self.arena.deinit();
     self.* = undefined;
 }
 
-pub fn get(self: *const Cache, name: []const u8) ?Entry {
+pub fn get(self: *const Self, name: []const u8) ?Entry {
     return self.entries.get(name);
 }
 
 /// 内容未变、仅元数据变化时刷新摘要（并标记为需要写回）。
-pub fn touch(self: *Cache, name: []const u8, mtime: i128, size: u64) void {
+pub fn touch(self: *Self, name: []const u8, mtime: i128, size: u64) void {
     if (self.entries.getPtr(name)) |entry| {
         if (entry.mtime != mtime or entry.size != size) {
             entry.mtime = mtime;
@@ -121,12 +124,12 @@ pub fn touch(self: *Cache, name: []const u8, mtime: i128, size: u64) void {
 }
 
 /// 读取缓存中的 SPIR-V；摘要不存在或缓存文件不存在时返回 null。
-pub fn readSpv(self: *Cache, allocator: Allocator, name: []const u8) Error!?[]u8 {
+pub fn readSpv(self: *Self, allocator: Allocator, name: []const u8) Error!?[]u8 {
     const entry = self.entries.get(name) orelse return null;
     const path = try self.spvPath(allocator, entry.hash);
     defer allocator.free(path);
 
-    return std.fs.cwd().readFileAlloc(allocator, path, consts.MAX_SPV_SIZE) catch |err| switch (err) {
+    return std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(consts.MAX_SPV_SIZE)) catch |err| switch (err) {
         error.FileNotFound => null,
         else => {
             std.log.err("Failed to read cached shader '{s}': {s}", .{ path, @errorName(err) });
@@ -136,7 +139,7 @@ pub fn readSpv(self: *Cache, allocator: Allocator, name: []const u8) Error!?[]u8
 }
 
 /// 写入新编译的 SPIR-V 并更新摘要。
-pub fn write(self: *Cache, allocator: Allocator, name: []const u8, bytes: []const u8, mtime: i128, size: u64, hash: u64) Error!void {
+pub fn write(self: *Self, allocator: Allocator, name: []const u8, bytes: []const u8, mtime: i128, size: u64, hash: u64) Error!void {
     const path = try self.spvPath(allocator, hash);
     defer allocator.free(path);
     try atomicWrite(allocator, path, bytes);
@@ -148,7 +151,7 @@ pub fn write(self: *Cache, allocator: Allocator, name: []const u8, bytes: []cons
 }
 
 /// 原子地写回摘要文件（仅在内容变化时）。
-pub fn save(self: *Cache) Error!void {
+pub fn save(self: *Self) Error!void {
     if (!self.dirty) return;
 
     const gpa = self.gpa;
@@ -165,8 +168,8 @@ pub fn save(self: *Cache) Error!void {
         });
     }
 
-    const wire = Wire{ .version = consts.FORMAT_VERSION, .profile = self.profile, .entries = list.items };
-    var out: std.io.Writer.Allocating = .init(gpa);
+    const wire: Wire = .{ .version = consts.FORMAT_VERSION, .profile = self.profile, .entries = list.items };
+    var out: std.Io.Writer.Allocating = .init(gpa);
     defer out.deinit();
     std.json.Stringify.value(wire, .{ .whitespace = .indent_2 }, &out.writer) catch |err| {
         std.log.err("Failed to serialize shader cache manifest: {s}", .{@errorName(err)});
@@ -179,11 +182,11 @@ pub fn save(self: *Cache) Error!void {
     self.dirty = false;
 }
 
-fn loadManifest(self: *Cache) Error!void {
+fn loadManifest(self: *Self) Error!void {
     const a = self.arena.allocator();
     const path = try std.fs.path.join(a, &.{ self.dir_path, consts.MANIFEST_NAME });
-
-    const raw = std.fs.cwd().readFileAlloc(a, path, consts.MAX_MANIFEST_SIZE) catch |err| switch (err) {
+    const cwd = Io.Dir.cwd();
+    const raw = cwd.readFileAlloc(io, path, a, .unlimited) catch |err| switch (err) {
         error.FileNotFound => return, // 首次加载，缓存为空
         else => {
             std.log.err("Failed to read shader cache manifest {s}: {s}", .{ path, @errorName(err) });
@@ -209,7 +212,7 @@ fn loadManifest(self: *Cache) Error!void {
     }
 }
 
-fn spvPath(self: *const Cache, allocator: Allocator, hash: u64) Error![]u8 {
+fn spvPath(self: *const Self, allocator: Allocator, hash: u64) Error![]u8 {
     const fname = try spvName(allocator, hash);
     defer allocator.free(fname);
     return std.fs.path.join(allocator, &.{ self.dir_path, fname });
@@ -222,9 +225,9 @@ fn spvName(allocator: Allocator, hash: u64) Error![]u8 {
 
 const testing = std.testing;
 
-fn testCache(arena: *ArenaAllocator, dir: []const u8, profile: []const u8) Error!Cache {
+fn testCache(arena: *ArenaAllocator, dir: []const u8, profile: []const u8) Error!Self {
     const owned = try arena.allocator().dupe(u8, dir);
-    var cache = Cache{
+    var cache = Self{
         .gpa = testing.allocator,
         .arena = arena.*,
         .dir_path = owned,
@@ -352,22 +355,22 @@ test "missing spv returns null" {
 
 /// 先写临时文件再重命名，避免写入中断留下损坏的缓存。
 fn atomicWrite(allocator: Allocator, path: []const u8, bytes: []const u8) Error!void {
+    const cwd = Io.Dir.cwd();
     const tmp = std.fmt.allocPrint(allocator, "{s}.tmp", .{path}) catch return Error.CacheWriteFailed;
     defer allocator.free(tmp);
 
     {
-        var file = std.fs.cwd().createFile(tmp, .{}) catch |err| {
+        var file = cwd.createFile(io, tmp, .{}) catch |err| {
             std.log.err("Failed to create cache file '{s}': {s}", .{ tmp, @errorName(err) });
             return Error.CacheWriteFailed;
         };
-        defer file.close();
-        file.writeAll(bytes) catch |err| {
+        defer file.close(io);
+        file.writeStreamingAll(io, bytes) catch |err| {
             std.log.err("Failed to write cache file '{s}': {s}", .{ tmp, @errorName(err) });
             return Error.CacheWriteFailed;
         };
     }
-
-    std.fs.cwd().rename(tmp, path) catch |err| {
+    cwd.rename(tmp, cwd, path, io) catch |err| {
         std.log.err("Failed to rename cache file '{s}' -> '{s}': {s}", .{ tmp, path, @errorName(err) });
         return Error.CacheWriteFailed;
     };

@@ -47,7 +47,7 @@ pub fn init(
 ) Error!Self {
     const uploader = try Device.getUploader();
     const verts_size: u32 = @intCast(@sizeOf(Vertex) * base_verts.len);
-    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size };
+    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size, .props = 0 };
     // base_verts 是编译期常量，生命周期贯穿整个程序，无需额外暂存
     const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&base_verts), verts_size);
 

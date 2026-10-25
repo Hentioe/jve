@@ -13,4 +13,4 @@ const StepTraceError = @import("../StepTrace.zig").Error;
 const CustomError = error{};
 
 pub const Error = CustomError || SdlError || AssError || SizeError || OrtError || GalleryError || AiError || UiError || ShaderError || PipelineError || StepTraceError ||
-    std.mem.Allocator.Error || std.Thread.SpawnError || std.fs.File.OpenError;
+    std.mem.Allocator.Error || std.Thread.SpawnError || std.Io.File.OpenError;

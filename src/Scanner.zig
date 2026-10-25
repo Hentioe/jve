@@ -1,13 +1,15 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const config = @import("config.zig");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
+const Sort = config.Sort;
 const Self = @This();
 
-pub const ScanError = std.fs.Dir.StatFileError;
-pub const Error = ScanError || std.fs.Dir.OpenError || std.mem.Allocator.Error;
+pub const ScanError = std.Io.Dir.StatFileError;
+pub const Error = ScanError || std.Io.Dir.OpenError || std.mem.Allocator.Error;
 
-pub const Sort = config.Sort;
+const io = std.Io.Threaded.global_single_threaded.io();
 
 gpa: Allocator,
 arena: std.heap.ArenaAllocator,
@@ -64,15 +66,15 @@ pub fn scan(self: *Self) Error!void {
     _ = self.arena.reset(.retain_capacity);
     self.index = 0;
 
-    var dir = try std.fs.cwd().openDir(self.dir_path, .{ .iterate = true });
-    defer dir.close();
+    var dir = try Io.Dir.cwd().openDir(io, self.dir_path, .{ .iterate = true });
+    defer dir.close(io);
 
     const needs_time = self.sort != .name;
     var entries: std.ArrayList(Entry) = .empty;
     defer entries.deinit(self.gpa);
 
     var it = dir.iterate();
-    while (try it.next()) |entry| {
+    while (try it.next(io)) |entry| {
         switch (entry.kind) {
             .file, .sym_link, .unknown => {},
             else => continue,
@@ -126,14 +128,14 @@ fn timeOrder(ta: i128, tb: i128, na: []const u8, nb: []const u8, asc: bool) bool
 }
 
 /// 获取文件的创建与修改时间；优先使用 Linux 的 birth time，不可用时回退到 ctime。
-fn statTimes(dir: std.fs.Dir, name: []const u8) std.fs.Dir.StatFileError!Times {
+fn statTimes(dir: Io.Dir, name: []const u8) std.Io.Dir.StatFileError!Times {
     if (builtin.os.tag == .linux) {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        if (std.fmt.bufPrintZ(&path_buf, "{s}", .{name})) |path| {
+        if (std.fmt.bufPrintSentinel(&path_buf, "{s}", .{name}, 0)) |path| {
             var stx: std.os.linux.Statx = std.mem.zeroes(std.os.linux.Statx);
-            const mask = std.os.linux.STATX_MTIME | std.os.linux.STATX_BTIME;
-            const rc = std.os.linux.statx(dir.fd, path.ptr, std.os.linux.AT.NO_AUTOMOUNT, mask, &stx);
-            if (std.os.linux.E.init(rc) == .SUCCESS and stx.mask & std.os.linux.STATX_BTIME != 0) {
+            const mask: std.os.linux.STATX = .{ .MTIME = true, .BTIME = true };
+            const rc = std.os.linux.statx(dir.handle, path.ptr, std.os.linux.AT.NO_AUTOMOUNT, mask, &stx);
+            if (std.os.linux.errno(rc) == .SUCCESS and stx.mask.BTIME) {
                 return .{
                     .created = timestampToNs(stx.btime),
                     .modified = timestampToNs(stx.mtime),
@@ -141,8 +143,8 @@ fn statTimes(dir: std.fs.Dir, name: []const u8) std.fs.Dir.StatFileError!Times {
             }
         } else |_| {}
     }
-    const st = try dir.statFile(name);
-    return .{ .created = st.ctime, .modified = st.mtime };
+    const st = try dir.statFile(io, name, .{});
+    return .{ .created = st.ctime.nanoseconds, .modified = st.mtime.nanoseconds };
 }
 
 fn timestampToNs(ts: std.os.linux.statx_timestamp) i128 {
@@ -280,12 +282,12 @@ fn naturalOrder(a: []const u8, b: []const u8) std.math.Order {
 
 const testing = std.testing;
 
-fn touch(dir: std.fs.Dir, name: []const u8) !void {
+fn touch(dir: std.Io.Dir, name: []const u8) !void {
     const f = try dir.createFile(name, .{});
     f.close();
 }
 
-fn setMtime(dir: std.fs.Dir, name: []const u8, mtime: i128) !void {
+fn setMtime(dir: std.Io.Dir, name: []const u8, mtime: i128) !void {
     const f = try dir.openFile(name, .{});
     defer f.close();
     try f.updateTimes(mtime, mtime);

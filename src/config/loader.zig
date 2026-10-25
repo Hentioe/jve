@@ -6,6 +6,8 @@ const Allocator = std.mem.Allocator;
 const Unresolved = @import("Unresolved.zig");
 const Error = @import("errors.zig").Error;
 
+const io = std.Io.Threaded.global_single_threaded.io();
+
 pub const Loaded = struct {
     parsed: ?toml.Parsed(Unresolved) = null,
 
@@ -38,7 +40,7 @@ pub fn load(allocator: Allocator, config_path: ?[]const u8) Error!Loaded {
         var parser = toml.Parser(Unresolved).init(allocator);
         defer parser.deinit();
 
-        const parsed = parser.parseFile(p) catch |err| {
+        const parsed = parser.parseFile(io, p) catch |err| {
             return app_env.report(Error.ConfigParseFailed, @src(), "配置解析失败：{s}", .{@errorName(err)});
         };
 

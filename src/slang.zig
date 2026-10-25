@@ -1,6 +1,6 @@
 const std = @import("std");
 const shared = @import("shared");
-const c = @import("slang/c.zig").c;
+const c = @import("slang_c");
 const Compiler = @import("slang/Compiler.zig");
 
 pub const Error = @import("slang/errors.zig").Error;
@@ -58,9 +58,9 @@ pub fn compileToSpirv(allocator: std.mem.Allocator, name: []const u8, source: [:
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    const name_z = try arena.dupeZ(u8, name);
-    const entry_z = try arena.dupeZ(u8, options.entry);
-    const profile_z = try arena.dupeZ(u8, options.profile);
+    const name_z = try arena.dupeSentinel(u8, name, 0);
+    const entry_z = try arena.dupeSentinel(u8, options.entry, 0);
+    const profile_z = try arena.dupeSentinel(u8, options.profile, 0);
 
     var code: c.SlangShimBlob = .{ .data = null, .size = 0, .handle = null };
     var diag: [*c]u8 = null;

@@ -6,7 +6,10 @@
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+    }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -42,16 +45,17 @@
         wl-clipboard # Wayland 剪贴板工具
         xclip # X11 剪贴板工具
       ];
+      zigDeps = pkgs.callPackage ./build.zig.zon.nix { };
     in
     {
-      packages.${system}.default = pkgs.stdenv.mkDerivation {
+      packages.${system}.default = pkgs.stdenv.mkDerivation (finalAttrs: {
         pname = "jve";
         version = "0.0.0";
 
         src = ./.;
 
         nativeBuildInputs = with pkgs; [
-          zig_0_15
+          zig_0_17
           pkg-config
           makeBinaryWrapper # 用于 postFixup 里的 wrapProgram
         ];
@@ -73,24 +77,22 @@
         #   rm -rf "$p"
         #   mv "$p.new" "$p"
         # '';
+        # 注意：由于 Zig 从 0.15.2 升级到 0.17，问题细节可能已经变化了，但类似问题仍可能存在。
+
+        postPatch = pkgs.lib.concatMapStrings (p: ''
+          cp -rsL --no-preserve=mode ${zigDeps}/${p} fork-${p}
+        '') zigDeps.pathDependencyPackages;
 
         zigBuildFlags = [
+          "--system"
+          "${zigDeps}"
           "-Dcpu=baseline"
           "-Doptimize=ReleaseFast"
-          "-Dlink_builtin_slang=false" # 不使用内建 slang，依赖系统库
-        ];
+          "-Dslang-mode=system" # 动态链接系统 slang 库
+        ]
+        ++ map (p: "--fork=fork-${p}") zigDeps.pathDependencyPackages;
+        zigCheckFlags = finalAttrs.zigBuildFlags;
         dontSetZigDefaultFlags = true;
-
-        # 将事先由 zon2nix 生成的依赖目录接入 Zig 包缓存
-        postConfigure = ''
-          ln -s ${
-            pkgs.callPackage ./build.zig.zon.nix {
-              # zon2nix 用 `nix flake prefetch` 计算 hash（不会拉取 git 子模块），
-              # 而 nixpkgs 的 fetchgit 默认 fetchSubmodules = true，遇到带子模块的依赖（目前还没有）时 hash 会对不上，故显式关闭以对齐。
-              fetchgit = args: pkgs.fetchgit (args // { fetchSubmodules = false; });
-            }
-          } $ZIG_GLOBAL_CACHE_DIR/p
-        '';
 
         postInstall = ''
           install -Dm644 share/jve.desktop $out/share/applications/jve.desktop
@@ -112,7 +114,7 @@
           mainProgram = "jve";
           platforms = [ "x86_64-linux" ];
         };
-      };
+      });
 
       apps.${system}.default = {
         type = "app";

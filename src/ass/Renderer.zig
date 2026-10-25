@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("ass_c");
 const h = @import("helper.zig");
 const Library = @import("Library.zig");
 const Error = @import("errors.zig").Error;

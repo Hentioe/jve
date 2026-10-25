@@ -1,7 +1,10 @@
 const std = @import("std");
-const c = @import("c.zig").c;
-const Error = @import("errors.zig").Error;
+const c = @import("ort_c");
+const Io = std.Io;
 const ProviderOptions = @import("enums.zig").ProviderOptions;
+const Error = @import("errors.zig").Error;
+
+const io = std.Io.Threaded.global_single_threaded.io();
 
 pub fn buidlOptions(provider_name: []const u8) Error!?ProviderOptions {
     if (std.mem.eql(u8, provider_name, "MIGraphXExecutionProvider")) { // 构造 MiGraphX 配置
@@ -10,6 +13,17 @@ pub fn buidlOptions(provider_name: []const u8) Error!?ProviderOptions {
         const migraphx: c.OrtMIGraphXProviderOptions = .{
             .device_id = device_id, // todo: 获取设备 id
             .migraphx_fp16_enable = 1,
+            .migraphx_fp8_enable = 0,
+            .migraphx_int8_enable = 0,
+            .migraphx_use_native_calibration_table = 0,
+            .migraphx_int8_calibration_table_name = null,
+            .migraphx_save_compiled_model = 0,
+            .migraphx_save_model_path = null,
+            .migraphx_load_compiled_model = 0,
+            .migraphx_load_model_path = null,
+            .migraphx_exhaustive_tune = false,
+            .migraphx_mem_limit = 0,
+            .migraphx_arena_extend_strategy = 0,
         };
 
         return .{ .migraphx = migraphx };
@@ -21,10 +35,10 @@ pub fn buidlOptions(provider_name: []const u8) Error!?ProviderOptions {
 const kfd_nodes = "/sys/class/kfd/kfd/topology/nodes";
 
 fn readSmall(path: []const u8, buf: []u8) ?[]const u8 {
-    const f = std.fs.openFileAbsolute(path, .{}) catch return null;
-    defer f.close();
-    const n = f.readAll(buf) catch return null;
-    return buf[0..n];
+    const file = Io.Dir.openFileAbsolute(io, path, .{}) catch return null;
+    defer file.close(io);
+    const r = file.readerStreaming(io, buf);
+    return buf[0..r.pos];
 }
 
 /// 解析 "key value" 形式的 properties 文件
@@ -44,8 +58,9 @@ fn propValue(content: []const u8, key: []const u8) ?u64 {
 /// 多 GPU 时选择 SIMD 数量最多的那块；任何失败都回退到 0。
 fn getDeviceId() c_int {
     // 用户已通过环境变量限定可见设备，此时 HIP 会重新编号，第一块就是 0
-    if (std.posix.getenv("HIP_VISIBLE_DEVICES") != null or
-        std.posix.getenv("ROCR_VISIBLE_DEVICES") != null) return 0;
+    // todo: 移除或修复此处的过期代码
+    // if (std.posix.getenv("HIP_VISIBLE_DEVICES") != null or
+    //     std.posix.getenv("ROCR_VISIBLE_DEVICES") != null) return 0;
 
     var path_buf: [128]u8 = undefined;
     var buf: [4096]u8 = undefined;

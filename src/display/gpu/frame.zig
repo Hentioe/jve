@@ -23,9 +23,18 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     // 开启渲染通道
     const base_color_target: sdl.c.SDL_GPUColorTargetInfo = .{
         .texture = state.tex_src,
+        .mip_level = 0,
+        .layer_or_depth_plane = 0,
+        .clear_color = .{ .r = 0, .g = 0, .b = 0, .a = 0 },
         .load_op = sdl.c.SDL_GPU_LOADOP_CLEAR,
         .store_op = sdl.c.SDL_GPU_STOREOP_STORE,
-        .clear_color = .{ .r = 0, .g = 0, .b = 0, .a = 0 },
+        .resolve_texture = null,
+        .resolve_mip_level = 0,
+        .resolve_layer = 0,
+        .cycle = false,
+        .cycle_resolve_texture = false,
+        .padding1 = 0,
+        .padding2 = 0,
     };
     const render_pass = sdl.c.SDL_BeginGPURenderPass(cmd, &base_color_target, 1, null);
     // 绑定图形管线

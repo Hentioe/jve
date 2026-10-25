@@ -6,16 +6,19 @@ const Format = @import("enums.zig").ScreenshotFormat;
 
 pub const Error = @import("sdl").Error || std.mem.Allocator.Error;
 
-var lock: std.Thread.Mutex = .{};
+const io = std.Io.Threaded.global_single_threaded.io();
+
+var mutex: std.Io.Mutex = .init;
 var global_data: ?[]const u8 = null;
 var global_allocator: ?Allocator = null;
 
 pub fn copyImage(allocator: Allocator, src: []const u8, format: Format) Error!void {
+    mutex.lockUncancelable(io);
+    defer mutex.unlock(io);
+
     var mime_types = [_][*c]const u8{switch (format) {
         .png => "image/png",
     }};
-    lock.lock();
-    defer lock.unlock();
 
     try h.check(c.SDL_SetClipboardData(
         callback,
@@ -34,8 +37,8 @@ pub fn copyImage(allocator: Allocator, src: []const u8, format: Format) Error!vo
 
 // 提供数据的回调函数
 fn callback(_: ?*anyopaque, _: [*c]const u8, size: [*c]usize) callconv(.c) ?*const anyopaque {
-    lock.lock();
-    defer lock.unlock();
+    mutex.lockUncancelable(io);
+    defer mutex.unlock(io);
     if (global_data) |data| {
         std.log.info("Providing clipboard data, size: {d}", .{data.len});
         size.* = data.len;

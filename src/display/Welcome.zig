@@ -26,7 +26,7 @@ const LOGO_TEXT = "JVE";
 const LOGO_FONT = "Liberation Serif";
 const WELCOME_TEXT = "JVE 是一个图像查看器";
 
-const debug = builtin.mode == .Debug;
+const debug = builtin.mode == .debug;
 
 allocator: Allocator,
 window: *Window,

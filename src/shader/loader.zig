@@ -21,11 +21,11 @@ pub fn loadSlangFile(
     // 正在加载着色器
     std.log.info("Loading shader: {s}", .{file_path});
     // 检查文件是否可访问
-    try std.fs.cwd().access(file_path, .{});
-    const file = try std.fs.cwd().openFile(file_path, .{});
+    try std.Io.Dir.cwd().access(file_path, .{});
+    const file = try std.Io.Dir.cwd().openFile(file_path, .{});
     defer file.close();
     const stat = try file.stat();
-    const source = std.fs.cwd().readFileAllocOptions(
+    const source = std.Io.Dir.cwd().readFileAllocOptions(
         allocator,
         file_path,
         stat.size,
@@ -38,7 +38,7 @@ pub fn loadSlangFile(
     var compiled = try slang.compileToSpirv(allocator, file_path, source, .{ .entry = entrypoint });
     defer compiled.deinit();
 
-    const entrypoint_z = try allocator.dupeZ(u8, entrypoint);
+    const entrypoint_z = try allocator.dupeSentinel(u8, entrypoint, 0);
     defer allocator.free(entrypoint_z);
 
     return load(gpu, compiled.bytes(), entrypoint_z, stage, options);
@@ -56,11 +56,12 @@ pub fn load(
         .code_size = bytes.len,
         .entrypoint = entrypoint,
         .format = sdl.c.SDL_GPU_SHADERFORMAT_SPIRV,
-        .stage = @intFromEnum(stage),
+        .stage = @backingInt(stage),
         .num_samplers = options.samplers,
         .num_storage_textures = 0,
         .num_storage_buffers = 0,
         .num_uniform_buffers = options.buffers,
+        .props = 0,
     };
 
     return try gpu.createGPUShader(&create_info);

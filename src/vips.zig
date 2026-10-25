@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("vips/c.zig").c;
+const c = @import("vips_c");
 const h = @import("vips/helper.zig");
 
 pub const formats = @import("vips/formats.zig");

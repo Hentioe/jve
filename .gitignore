@@ -1,9 +1,12 @@
+# Env
 /.direnv/
-/.zig-cache/
-/zig-out/
-/images/
+# Zig
+/.zig-cache
+/zig-out
+/zig-pkg
+# Dev resources
 /models/
+# Output
 /screenshots/
-/shaders/user/
 # Nix build
 /result

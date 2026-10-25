@@ -1,4 +1,4 @@
-pub const c = @import("ass/c.zig").c;
+pub const c = @import("ass_c");
 pub const h = @import("ass/helper.zig");
 pub const Library = @import("ass/Library.zig");
 pub const Renderer = @import("ass/Renderer.zig");

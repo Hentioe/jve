@@ -10,7 +10,7 @@ working_keys: WorkingKeys,
 primary_pressed_changed: bool = false,
 
 pub fn init(primary_key: Modifier) Self {
-    return Self{ .primary_key = primary_key, .working_keys = .initEmpty() };
+    return Self{ .primary_key = primary_key, .working_keys = .empty };
 }
 
 pub fn input(self: *Self, event: *const sdl.Event) void {

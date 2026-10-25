@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("c.zig").c;
+const c = @import("ort_c");
 const OrtError = @import("errors.zig").OrtError;
 
 /// 检查 ORT 调用返回的 status，如果失败则打印错误并返回 OrtError.OrtFailed。
