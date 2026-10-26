@@ -1,5 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const zeroInit = std.mem.zeroInit;
 const shared = @import("shared");
 const consts = @import("../consts.zig");
 const ui = @import("../../ui.zig");
@@ -71,17 +72,19 @@ pub fn init(
 
     // -- 纹理 (Texture) --
     const texture_size = image.shape.toSize2D(u32);
-    const texture_info = sdl.c.SDL_GPUTextureCreateInfo{
-        .type = sdl.c.SDL_GPU_TEXTURETYPE_2D,
-        .format = sdl.c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, // 对应常见的 RGBA8888 像素格式
-        .usage = sdl.c.SDL_GPU_TEXTUREUSAGE_SAMPLER, // 作为采样器供 Pipeline 渲染
+    // type / sample_count / props 留空：分别为 2D、单采样、0（zeroInit 清零）
+    const texture_info = zeroInit(sdl.GPUTextureCreateInfo, .{
+        // 像素格式：RGBA8888，对应上传的像素数据
+        .format = sdl.GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        // 用途：作为采样器纹理供管线读取
+        .usage = sdl.GPU_TEXTUREUSAGE_SAMPLER,
         .width = texture_size.w,
         .height = texture_size.h,
+        // 层数/深度：非数组、非 3D 纹理必须为 1
         .layer_count_or_depth = 1,
+        // mip 层级：1 表示不生成 mipmap（0 会生成完整 mip 链）
         .num_levels = 1,
-        .sample_count = sdl.c.SDL_GPU_SAMPLECOUNT_1,
-        .props = 0,
-    };
+    });
     const texture = try uploader.uploadTextureBorrowed(&texture_info, image.pixels_ptr, texture_size);
 
     // -- 动图容器 (Animation) --
@@ -94,29 +97,28 @@ pub fn init(
     // -- 顶点 (Vertex) --
     const verts: [6]Vertex = consts.base_verts;
     const verts_size = @sizeOf(Vertex) * verts.len;
-    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size, .props = 0 };
+    const verts_buffer_info = zeroInit(sdl.GPUBufferCreateInfo, .{
+        // 用途：顶点缓冲区，绘制时绑定给顶点阶段读取
+        .usage = sdl.GPU_BUFFERUSAGE_VERTEX,
+        // 缓冲区大小（字节）：6 个顶点
+        .size = verts_size,
+    });
     const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&verts), verts_size);
     const verts_binding: sdl.c.SDL_GPUBufferBinding = .{ .buffer = verts_buffer, .offset = 0 };
 
     // -- 纹理采样器 (Sampler) --
-    const sampler_desc = sdl.c.SDL_GPUSamplerCreateInfo{
-        .min_filter = sdl.c.SDL_GPU_FILTER_LINEAR, // 线性过滤
-        .mag_filter = sdl.c.SDL_GPU_FILTER_LINEAR,
-        .mipmap_mode = sdl.c.SDL_GPU_SAMPLERMIPMAPMODE_LINEAR,
-        .address_mode_u = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-        .address_mode_v = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-        .address_mode_w = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-        .mip_lod_bias = 0,
-        .max_anisotropy = 0,
-        .compare_op = sdl.c.SDL_GPU_COMPAREOP_INVALID,
-        .min_lod = 0,
-        .max_lod = 0,
-        .enable_anisotropy = false,
-        .enable_compare = false,
-        .padding1 = 0,
-        .padding2 = 0,
-        .props = 0,
-    };
+    // 其余字段留空：mip_lod_bias/min_lod/max_lod = 0、无各向异性、无深度比较、props = 0
+    const sampler_desc = zeroInit(sdl.GPUSamplerCreateInfo, .{
+        // 缩小/放大过滤：线性插值，缩放图片时更平滑
+        .min_filter = sdl.GPU_FILTER_LINEAR,
+        .mag_filter = sdl.GPU_FILTER_LINEAR,
+        // mipmap 过滤模式：线性（纹理本身只有一级 mip）
+        .mipmap_mode = sdl.GPU_SAMPLERMIPMAPMODE_LINEAR,
+        // UVW 越界模式：钳制到边缘，避免图片边缘出现重复像素
+        .address_mode_u = sdl.GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_v = sdl.GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_w = sdl.GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+    });
     const sampler = try device.createGPUSampler(&sampler_desc);
 
     // -- 图形管线 (Graphics Pipeline) --
@@ -139,47 +141,48 @@ pub fn init(
     const vert_shader = try shader.loader.load(device, @embedFile("base.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
     const frag_shader = try shader.loader.load(device, @embedFile("base.frag.spv"), "main", .fragment, .{ .samplers = 1, .buffers = 1 });
     const vert_buffer_desc: sdl.c.SDL_GPUVertexBufferDescription = .{ .slot = 0, .pitch = @sizeOf(Vertex), .input_rate = sdl.c.SDL_GPU_VERTEXINPUTRATE_VERTEX, .instance_step_rate = 0 };
-    const pipeline_info: sdl.c.SDL_GPUGraphicsPipelineCreateInfo = .{
-        .vertex_shader = vert_shader, // 编译好的顶点着色器
-        .fragment_shader = frag_shader, // 编译好的片段着色器
-        .vertex_input_state = .{
+    // 其余字段留空：primitive_type = TRIANGLELIST、光栅化/多重采样/深度模板状态取默认零值、props = 0
+    const pipeline_info = zeroInit(sdl.GPUGraphicsPipelineCreateInfo, .{
+        // 编译好的顶点着色器
+        .vertex_shader = vert_shader,
+        // 编译好的片段着色器
+        .fragment_shader = frag_shader,
+        // 顶点输入布局
+        .vertex_input_state = zeroInit(sdl.GPUVertexInputState, .{
+            // 顶点缓冲数量与描述（槽位、步长、输入率）
             .num_vertex_buffers = 1,
             .vertex_buffer_descriptions = &vert_buffer_desc,
+            // 顶点属性数量与属性表（位置 + UV）
             .num_vertex_attributes = 2,
             .vertex_attributes = &vert_attrs,
-        },
-        .primitive_type = sdl.c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+        }),
+        // 渲染目标信息（外层 zeroInit 递归清零缺省字段）
         .target_info = .{
+            // 颜色目标数量：1
             .num_color_targets = 1,
+            // 颜色目标描述（格式与混合状态）
             .color_target_descriptions = &color_target_desc,
-            .depth_stencil_format = sdl.c.SDL_GPU_TEXTUREFORMAT_INVALID,
-            .has_depth_stencil_target = false,
-            .padding1 = 0,
-            .padding2 = 0,
-            .padding3 = 0,
         },
-        .rasterizer_state = std.mem.zeroes(sdl.c.SDL_GPURasterizerState),
-        .multisample_state = std.mem.zeroes(sdl.c.SDL_GPUMultisampleState),
-        .depth_stencil_state = std.mem.zeroes(sdl.c.SDL_GPUDepthStencilState),
-        .props = 0,
-    };
+    });
     // 基础着色器（负责图像渲染）
     const base_pl = try device.createGPUGraphicsPipeline(&pipeline_info);
     // 构造背景
     const background = try pipelines.Background.init(device, color_target_desc.format);
 
     // 创建离屏渲染纹理 A 和 B
-    const offscreen_info: sdl.c.SDL_GPUTextureCreateInfo = .{
-        .type = sdl.c.SDL_GPU_TEXTURETYPE_2D,
+    // type / sample_count / props 留空：分别为 2D、单采样、0（zeroInit 清零）
+    const offscreen_info = zeroInit(sdl.GPUTextureCreateInfo, .{
+        // 像素格式：与交换链颜色目标一致，便于屏幕直通采样
         .format = color_target_desc.format,
-        .usage = sdl.c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | sdl.c.SDL_GPU_TEXTUREUSAGE_SAMPLER,
+        // 用途：既作为后处理管线的渲染目标，也作为下一趟的采样输入
+        .usage = sdl.GPU_TEXTUREUSAGE_COLOR_TARGET | sdl.GPU_TEXTUREUSAGE_SAMPLER,
         .width = texture_size.w,
         .height = texture_size.h,
+        // 层数/深度：非数组、非 3D 纹理必须为 1
         .layer_count_or_depth = 1,
+        // mip 层级：1 表示不生成 mipmap（0 会生成完整 mip 链）
         .num_levels = 1,
-        .sample_count = sdl.c.SDL_GPU_SAMPLECOUNT_1,
-        .props = 0,
-    };
+    });
     const tex_a = try device.createGPUTexture(&offscreen_info);
     const tex_b = try device.createGPUTexture(&offscreen_info);
 
@@ -325,41 +328,41 @@ pub fn builtin(self: *Self) [4]*pipelines.Post {
 }
 
 /// 非预乘输入叠加到透明目标时的混合状态（基础 pass 用，结果变为预乘 Alpha）
-fn blendState() sdl.c.SDL_GPUColorTargetBlendState {
-    return .{
+fn blendState() sdl.GPUColorTargetBlendState {
+    return zeroInit(sdl.GPUColorTargetBlendState, .{
+        // 源颜色：乘源 Alpha（输入为非预乘）
+        .src_color_blendfactor = sdl.GPU_BLENDFACTOR_SRC_ALPHA,
+        // 目标颜色：乘 (1 - 源 Alpha)
+        .dst_color_blendfactor = sdl.GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        // 颜色混合运算：相加
+        .color_blend_op = sdl.GPU_BLENDOP_ADD,
+        // 源 Alpha：直接保留
+        .src_alpha_blendfactor = sdl.GPU_BLENDFACTOR_ONE,
+        // 目标 Alpha：乘 (1 - 源 Alpha)
+        .dst_alpha_blendfactor = sdl.GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        // Alpha 混合运算：相加
+        .alpha_blend_op = sdl.GPU_BLENDOP_ADD,
+        // 启用混合
         .enable_blend = true,
-        .src_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-        .dst_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        .color_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
-        .src_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
-        .dst_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        .alpha_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
-        .color_write_mask = sdl.c.SDL_GPU_COLORCOMPONENT_R |
-            sdl.c.SDL_GPU_COLORCOMPONENT_G |
-            sdl.c.SDL_GPU_COLORCOMPONENT_B |
-            sdl.c.SDL_GPU_COLORCOMPONENT_A,
-        .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
-        .padding1 = 0,
-        .padding2 = 0,
-    };
+    });
 }
 
 /// 预乘 Alpha 的混合状态：源颜色已经乘过 Alpha，直接叠加，不再重复相乘
-fn premultipliedBlendState() sdl.c.SDL_GPUColorTargetBlendState {
-    return .{
+fn premultipliedBlendState() sdl.GPUColorTargetBlendState {
+    return zeroInit(sdl.GPUColorTargetBlendState, .{
+        // 源颜色：已预乘，直接取用
+        .src_color_blendfactor = sdl.GPU_BLENDFACTOR_ONE,
+        // 目标颜色：乘 (1 - 源 Alpha)
+        .dst_color_blendfactor = sdl.GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        // 颜色混合运算：相加
+        .color_blend_op = sdl.GPU_BLENDOP_ADD,
+        // 源 Alpha：直接保留
+        .src_alpha_blendfactor = sdl.GPU_BLENDFACTOR_ONE,
+        // 目标 Alpha：乘 (1 - 源 Alpha)
+        .dst_alpha_blendfactor = sdl.GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        // Alpha 混合运算：相加
+        .alpha_blend_op = sdl.GPU_BLENDOP_ADD,
+        // 启用混合
         .enable_blend = true,
-        .src_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
-        .dst_color_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        .color_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
-        .src_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE,
-        .dst_alpha_blendfactor = sdl.c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-        .alpha_blend_op = sdl.c.SDL_GPU_BLENDOP_ADD,
-        .color_write_mask = sdl.c.SDL_GPU_COLORCOMPONENT_R |
-            sdl.c.SDL_GPU_COLORCOMPONENT_G |
-            sdl.c.SDL_GPU_COLORCOMPONENT_B |
-            sdl.c.SDL_GPU_COLORCOMPONENT_A,
-        .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
-        .padding1 = 0,
-        .padding2 = 0,
-    };
+    });
 }

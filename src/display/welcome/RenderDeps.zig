@@ -1,5 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const zeroInit = std.mem.zeroInit;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const consts = @import("../consts.zig");
@@ -51,7 +52,12 @@ pub fn init(allocator: Allocator, window: *Window, gpu: *const sdl.Gpu, widgets:
     // 上传全屏顶点
     const verts = consts.base_verts;
     const verts_size = @sizeOf(Vertex) * verts.len;
-    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size, .props = 0 };
+    const verts_buffer_info = zeroInit(sdl.GPUBufferCreateInfo, .{
+        // 用途：顶点缓冲区，绘制时绑定给顶点阶段读取
+        .usage = sdl.GPU_BUFFERUSAGE_VERTEX,
+        // 缓冲区大小（字节）：6 个顶点
+        .size = verts_size,
+    });
     const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&verts), verts_size);
 
     try uploader.submit();

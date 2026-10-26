@@ -1,5 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const zeroInit = std.mem.zeroInit;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Vertex = shared.Vertex;
@@ -47,17 +48,19 @@ pub fn init(
         staging_pixels[off + 2] = cov;
         staging_pixels[off + 3] = cov;
     }
-    const texture_create_info = sdl.c.SDL_GPUTextureCreateInfo{
-        .type = sdl.c.SDL_GPU_TEXTURETYPE_2D,
-        .format = sdl.c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-        .usage = sdl.c.SDL_GPU_TEXTUREUSAGE_SAMPLER,
+    // type / sample_count / props 留空：分别为 2D、单采样、0（zeroInit 清零）
+    const texture_create_info = zeroInit(sdl.GPUTextureCreateInfo, .{
+        // 像素格式：RGBA8888，文字覆盖率已展开为 RGBA
+        .format = sdl.GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        // 用途：作为采样器纹理供文字管线读取
+        .usage = sdl.GPU_TEXTUREUSAGE_SAMPLER,
         .width = raster.width,
         .height = raster.height,
+        // 层数/深度：非数组、非 3D 纹理必须为 1
         .layer_count_or_depth = 1,
+        // mip 层级：1 表示不生成 mipmap（0 会生成完整 mip 链）
         .num_levels = 1,
-        .sample_count = 1,
-        .props = 0,
-    };
+    });
     const texture = try uploader.uploadTextureBorrowed(&texture_create_info, staging_pixels.ptr, .{ .w = raster.width, .h = raster.height });
 
     // 按布局位置（帧左上角原点，像素）构造 quad，转换为 NDC；同样需存活到外部提交之后
@@ -66,7 +69,12 @@ pub fn init(
     const verts = buildVerts(raster, frame_size, layout.position);
     @memcpy(staging_verts, &verts);
     const verts_size: u32 = @intCast(@sizeOf(Vertex) * staging_verts.len);
-    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{ .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX, .size = verts_size, .props = 0 };
+    const verts_buffer_info = zeroInit(sdl.GPUBufferCreateInfo, .{
+        // 用途：顶点缓冲区，绘制时绑定给顶点阶段读取
+        .usage = sdl.GPU_BUFFERUSAGE_VERTEX,
+        // 缓冲区大小（字节）：6 个顶点
+        .size = verts_size,
+    });
     const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(staging_verts.ptr), verts_size);
 
     return Self{

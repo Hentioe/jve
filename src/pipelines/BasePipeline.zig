@@ -1,9 +1,9 @@
 const std = @import("std");
 const sdl = @import("sdl");
+const zeroInit = std.mem.zeroInit;
 const c = sdl.c;
 const Gpu = sdl.Gpu;
 const ShaderPair = @import("structs.zig").ShaderPair;
-const zeroes = std.mem.zeroes;
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
@@ -39,43 +39,41 @@ fn initInternal(
     // 构造管线
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
         .format = gpu.getGPUSwapchainTextureFormat(window),
-        .blend_state = .{ // 启用 Alpha 混合
+        // 启用 Alpha 混合：非预乘输入按 SRC_ALPHA 叠加，写入后即预乘 Alpha
+        .blend_state = zeroInit(sdl.GPUColorTargetBlendState, .{
+            // 源颜色：乘源 Alpha（输入为非预乘）
+            .src_color_blendfactor = sdl.GPU_BLENDFACTOR_SRC_ALPHA,
+            // 目标颜色：乘 (1 - 源 Alpha)
+            .dst_color_blendfactor = sdl.GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            // 颜色混合运算：相加
+            .color_blend_op = sdl.GPU_BLENDOP_ADD,
+            // 源 Alpha：直接保留
+            .src_alpha_blendfactor = sdl.GPU_BLENDFACTOR_ONE,
+            // 目标 Alpha：乘 (1 - 源 Alpha)
+            .dst_alpha_blendfactor = sdl.GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            // Alpha 混合运算：相加
+            .alpha_blend_op = sdl.GPU_BLENDOP_ADD,
+            // 启用混合
             .enable_blend = true,
-            .src_color_blendfactor = c.SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-            .dst_color_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-            .color_blend_op = c.SDL_GPU_BLENDOP_ADD,
-            .src_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE,
-            .dst_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-            .alpha_blend_op = c.SDL_GPU_BLENDOP_ADD,
-            .enable_color_write_mask = false, // 为 false 时自动写全 RGBA 通道
-            .padding1 = 0,
-            .padding2 = 0,
-            .color_write_mask = sdl.c.SDL_GPU_COLORCOMPONENT_R |
-                sdl.c.SDL_GPU_COLORCOMPONENT_G |
-                sdl.c.SDL_GPU_COLORCOMPONENT_B |
-                sdl.c.SDL_GPU_COLORCOMPONENT_A,
-        },
+        }),
     };
 
-    const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
-        .vertex_shader = shaders.vert, // 编译好的顶点着色器
-        .fragment_shader = shaders.frag, // 编译好的片段着色器
-        .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+    // 其余字段留空：primitive_type = TRIANGLELIST、光栅化/多重采样/深度模板状态取默认零值、props = 0
+    var pipeline_info = zeroInit(sdl.GPUGraphicsPipelineCreateInfo, .{
+        // 编译好的顶点着色器
+        .vertex_shader = shaders.vert,
+        // 编译好的片段着色器
+        .fragment_shader = shaders.frag,
+        // 渲染目标信息（外层 zeroInit 递归清零缺省字段）
         .target_info = .{
+            // 颜色目标数量：1
             .num_color_targets = 1,
+            // 颜色目标描述（格式与混合状态）
             .color_target_descriptions = &color_target_desc,
-            .depth_stencil_format = 0,
-            .has_depth_stencil_target = false,
-            .padding1 = 0,
-            .padding2 = 0,
-            .padding3 = 0,
         },
-        .vertex_input_state = vertex_input_state orelse zeroes(sdl.c.SDL_GPUVertexInputState),
-        .multisample_state = zeroes(sdl.c.SDL_GPUMultisampleState),
-        .depth_stencil_state = zeroes(sdl.c.SDL_GPUDepthStencilState),
-        .rasterizer_state = zeroes(sdl.c.SDL_GPURasterizerState),
-        .props = 0,
-    };
+    });
+    // 可选的顶点输入状态：为空时保持零值（无顶点缓冲/属性）
+    if (vertex_input_state) |state| pipeline_info.vertex_input_state = state;
 
     errdefer {
         if (ownership.frag) gpu.releaseGPUShader(shaders.frag);

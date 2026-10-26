@@ -1,6 +1,8 @@
 const std = @import("std");
-const c = @import("sdl").c;
-const h = @import("sdl").h;
+const sdl = @import("sdl");
+const c = sdl.c;
+const h = sdl.h;
+const zeroInit = std.mem.zeroInit;
 const Gpu = @import("sdl").Gpu;
 const shader_loader = @import("../shader/loader.zig");
 const Device = @import("../Device.zig");
@@ -25,42 +27,38 @@ pub fn init(gpu: *const Gpu, format: c.SDL_GPUTextureFormat) Error!Self {
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
         .format = format,
         // 垫底混合：把背景画到已有内容下面（内容为预乘 Alpha）
-        .blend_state = .{
+        .blend_state = zeroInit(sdl.GPUColorTargetBlendState, .{
+            // 源颜色：乘 (1 - 目标 Alpha)，让背景只填内容透明处
+            .src_color_blendfactor = sdl.GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA,
+            // 目标颜色：直接保留已有内容
+            .dst_color_blendfactor = sdl.GPU_BLENDFACTOR_ONE,
+            // 颜色混合运算：相加
+            .color_blend_op = sdl.GPU_BLENDOP_ADD,
+            // 源 Alpha：乘 (1 - 目标 Alpha)
+            .src_alpha_blendfactor = sdl.GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA,
+            // 目标 Alpha：直接保留
+            .dst_alpha_blendfactor = sdl.GPU_BLENDFACTOR_ONE,
+            // Alpha 混合运算：相加
+            .alpha_blend_op = sdl.GPU_BLENDOP_ADD,
+            // 启用混合
             .enable_blend = true,
-            .src_color_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA,
-            .dst_color_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE,
-            .color_blend_op = c.SDL_GPU_BLENDOP_ADD,
-            .src_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA,
-            .dst_alpha_blendfactor = c.SDL_GPU_BLENDFACTOR_ONE,
-            .alpha_blend_op = c.SDL_GPU_BLENDOP_ADD,
-            .color_write_mask = c.SDL_GPU_COLORCOMPONENT_R |
-                c.SDL_GPU_COLORCOMPONENT_G |
-                c.SDL_GPU_COLORCOMPONENT_B |
-                c.SDL_GPU_COLORCOMPONENT_A,
-            .enable_color_write_mask = false,
-            .padding1 = 0,
-            .padding2 = 0,
-        },
+        }),
     };
-    const pipeline_info: c.SDL_GPUGraphicsPipelineCreateInfo = .{
-        .vertex_shader = vert_shader, // 编译好的顶点着色器
-        .fragment_shader = frag_shader, // 编译好的片段着色器
-        .vertex_input_state = std.mem.zeroes(c.SDL_GPUVertexInputState),
-        .primitive_type = c.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+    // 其余字段留空：vertex_input_state 无顶点缓冲、primitive_type = TRIANGLELIST、
+    // 光栅化/多重采样/深度模板状态均取默认零值、props = 0
+    const pipeline_info = zeroInit(sdl.GPUGraphicsPipelineCreateInfo, .{
+        // 编译好的顶点着色器
+        .vertex_shader = vert_shader,
+        // 编译好的片段着色器
+        .fragment_shader = frag_shader,
+        // 渲染目标信息（外层 zeroInit 递归清零缺省字段）
         .target_info = .{
+            // 颜色目标数量：1
             .num_color_targets = 1,
+            // 颜色目标描述（格式与混合状态）
             .color_target_descriptions = &color_target_desc,
-            .depth_stencil_format = c.SDL_GPU_TEXTUREFORMAT_INVALID,
-            .has_depth_stencil_target = false,
-            .padding1 = 0,
-            .padding2 = 0,
-            .padding3 = 0,
         },
-        .rasterizer_state = std.mem.zeroes(c.SDL_GPURasterizerState),
-        .multisample_state = std.mem.zeroes(c.SDL_GPUMultisampleState),
-        .depth_stencil_state = std.mem.zeroes(c.SDL_GPUDepthStencilState),
-        .props = 0,
-    };
+    });
     return Self{
         .gpu = gpu,
         .pipeline = try gpu.createGPUGraphicsPipeline(&pipeline_info),
@@ -89,21 +87,14 @@ pub fn draw(self: *const Self) void {
 
 /// 链上的一趟：在已有内容上垫入背景（混合状态见 init）
 pub fn composite(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, target: *c.SDL_GPUTexture) Error!void {
-    const color_target: c.SDL_GPUColorTargetInfo = .{
+    const color_target = zeroInit(sdl.GPUColorTargetInfo, .{
+        // 渲染目标纹理：叠加背景的目标纹理（链上已有内容）
         .texture = target,
-        .mip_level = 0,
-        .layer_or_depth_plane = 0,
-        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0 },
-        .load_op = c.SDL_GPU_LOADOP_LOAD,
-        .store_op = c.SDL_GPU_STOREOP_STORE,
-        .resolve_texture = null,
-        .resolve_mip_level = 0,
-        .resolve_layer = 0,
-        .cycle = false,
-        .cycle_resolve_texture = false,
-        .padding1 = 0,
-        .padding2 = 0,
-    };
+        // 进入渲染通道时如何处理已有内容：保留原有像素，在其上混合背景
+        .load_op = sdl.GPU_LOADOP_LOAD,
+        // 离开渲染通道时如何存储结果：保留混合后的内容
+        .store_op = sdl.GPU_STOREOP_STORE,
+    });
     self.render_pass = try h.check(c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null));
     c.SDL_BindGPUGraphicsPipeline(self.render_pass, self.pipeline);
     c.SDL_DrawGPUPrimitives(self.render_pass, 3, 1, 0, 0);

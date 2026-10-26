@@ -1,4 +1,6 @@
+const std = @import("std");
 const sdl = @import("sdl");
+const zeroInit = std.mem.zeroInit;
 const shared = @import("shared");
 const Vertex = shared.Vertex;
 const BannerUniforms = @import("../display/structs.zig").BannerUniforms;
@@ -29,11 +31,12 @@ pub fn init(
 ) Error!Self {
     const uploader = try Device.getUploader();
     const verts_size: u32 = @intCast(@sizeOf(Vertex) * base_verts.len);
-    const verts_buffer_info = sdl.c.SDL_GPUBufferCreateInfo{
-        .usage = sdl.c.SDL_GPU_BUFFERUSAGE_VERTEX,
+    const verts_buffer_info = zeroInit(sdl.GPUBufferCreateInfo, .{
+        // 用途：顶点缓冲区，绘制时绑定给顶点阶段读取
+        .usage = sdl.GPU_BUFFERUSAGE_VERTEX,
+        // 缓冲区大小（字节）：6 个顶点
         .size = verts_size,
-        .props = 0,
-    };
+    });
     // base_verts 是编译期常量，生命周期贯穿整个程序，无需额外暂存
     const verts_buffer = try uploader.uploadBufferBorrowed(&verts_buffer_info, @ptrCast(&base_verts), verts_size);
 

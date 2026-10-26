@@ -1,6 +1,9 @@
-const c = @import("sdl").c;
+const std = @import("std");
+const sdl = @import("sdl");
+const c = sdl.c;
+const zeroInit = std.mem.zeroInit;
 const util = @import("util.zig");
-const Gpu = @import("sdl").Gpu;
+const Gpu = sdl.Gpu;
 const ShaderPair = @import("structs.zig").ShaderPair;
 const Self = @This();
 
@@ -86,21 +89,14 @@ pub fn bind(
     sampler: ?*c.SDL_GPUSampler,
     vertex_binding: *const c.SDL_GPUBufferBinding,
 ) void {
-    const color_target: c.SDL_GPUColorTargetInfo = .{
+    const color_target = zeroInit(sdl.GPUColorTargetInfo, .{
+        // 渲染目标纹理：本趟管线的输出纹理
         .texture = tex_dst,
-        .mip_level = 0,
-        .layer_or_depth_plane = 0,
-        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
-        .load_op = c.SDL_GPU_LOADOP_CLEAR,
-        .store_op = c.SDL_GPU_STOREOP_STORE,
-        .resolve_texture = null,
-        .resolve_mip_level = 0,
-        .resolve_layer = 0,
-        .cycle = false,
-        .cycle_resolve_texture = false,
-        .padding1 = 0,
-        .padding2 = 0,
-    };
+        // 进入渲染通道时如何处理已有内容：清除为 clear_color（zeroInit 默认全 0）
+        .load_op = sdl.GPU_LOADOP_CLEAR,
+        // 离开渲染通道时如何存储结果：保留绘制内容供下一趟采样
+        .store_op = sdl.GPU_STOREOP_STORE,
+    });
     // 开始渲染通道
     self.render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null);
     // 绑定顶点缓冲区
@@ -124,21 +120,14 @@ pub fn bindWithMaskTex(
     sampler: ?*c.SDL_GPUSampler,
     vertex_binding: *const c.SDL_GPUBufferBinding,
 ) void {
-    const color_target: c.SDL_GPUColorTargetInfo = .{
+    const color_target = zeroInit(sdl.GPUColorTargetInfo, .{
+        // 渲染目标纹理：本趟管线的输出纹理
         .texture = tex_dst,
-        .mip_level = 0,
-        .layer_or_depth_plane = 0,
-        .clear_color = .{ .r = 0.0, .g = 0.0, .b = 0.0, .a = 0 },
-        .load_op = c.SDL_GPU_LOADOP_CLEAR,
-        .store_op = c.SDL_GPU_STOREOP_STORE,
-        .resolve_texture = null,
-        .resolve_mip_level = 0,
-        .resolve_layer = 0,
-        .cycle = false,
-        .cycle_resolve_texture = false,
-        .padding1 = 0,
-        .padding2 = 0,
-    };
+        // 进入渲染通道时如何处理已有内容：清除为 clear_color（zeroInit 默认全 0）
+        .load_op = sdl.GPU_LOADOP_CLEAR,
+        // 离开渲染通道时如何存储结果：保留绘制内容供下一趟采样
+        .store_op = sdl.GPU_STOREOP_STORE,
+    });
     // 开始渲染通道
     self.render_pass = c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null);
     // 绑定顶点缓冲区

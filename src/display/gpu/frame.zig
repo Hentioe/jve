@@ -2,6 +2,7 @@ const std = @import("std");
 const sdl = @import("sdl");
 const shared = @import("shared");
 const structs = @import("../structs.zig");
+const zeroInit = std.mem.zeroInit;
 const Size2D = shared.Size2D;
 const Device = @import("../../Device.zig");
 const RenderDeps = @import("RenderDeps.zig");
@@ -21,22 +22,15 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     // 获取当前帧的 Command Buffer
     const cmd = try device.acquireGPUCommandBuffer();
     // 开启渲染通道
-    const base_color_target: sdl.c.SDL_GPUColorTargetInfo = .{
+    const color_target = zeroInit(sdl.GPUColorTargetInfo, .{
+        // 渲染目标纹理：本帧的源纹理（后处理乒乓纹理之一）
         .texture = state.tex_src,
-        .mip_level = 0,
-        .layer_or_depth_plane = 0,
-        .clear_color = .{ .r = 0, .g = 0, .b = 0, .a = 0 },
-        .load_op = sdl.c.SDL_GPU_LOADOP_CLEAR,
-        .store_op = sdl.c.SDL_GPU_STOREOP_STORE,
-        .resolve_texture = null,
-        .resolve_mip_level = 0,
-        .resolve_layer = 0,
-        .cycle = false,
-        .cycle_resolve_texture = false,
-        .padding1 = 0,
-        .padding2 = 0,
-    };
-    const render_pass = sdl.c.SDL_BeginGPURenderPass(cmd, &base_color_target, 1, null);
+        // 进入渲染通道时如何处理已有内容：清除为 clear_color
+        .load_op = sdl.GPU_LOADOP_CLEAR,
+        // 离开渲染通道时如何存储结果：保留绘制内容供后续采样
+        .store_op = sdl.GPU_STOREOP_STORE,
+    });
+    const render_pass = sdl.c.SDL_BeginGPURenderPass(cmd, &color_target, 1, null);
     // 绑定图形管线
     sdl.c.SDL_BindGPUGraphicsPipeline(render_pass, deps.base_pipeline);
     // 绑定顶点缓冲区

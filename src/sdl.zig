@@ -42,16 +42,35 @@ pub const EVENT_WINDOW_MINIMIZED = c.SDL_EVENT_WINDOW_MINIMIZED;
 pub const EVENT_WINDOW_RESTORED = c.SDL_EVENT_WINDOW_RESTORED;
 pub const EVENT_KEY_DOWN = c.SDL_EVENT_KEY_DOWN;
 pub const EVENT_KEY_UP = c.SDL_EVENT_KEY_UP;
-// 光标
-pub const Cursor = c.SDL_Cursor;
-pub const SystemCursor = c.SDL_SystemCursor;
-pub const SYSTEM_CURSOR_DEFAULT = c.SDL_SYSTEM_CURSOR_DEFAULT;
-pub const SYSTEM_CURSOR_POINTER = c.SDL_SYSTEM_CURSOR_POINTER;
+// 提示
 pub const HINT_MOUSE_FOCUS_CLICKTHROUGH = c.SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH;
+// SDL_Renderer
 pub const Texture = c.SDL_Texture;
+// SDL_GPU
+pub const GPUColorTargetInfo = c.SDL_GPUColorTargetInfo;
+pub const GPUColorTargetBlendState = c.SDL_GPUColorTargetBlendState;
+pub const GPU_BLENDFACTOR_ONE = c.SDL_GPU_BLENDFACTOR_ONE;
+pub const GPU_BLENDFACTOR_SRC_ALPHA = c.SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+pub const GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+pub const GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA = c.SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA;
+pub const GPU_BLENDOP_ADD = c.SDL_GPU_BLENDOP_ADD;
+pub const GPU_LOADOP_CLEAR = c.SDL_GPU_LOADOP_CLEAR;
+pub const GPU_LOADOP_LOAD = c.SDL_GPU_LOADOP_LOAD;
+pub const GPU_STOREOP_STORE = c.SDL_GPU_STOREOP_STORE;
+pub const GPURenderPass = c.SDL_GPURenderPass;
+pub const GPUGraphicsPipeline = c.SDL_GPUGraphicsPipeline;
+pub const GPUGraphicsPipelineCreateInfo = c.SDL_GPUGraphicsPipelineCreateInfo;
+pub const GPUGraphicsPipelineTargetInfo = c.SDL_GPUGraphicsPipelineTargetInfo;
 pub const GPUShader = c.SDL_GPUShader;
 pub const GPUTexture = c.SDL_GPUTexture;
-pub const GPURenderPass = c.SDL_GPURenderPass;
+pub const GPUTextureCreateInfo = c.SDL_GPUTextureCreateInfo;
+pub const GPUSamplerCreateInfo = c.SDL_GPUSamplerCreateInfo;
+pub const GPU_FILTER_LINEAR = c.SDL_GPU_FILTER_LINEAR;
+pub const GPU_SAMPLERMIPMAPMODE_LINEAR = c.SDL_GPU_SAMPLERMIPMAPMODE_LINEAR;
+pub const GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE = c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+pub const GPU_TEXTUREFORMAT_R8G8B8A8_UNORM = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+pub const GPU_TEXTUREUSAGE_SAMPLER = c.SDL_GPU_TEXTUREUSAGE_SAMPLER;
+pub const GPU_TEXTUREUSAGE_COLOR_TARGET = c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
 pub const GPUCommandBuffer = c.SDL_GPUCommandBuffer;
 pub const GPUBuffer = c.SDL_GPUBuffer;
 pub const GPUBufferBinding = c.SDL_GPUBufferBinding;
@@ -63,6 +82,11 @@ pub const GPUVertexInputState = c.SDL_GPUVertexInputState;
 pub const GPUVertexBufferDescription = c.SDL_GPUVertexBufferDescription;
 pub const GPU_VERTEXINPUTRATE_VERTEX = c.SDL_GPU_VERTEXINPUTRATE_VERTEX;
 pub const GPU_BUFFERUSAGE_VERTEX = c.SDL_GPU_BUFFERUSAGE_VERTEX;
+// 光标
+pub const Cursor = c.SDL_Cursor;
+pub const SystemCursor = c.SDL_SystemCursor;
+pub const SYSTEM_CURSOR_DEFAULT = c.SDL_SYSTEM_CURSOR_DEFAULT;
+pub const SYSTEM_CURSOR_POINTER = c.SDL_SYSTEM_CURSOR_POINTER;
 
 // 按键
 pub const Keycode = c.SDL_Keycode;

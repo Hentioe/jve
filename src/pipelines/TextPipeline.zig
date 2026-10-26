@@ -1,4 +1,6 @@
+const std = @import("std");
 const sdl = @import("sdl");
+const zeroInit = std.mem.zeroInit;
 const Window = @import("../display/window.zig");
 const shader_loader = @import("../shader.zig").loader;
 const Pipeline = @import("BasePipeline.zig");
@@ -22,24 +24,18 @@ pub fn init(window: *const Window, gpu: *const sdl.Gpu, vert_shader: *sdl.c.SDL_
     errdefer pipeline.deinit();
 
     // 文字纹理采样器（所有组件共用）
-    const sampler_desc = sdl.c.SDL_GPUSamplerCreateInfo{
-        .min_filter = sdl.c.SDL_GPU_FILTER_LINEAR,
-        .mag_filter = sdl.c.SDL_GPU_FILTER_LINEAR,
-        .mipmap_mode = sdl.c.SDL_GPU_SAMPLERMIPMAPMODE_LINEAR,
-        .address_mode_w = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-        .address_mode_u = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-        .address_mode_v = sdl.c.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-        .mip_lod_bias = 0.0,
-        .max_anisotropy = 0.0,
-        .compare_op = sdl.c.SDL_GPU_COMPAREOP_INVALID,
-        .min_lod = 0.0,
-        .max_lod = 0.0,
-        .enable_anisotropy = false,
-        .enable_compare = false,
-        .padding1 = 0,
-        .padding2 = 0,
-        .props = 0,
-    };
+    // 其余字段留空：mip_lod_bias/min_lod/max_lod = 0、无各向异性、无深度比较、props = 0
+    const sampler_desc = zeroInit(sdl.GPUSamplerCreateInfo, .{
+        // 缩小/放大过滤：线性插值，避免像素放大时的硬边
+        .min_filter = sdl.GPU_FILTER_LINEAR,
+        .mag_filter = sdl.GPU_FILTER_LINEAR,
+        // mipmap 过滤模式：线性（纹理本身只有一级 mip）
+        .mipmap_mode = sdl.GPU_SAMPLERMIPMAPMODE_LINEAR,
+        // UVW 越界模式：钳制到边缘，避免文字边缘出现重复像素
+        .address_mode_u = sdl.GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_v = sdl.GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_w = sdl.GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+    });
     const sampler = try gpu.createGPUSampler(&sampler_desc);
 
     return Self{
