@@ -31,62 +31,87 @@ extern "c" fn mallopt(param: c_int, value: c_int) c_int;
 pub const Subsystems = struct {
     pub const Name = enum { app_env, xdg, config, vips, gallery, ui, display, remover };
     pub const NameSet = std.EnumSet(Name);
-    pub const InitOpts = struct {
+    pub const BootDeps = struct {
+        gpa: Allocator,
+        arena: *std.heap.ArenaAllocator,
         environ_map: *const Environ.Map,
+    };
+    pub const BootOpts = struct {
+        trace: ?*StepTrace = null,
         config_path: ?[]const u8 = null,
         file_path: ?[]const u8 = null,
     };
 
     pub const all: NameSet = .full;
 
-    pub fn buildOpts(options: std.process.Init) InitOpts {
-        return InitOpts{
-            .environ_map = options.environ_map,
+    deps: BootDeps,
+    opts: BootOpts,
+    filled: bool = false,
+    _systems: NameSet = undefined,
+
+    pub fn systemContains(self: *Subsystems, name: Name) bool {
+        return self._systems.contains(name);
+    }
+
+    pub fn init(options: std.process.Init) Subsystems {
+        return .{
+            .deps = .{
+                .gpa = options.gpa,
+                .arena = options.arena,
+                .environ_map = options.environ_map,
+            },
+            .opts = .{},
         };
     }
 
-    pub fn init(systems: NameSet, allocator: Allocator, opts: InitOpts, trace: *StepTrace) !void {
+    pub fn deinit(self: *Subsystems) void {
+        self.stop();
+        self.* = undefined;
+    }
+
+    pub fn fillSystems(self: *Subsystems, systems: NameSet) void {
+        self._systems = systems;
+        self.filled = true;
+    }
+
+    pub fn start(self: *Subsystems) !void {
+        if (!self.filled) @panic("subsystems not filled before init");
         // 限制 malloc arena 数量，避免工作线程造成的内存滞留
         if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
 
-        if (systems.contains(.app_env)) {
-            app_env.init(.{ .trace = trace, .environ_map = opts.environ_map });
-            try trace.mark("app_env.init");
-        }
-        if (systems.contains(.xdg)) {
-            xdg.init(opts.environ_map);
-            try trace.mark("xdg.init");
-        }
-        if (systems.contains(.config)) {
-            config.init(allocator, opts.config_path) catch |err| return showInitDiag(allocator, err);
-            try trace.mark("config.init");
-        }
-        if (systems.contains(.vips)) {
-            vips.init(allocator) catch |err| return showInitDiag(allocator, err);
-            try trace.mark("vips.init");
-        }
-        if (systems.contains(.gallery)) {
-            gallery.init(allocator, opts.file_path orelse ".") catch |err| return showInitDiag(allocator, err);
-            try trace.mark("gallery.init");
-        }
-        if (systems.contains(.ui)) {
-            try ui.init();
-            try trace.mark("ui.init");
-        }
-        if (systems.contains(.display)) {
-            try display.init(allocator);
-            try trace.mark("display.init");
+        var iter = self._systems.iterator();
+        while (iter.next()) |name| try self.startBy(name);
+    }
+
+    fn startBy(self: *Subsystems, name: Name) !void {
+        const deps = &self.deps;
+        const opts = self.opts;
+        switch (name) {
+            .app_env => return self.resultHandle(name, app_env.init(.{ .trace = opts.trace, .environ_map = deps.environ_map })),
+            .xdg => return self.resultHandle(name, xdg.init(deps.environ_map)),
+            .config => return self.resultHandle(name, config.init(deps.gpa, opts.config_path)),
+            .vips => return self.resultHandle(name, vips.init(deps.gpa)),
+            .gallery => return self.resultHandle(name, gallery.init(deps.gpa, opts.file_path orelse ".")),
+            .ui => return self.resultHandle(name, ui.init()),
+            .display => return self.resultHandle(name, display.init(deps.gpa)),
+            .remover => {}, // 按需延迟初始化的
         }
     }
 
-    pub fn deinit(systems: NameSet) void {
-        remover.deinit(); // remover 是按需延迟初始化的，无需在显式初始化
-        if (systems.contains(.display)) display.deinit();
-        if (systems.contains(.ui)) ui.deinit();
-        if (systems.contains(.gallery)) gallery.deinit();
-        if (systems.contains(.vips)) vips.deinit();
-        if (systems.contains(.config)) config.deinit();
-        if (systems.contains(.app_env)) app_env.deinit();
+    fn stop(self: *Subsystems) void {
+        remover.deinit(); // remover 是按需延迟初始化的，无需指定
+        if (self.systemContains(.display)) display.deinit();
+        if (self.systemContains(.ui)) ui.deinit();
+        if (self.systemContains(.gallery)) gallery.deinit();
+        if (self.systemContains(.vips)) vips.deinit();
+        if (self.systemContains(.config)) config.deinit();
+        if (self.systemContains(.app_env)) app_env.deinit();
+    }
+
+    fn resultHandle(self: *Subsystems, name: Name, r: anyerror!void) !void {
+        if (r) {} else |err| return showInitDiag(self.deps.gpa, err);
+        const mark_name = try std.mem.concat(self.deps.arena.allocator(), u8, &.{ @tagName(name), ".init" });
+        if (self.opts.trace) |t| t.markBounded(mark_name);
     }
 };
 

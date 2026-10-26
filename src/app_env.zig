@@ -53,11 +53,11 @@ pub fn deinit() void {
     initialized = false;
 }
 
-pub inline fn trace_mark(step: []const u8) Error!void {
-    if (instance.trace) |t| try t.mark(step);
+pub inline fn traceMark(step: []const u8) void {
+    if (instance.trace) |t| t.markBounded(step);
 }
 
-pub inline fn trace_complete() void {
+pub inline fn traceComplete() void {
     if (instance.trace) |t| t.complete();
 }
 

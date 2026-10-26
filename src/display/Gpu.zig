@@ -40,13 +40,13 @@ pub fn init(allocator: Allocator) Error!Self {
         .borderless = borderless,
     });
     errdefer window.destroy();
-    try app_env.trace_mark("Window.create");
+    app_env.traceMark("Window.create");
     // 获取显示层共享的 GPU 设备
     const device = try Device.getGpu();
     window.gpu_device = device;
     // 绑定窗口到 GPU 设备
     try device.claimWindow(window.sdl_window);
-    try app_env.trace_mark("gpu_init");
+    app_env.traceMark("gpu_init");
     // 关闭垂直同步（修改交换链的 Present Mode）
     // 默认的 SDL_GPU_PRESENTMODE_FIFO 有垂直同步效果，会阻塞渲染循环（导致事件积压，延迟响应）
     // 注意：目前垂直同步关闭已被取消，sdl_gpu 仍然是默认状态。
@@ -74,7 +74,7 @@ pub fn init(allocator: Allocator) Error!Self {
             std.log.warn("Shader directory does not exist: {s}", .{full_path});
         }
     };
-    try app_env.trace_mark("shaders_loading");
+    app_env.traceMark("shaders_loading");
 
     // 记录图片形状
     app_env.writer().image_shape = image.shape;
@@ -82,7 +82,7 @@ pub fn init(allocator: Allocator) Error!Self {
     const ass_renderer = try ass.Renderer.init(try ui.AssLibrary.get());
     // 设置 ass 渲染器字体
     ass_renderer.setFonts(null, ui.DEFAULT_FONT, ass.c.ASS_FONTPROVIDER_AUTODETECT, null, 1);
-    try app_env.trace_mark("ass_init");
+    app_env.traceMark("ass_init");
 
     return Self{
         .gpa = allocator,
@@ -138,7 +138,7 @@ pub fn show(self: *Self) Error!ExitAction {
         title_bar = try ui.TitleBar.init(self.gpa, self.window.fit_size, .{
             .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity),
         });
-        try app_env.trace_mark("TitleBar.init");
+        app_env.traceMark("TitleBar.init");
         title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量
         // 设置标题文本
         if (!config.get().titlebar.hidden_all_text) try title_bar.?.setText(self.window.getTitle());
@@ -156,12 +156,12 @@ pub fn show(self: *Self) Error!ExitAction {
         &error_banner,
     );
     errdefer deps.deinit();
-    try app_env.trace_mark("RenderDeps.init");
+    app_env.traceMark("RenderDeps.init");
 
     var context = events.Context.init(&deps, &title_bar);
     // 显示窗口
     try self.window.show();
-    try app_env.trace_mark("window.show");
+    app_env.traceMark("window.show");
     // 启动循环
     const action = try loop.run(&deps, &context);
     // 正常退出时释放本次会话的渲染依赖

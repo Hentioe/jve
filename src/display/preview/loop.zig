@@ -36,8 +36,8 @@ pub fn run(deps: *RenderDeps) Error!ExitAction {
         // 记录首次渲染完成
         if (!first_render_logged) {
             // 首次渲染完成
-            try app_env.trace_mark("first_rendering");
-            app_env.trace_complete();
+            app_env.traceMark("first_rendering");
+            app_env.traceComplete();
             first_render_logged = true;
         }
     }
