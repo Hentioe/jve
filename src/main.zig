@@ -11,23 +11,28 @@ pub fn main(init: std.process.Init) !void {
         .debug, .safe => init.gpa, // 通常是 SafeAllocator
         .fast, .small => std.heap.c_allocator,
     };
-
-    // 构建子系统的初始化选项
+    // 构造子系统的初始化选项
     var opts = Subsystems.buildOpts(init);
     // 解析命令行参数
     const res = try cli.init(allocator, init.minimal.args);
     defer res.deinit();
-    if (res.args.supports != 0) {
-        // 获取并打印支持的图像格式
-        try jve.vips_init(allocator);
-        defer jve.vips_deinit();
+    if (res.args.supports != 0) { // 获取并打印支持的图像格式
+        // 跟踪性能
+        var trace = StepTrace.init(allocator, "supports");
+        defer trace.deinit();
+        defer trace.report();
+        // 初始化 vips 子系统
+        const systems = Subsystems.NameSet.initOne(.vips);
+        defer Subsystems.deinit(systems);
+        try Subsystems.init(systems, allocator, opts, &trace);
+        // 打印格式列表
         const formats = try std.mem.join(allocator, " ", try jve.vips.formats.get());
         defer allocator.free(formats);
         std.debug.print("Supported formats: {s}\n", .{formats});
     } else if (res.args.@"clear-cache" != 0) { // 执行缓存清理
         try jve.clearCache(allocator, res.args.config);
     } else if (res.positionals[0]) |file_path| { // 取位置参数作为路径
-        // 启动跟踪
+        // 跟踪性能
         var trace = StepTrace.init(allocator, "startup");
         defer trace.deinit();
         defer trace.report();
@@ -40,14 +45,26 @@ pub fn main(init: std.process.Init) !void {
         // 显示图片
         try jve.show(allocator, res.args.display);
     } else if (res.args.display) |d| (if (std.mem.eql(u8, d, "diag")) {
+        // 跟踪性能
+        var trace = StepTrace.init(allocator, "diag");
+        defer trace.deinit();
+        defer trace.report();
+        // 初始化子系统
+        const systems = Subsystems.NameSet.initMany(&.{ .app_env, .ui, .display });
+        defer Subsystems.deinit(systems);
+        try Subsystems.init(systems, allocator, opts, &trace);
         // 显示诊断模式
-        try jve.display_init(allocator);
-        defer jve.display_deinit();
         try jve.showDiag(allocator);
     }) else {
-        // 显示欢迎模式
-        try jve.display_init(allocator);
-        defer jve.display_deinit();
+        // 跟踪性能
+        var trace = StepTrace.init(allocator, "welcome");
+        defer trace.deinit();
+        defer trace.report();
+        // 初始化子系统
+        const systems = Subsystems.NameSet.initMany(&.{ .app_env, .ui, .display });
+        defer Subsystems.deinit(systems);
+        try Subsystems.init(systems, allocator, opts, &trace);
+        // 显示欢迎界面
         try jve.showWelcome(allocator);
     }
 }

@@ -31,7 +31,7 @@ extern "c" fn mallopt(param: c_int, value: c_int) c_int;
 pub const Subsystems = struct {
     pub const Name = enum { app_env, xdg, config, vips, gallery, ui, display, remover };
     pub const NameSet = std.EnumSet(Name);
-    pub const Opts = struct {
+    pub const InitOpts = struct {
         environ_map: *const Environ.Map,
         config_path: ?[]const u8 = null,
         file_path: ?[]const u8 = null,
@@ -39,13 +39,13 @@ pub const Subsystems = struct {
 
     pub const all: NameSet = .full;
 
-    pub fn buildOpts(options: std.process.Init) Opts {
-        return Opts{
+    pub fn buildOpts(options: std.process.Init) InitOpts {
+        return InitOpts{
             .environ_map = options.environ_map,
         };
     }
 
-    pub fn init(systems: NameSet, allocator: Allocator, opts: Opts, trace: *StepTrace) !void {
+    pub fn init(systems: NameSet, allocator: Allocator, opts: InitOpts, trace: *StepTrace) !void {
         // 限制 malloc arena 数量，避免工作线程造成的内存滞留
         if (mallopt(M_ARENA_MAX, 2) == 0) return error.MalloptFailed;
 
@@ -55,6 +55,7 @@ pub const Subsystems = struct {
         }
         if (systems.contains(.xdg)) {
             xdg.init(opts.environ_map);
+            try trace.mark("xdg.init");
         }
         if (systems.contains(.config)) {
             config.init(allocator, opts.config_path) catch |err| return showInitDiag(allocator, err);
@@ -88,26 +89,6 @@ pub const Subsystems = struct {
         if (systems.contains(.app_env)) app_env.deinit();
     }
 };
-
-pub fn vips_init(allocator: Allocator) !void {
-    try vips.init(allocator);
-}
-
-pub fn vips_deinit() void {
-    vips.deinit();
-}
-
-pub fn display_init(allocator: Allocator) !void {
-    app_env.init(.{});
-    try ui.init();
-    try display.init(allocator);
-}
-
-pub fn display_deinit() void {
-    display.deinit();
-    ui.deinit();
-    app_env.deinit();
-}
 
 pub fn extensions() ![]const []const u8 {
     return try vips.formats.get();
@@ -167,10 +148,14 @@ pub fn showWelcome(allocator: Allocator) !void {
 }
 
 pub fn showInitDiag(allocator: Allocator, err: anyerror) !void {
-    try display_init(allocator); // 仅做显示初始化
+    // 必要的初始化
+    app_env.init(.{});
+    try ui.init();
+    try display.init(allocator);
+    // 确保错误被记录
     app_env.ensureFatal(err);
     try showDiag(allocator);
-    return err;
+    return err; // 返回原错误
 }
 
 pub fn showDiag(allocator: Allocator) !void {
