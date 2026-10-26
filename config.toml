@@ -28,6 +28,8 @@ dir = "test/shaders"
 background = "tiles"
 
 # 手动激活的着色器（绑定快捷键）
+[shaders.custom.d]
+keybind = "left_shift+d"
 [shaders.custom.o]
 keybind = "left_shift+o"
 [shaders.custom.p]
