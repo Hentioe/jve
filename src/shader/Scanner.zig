@@ -75,18 +75,20 @@ pub fn compileShaders(self: *Self, allocator: Allocator, gpu: *const sdl.Gpu, ca
         };
 
         const key = std.fs.path.stem(file);
-        if (config.get().shaders.custom) |c| (if (c.get(key)) |cs| {
+        if (config.get().shaders.custom) |c| (if (c.get(key)) |s| {
             try loaded_all.add(.{
                 .activation = .manual,
-                .keybinding = cs.keybinding,
+                .keybinding = s.keybinding,
                 .shader = shader,
             });
-        }) else {
-            try loaded_all.add(.{
-                .activation = .default,
-                .shader = shader,
-            });
-        }
+            continue;
+        } else {
+            // 配置中的自定义着色器不存在
+            std.log.warn("Configured custom shader not found: {s}", .{file});
+        });
+
+        // 作为默认着色器
+        try loaded_all.add(.{ .activation = .default, .shader = shader });
     }
 
     try cache.save();
