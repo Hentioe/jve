@@ -119,7 +119,7 @@ pub fn extensions() ![]const []const u8 {
     return try vips.formats.get();
 }
 
-pub fn clearCache(allocator: Allocator, config_path: ?[]const u8) !void {
+pub fn clearDeadCache(allocator: Allocator, config_path: ?[]const u8) !void {
     app_env.init(.{});
     defer app_env.deinit();
     try config.init(allocator, config_path);
@@ -136,7 +136,7 @@ pub fn clearCache(allocator: Allocator, config_path: ?[]const u8) !void {
         std.log.info("Deleted {d} invalid cache entries", .{r.deleted_entries});
     }
     if (r.deleted_count == 0 and r.deleted_entries == 0) {
-        std.log.info("No invalid cache files and entries found", .{});
+        std.log.info("No dead cache found", .{});
     }
 }
 

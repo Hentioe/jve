@@ -7,7 +7,7 @@ const io = std.Io.Threaded.global_single_threaded.io();
 const params = clap.parseParamsComptime(
     \\-d, --display <str>
     \\-c, --config <str>
-    \\--clear-cache
+    \\--clear-dead-cache
     \\--supports
     \\<str>
 );

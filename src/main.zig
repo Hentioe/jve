@@ -19,8 +19,11 @@ pub fn main(init: std.process.Init) !void {
         const formats = try std.mem.join(init.gpa, " ", try jve.vips.formats.get());
         defer init.gpa.free(formats);
         std.debug.print("Supported formats: {s}\n", .{formats});
-    } else if (res.args.@"clear-cache" != 0) { // 执行缓存清理
-        try jve.clearCache(init.gpa, res.args.config);
+    } else if (res.args.@"clear-dead-cache" != 0) { // 执行死缓存清理
+        // 启动子系统（路径相关）
+        subsystems.fillSystems(.initMany(&.{ .app_env, .xdg }));
+        try subsystems.start();
+        try jve.clearDeadCache(init.gpa, res.args.config);
     } else if (res.positionals[0]) |file_path| { // 取位置参数作为路径
         // 装载全部子系统
         subsystems.fillSystems(Subsystems.all);
