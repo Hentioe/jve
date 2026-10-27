@@ -12,10 +12,10 @@ pub fn render(deps: *RenderDeps, _: *const State) Error!void {
     const cmd = try deps.gpu.acquireGPUCommandBuffer();
     // 获取交换链纹理
     var tex_swap: ?*sdl.GPUTexture = null;
-    const acquired = sdl.Gpu.acquireSwapchainTexture(cmd, deps.window.sdl_window, &tex_swap, null, null);
+    try sdl.acquireGPUSwapchainTexture(cmd, deps.window.sdl_window, &tex_swap, null, null);
     // 判定获取失败或纹理为空（如窗口最小化/调整大小期间）
-    if (!acquired or tex_swap == null) {
-        try sdl.Gpu.submitCommandBuffer(cmd); // 即使不绘制，也必须提交/释放本次命令缓存区
+    if (tex_swap == null) {
+        try sdl.submitGPUCommandBuffer(cmd); // 即使不绘制，也必须提交/释放本次命令缓存区
         return;
     }
     var color_target = zeroInit(sdl.GPUColorTargetInfo, .{
@@ -41,5 +41,5 @@ pub fn render(deps: *RenderDeps, _: *const State) Error!void {
     // 结束渲染通道
     sdl.c.SDL_EndGPURenderPass(pass);
     // 提交命令缓存区
-    try sdl.Gpu.submitCommandBuffer(cmd);
+    try sdl.submitGPUCommandBuffer(cmd);
 }

@@ -55,7 +55,7 @@ pub fn extract(allocator: Allocator, gpu: *const sdl.Gpu, texture: ?*sdl.GPUText
     c.SDL_DownloadFromGPUTexture(copy_pass, &src, &dst);
     c.SDL_EndGPUCopyPass(copy_pass);
     // 提交命令缓冲区
-    try h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf));
+    try sdl.submitGPUCommandBuffer(cmd_buf);
     // 等待 GPU 完成
     try gpu.waitForGPUIdle();
     // 映射缓冲区

@@ -1,11 +1,9 @@
 const std = @import("std");
-const c = @import("sdl").c;
-const h = @import("sdl").h;
+const sdl = @import("sdl");
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
-const Error = @import("errors.zig").Error;
-const Gpu = @import("sdl").Gpu;
 const TexSize = shared.Size2D(u32);
+const Error = @import("errors.zig").Error;
 const Self = @This();
 
 /// 上传数据的来源。`borrowed` 由调用方在 submit 前保持有效；
@@ -31,7 +29,7 @@ const Storage = union(enum) {
 
 /// 内部纹理上传任务记录
 const TextureUploadTask = struct {
-    texture: *c.SDL_GPUTexture,
+    texture: *sdl.c.SDL_GPUTexture,
     data: Storage,
     size: TexSize,
     buffer_size: u32,
@@ -42,7 +40,7 @@ const TextureUploadTask = struct {
 
 /// 内部顶点/数据缓冲上传任务记录
 const BufferUploadTask = struct {
-    buffer: *c.SDL_GPUBuffer,
+    buffer: *sdl.c.SDL_GPUBuffer,
     data: Storage,
     buffer_size: u32,
     aligned_size: u32,
@@ -87,10 +85,10 @@ const UploadTask = union(enum) {
 };
 
 allocator: Allocator,
-gpu: *const Gpu,
+gpu: *const sdl.Gpu,
 tasks: std.ArrayListUnmanaged(UploadTask),
 
-pub fn init(allocator: Allocator, gpu: *const Gpu) Self {
+pub fn init(allocator: Allocator, gpu: *const sdl.Gpu) Self {
     return .{
         .gpu = gpu,
         .allocator = allocator,
@@ -113,10 +111,10 @@ pub fn discard(self: *Self) void {
 /// 注意：pixels_ptr 指向的内存数据必须在调用 submit() 之前保持有效。
 pub fn uploadTextureBorrowed(
     self: *Self,
-    create_info: *const c.SDL_GPUTextureCreateInfo,
+    create_info: *const sdl.c.SDL_GPUTextureCreateInfo,
     pixels_ptr: *const anyopaque,
     size: TexSize,
-) Error!*c.SDL_GPUTexture {
+) Error!*sdl.c.SDL_GPUTexture {
     return self.addTexture(create_info, .{ .borrowed = pixels_ptr }, size, false);
 }
 
@@ -124,9 +122,9 @@ pub fn uploadTextureBorrowed(
 /// 因此调用方无需保证数据在 submit 前存活。
 pub fn uploadTextureOwned(
     self: *Self,
-    create_info: *const c.SDL_GPUTextureCreateInfo,
+    create_info: *const sdl.c.SDL_GPUTextureCreateInfo,
     pixels: []const u8,
-) Error!*c.SDL_GPUTexture {
+) Error!*sdl.c.SDL_GPUTexture {
     const copy = try self.allocator.dupe(u8, pixels);
     errdefer self.allocator.free(copy);
     const size = TexSize{ .w = create_info.width, .h = create_info.height };
@@ -137,7 +135,7 @@ pub fn uploadTextureOwned(
 /// 注意：pixels_ptr 指向的内存必须在调用 submit() 之前保持有效。
 pub fn updateTextureBorrowed(
     self: *Self,
-    texture: *c.SDL_GPUTexture,
+    texture: *sdl.c.SDL_GPUTexture,
     pixels_ptr: *const anyopaque,
     size: TexSize,
 ) Error!void {
@@ -155,7 +153,7 @@ pub fn updateTextureBorrowed(
     } });
 }
 
-fn addTexture(self: *Self, create_info: *const c.SDL_GPUTextureCreateInfo, data: Storage, size: TexSize, cycle: bool) Error!*c.SDL_GPUTexture {
+fn addTexture(self: *Self, create_info: *const sdl.c.SDL_GPUTextureCreateInfo, data: Storage, size: TexSize, cycle: bool) Error!*sdl.c.SDL_GPUTexture {
     // 计算 RGBA8888 字节大小并做 4 字节对齐
     const raw_size: u32 = @intCast(size.w * size.h * 4);
     const aligned_size = std.mem.alignForward(u32, raw_size, 4);
@@ -180,10 +178,10 @@ fn addTexture(self: *Self, create_info: *const c.SDL_GPUTextureCreateInfo, data:
 /// 注意：data_ptr 指向的内存数据必须在调用 submit() 之前保持有效。
 pub fn uploadBufferBorrowed(
     self: *Self,
-    create_info: *const c.SDL_GPUBufferCreateInfo,
+    create_info: *const sdl.c.SDL_GPUBufferCreateInfo,
     data_ptr: *const anyopaque,
     size: u32,
-) Error!*c.SDL_GPUBuffer {
+) Error!*sdl.c.SDL_GPUBuffer {
     return self.addBuffer(create_info, .{ .borrowed = data_ptr }, size);
 }
 
@@ -191,15 +189,15 @@ pub fn uploadBufferBorrowed(
 /// 因此调用方无需保证数据在 submit 前存活。
 pub fn uploadBufferOwned(
     self: *Self,
-    create_info: *const c.SDL_GPUBufferCreateInfo,
+    create_info: *const sdl.c.SDL_GPUBufferCreateInfo,
     data: []const u8,
-) Error!*c.SDL_GPUBuffer {
+) Error!*sdl.c.SDL_GPUBuffer {
     const copy = try self.allocator.dupe(u8, data);
     errdefer self.allocator.free(copy);
     return self.addBuffer(create_info, .{ .owned = copy }, @intCast(copy.len));
 }
 
-fn addBuffer(self: *Self, create_info: *const c.SDL_GPUBufferCreateInfo, data: Storage, size: u32) Error!*c.SDL_GPUBuffer {
+fn addBuffer(self: *Self, create_info: *const sdl.c.SDL_GPUBufferCreateInfo, data: Storage, size: u32) Error!*sdl.c.SDL_GPUBuffer {
     // 做 4 字节对齐
     const aligned_size = std.mem.alignForward(u32, size, 4);
 
@@ -227,8 +225,8 @@ pub fn submit(self: *Self) Error!void {
     }
 
     // 2. 一次性创建包含所有数据的传输缓冲区
-    const transfer_info = c.SDL_GPUTransferBufferCreateInfo{
-        .usage = c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+    const transfer_info = sdl.c.SDL_GPUTransferBufferCreateInfo{
+        .usage = sdl.c.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
         .size = total_buffer_size,
         .props = 0,
     };
@@ -241,27 +239,27 @@ pub fn submit(self: *Self) Error!void {
     const base_bytes: [*]u8 = @ptrCast(map_ptr);
 
     for (self.tasks.items) |task| {
-        _ = c.SDL_memcpy(base_bytes + current_offset, task.dataPtr(), task.dataSize()); // 此处忽略返回是安全的，它表示 dst 自身
+        _ = sdl.c.SDL_memcpy(base_bytes + current_offset, task.dataPtr(), task.dataSize()); // 此处忽略返回是安全的，它表示 dst 自身
         current_offset += task.alignedSize();
     }
     self.gpu.unmapGPUTransferBuffer(transfer_buf);
 
     // 4. 获取 Command Buffer 并开启 Copy Pass
     const cmd_buf = try self.gpu.acquireGPUCommandBuffer();
-    const copy_pass = try h.check(c.SDL_BeginGPUCopyPass(cmd_buf));
+    const copy_pass = try sdl.check(sdl.c.SDL_BeginGPUCopyPass(cmd_buf));
 
     // 5. 遍历任务，利用不同的 offset 录制上传指令
     current_offset = 0;
     for (self.tasks.items) |task| {
         switch (task) {
             .texture => |t| {
-                const src = c.SDL_GPUTextureTransferInfo{
+                const src = sdl.c.SDL_GPUTextureTransferInfo{
                     .transfer_buffer = transfer_buf,
                     .offset = current_offset,
                     .pixels_per_row = 0,
                     .rows_per_layer = 0,
                 };
-                const dst = c.SDL_GPUTextureRegion{
+                const dst = sdl.c.SDL_GPUTextureRegion{
                     .texture = t.texture,
                     .w = t.size.w,
                     .h = t.size.h,
@@ -273,29 +271,29 @@ pub fn submit(self: *Self) Error!void {
                     .mip_level = 0,
                 };
 
-                c.SDL_UploadToGPUTexture(copy_pass, &src, &dst, t.cycle);
+                sdl.c.SDL_UploadToGPUTexture(copy_pass, &src, &dst, t.cycle);
             },
             .buffer => |b| {
-                const src = c.SDL_GPUTransferBufferLocation{
+                const src = sdl.c.SDL_GPUTransferBufferLocation{
                     .transfer_buffer = transfer_buf,
                     .offset = current_offset,
                 };
-                const dst = c.SDL_GPUBufferRegion{
+                const dst = sdl.c.SDL_GPUBufferRegion{
                     .buffer = b.buffer,
                     .offset = 0,
                     .size = b.buffer_size,
                 };
 
-                c.SDL_UploadToGPUBuffer(copy_pass, &src, &dst, false);
+                sdl.c.SDL_UploadToGPUBuffer(copy_pass, &src, &dst, false);
             },
         }
         current_offset += task.alignedSize();
     }
 
-    c.SDL_EndGPUCopyPass(copy_pass);
+    sdl.c.SDL_EndGPUCopyPass(copy_pass);
 
     // 6. 提交命令缓冲区
-    try h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf));
+    try sdl.submitGPUCommandBuffer(cmd_buf);
 
     // 7. 清空已完成的任务列表并释放 owned 数据（保留容量供下次复用）
     self.discard();

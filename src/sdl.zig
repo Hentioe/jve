@@ -8,6 +8,18 @@ pub const Renderer = @import("sdl/Renderer.zig");
 pub const check = h.check;
 pub const Error = errors.Error;
 
+pub fn acquireGPUSwapchainTexture(cmd_buf: *GPUCommandBuffer, window: *Window, swapchain_texture: *?*GPUTexture, width: ?*u32, height: ?*u32) Error!void {
+    try h.check(c.SDL_AcquireGPUSwapchainTexture(cmd_buf, window, swapchain_texture, width, height));
+}
+
+pub fn waitAndAcquireGPUSwapchainTexture(cmd_buf: *GPUCommandBuffer, window: *Window, swapchain_texture: *?*GPUTexture, width: ?*u32, height: ?*u32) Error!void {
+    try h.check(c.SDL_WaitAndAcquireGPUSwapchainTexture(cmd_buf, window, swapchain_texture, width, height));
+}
+
+pub fn submitGPUCommandBuffer(cmd_buf: *GPUCommandBuffer) Error!void {
+    try h.check(c.SDL_SubmitGPUCommandBuffer(cmd_buf));
+}
+
 pub fn getTicks() u64 {
     return c.SDL_GetTicks();
 }
@@ -44,9 +56,12 @@ pub const EVENT_KEY_DOWN = c.SDL_EVENT_KEY_DOWN;
 pub const EVENT_KEY_UP = c.SDL_EVENT_KEY_UP;
 // 提示
 pub const HINT_MOUSE_FOCUS_CLICKTHROUGH = c.SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH;
+// 窗口
+pub const Window = c.SDL_Window;
 // SDL_Renderer
 pub const Texture = c.SDL_Texture;
 // SDL_GPU
+pub const GPUCommandBuffer = c.SDL_GPUCommandBuffer;
 pub const GPUColorTargetInfo = c.SDL_GPUColorTargetInfo;
 pub const GPUColorTargetBlendState = c.SDL_GPUColorTargetBlendState;
 pub const GPU_BLENDFACTOR_ONE = c.SDL_GPU_BLENDFACTOR_ONE;
@@ -71,7 +86,6 @@ pub const GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE = c.SDL_GPU_SAMPLERADDRESSMODE_CL
 pub const GPU_TEXTUREFORMAT_R8G8B8A8_UNORM = c.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
 pub const GPU_TEXTUREUSAGE_SAMPLER = c.SDL_GPU_TEXTUREUSAGE_SAMPLER;
 pub const GPU_TEXTUREUSAGE_COLOR_TARGET = c.SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
-pub const GPUCommandBuffer = c.SDL_GPUCommandBuffer;
 pub const GPUBuffer = c.SDL_GPUBuffer;
 pub const GPUBufferBinding = c.SDL_GPUBufferBinding;
 pub const GPU_VERTEXELEMENTFORMAT_FLOAT2 = c.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;

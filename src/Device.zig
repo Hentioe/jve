@@ -28,7 +28,6 @@ pub fn getUploader() sdl.Error!*Uploader {
     if (uploader == null) uploader = Uploader.init(gpa, try getGpu());
     return &uploader.?;
 }
-
 /// 丢弃上传器中尚未提交的任务，避免跨会话残留。
 pub fn discardUploader() void {
     if (uploader) |*u| u.discard();

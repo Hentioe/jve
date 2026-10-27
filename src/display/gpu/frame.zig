@@ -116,10 +116,10 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
 
     // 获取当前帧的 Swapchain 纹理
     var tex_swp: ?*sdl.GPUTexture = null;
-    const acquired = sdl.c.SDL_WaitAndAcquireGPUSwapchainTexture(cmd, deps.window.sdl_window, &tex_swp, null, null);
+    try sdl.waitAndAcquireGPUSwapchainTexture(cmd, deps.window.sdl_window, &tex_swp, null, null);
     // 判定获取失败或纹理为空（如窗口最小化/调整大小期间）
-    if (!acquired or tex_swp == null) {
-        try sdl.Gpu.submitCommandBuffer(cmd); // 即使不绘制，也必须提交/释放本次命令缓存区
+    if (tex_swp == null) {
+        try sdl.submitGPUCommandBuffer(cmd); // 即使不绘制，也必须提交/释放本次命令缓存区
         return;
     }
     // 开启屏幕渲染
@@ -157,7 +157,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     if (state.is_busy) {
         // 显示雾效果（不采样纹理，仅使用 uniform）
         deps.fog.bindScreen(deps.screen.render_pass, &deps.verts_binding);
-        const fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(sdl.c.SDL_GetTicks())) / 1000.0 };
+        const fog_uniforms = FogUniforms{ .time = @as(f32, @floatFromInt(sdl.getTicks())) / 1000.0 };
         sdl.c.SDL_PushGPUFragmentUniformData(cmd, 0, &fog_uniforms, @sizeOf(FogUniforms));
         deps.fog.draw();
     }
