@@ -65,6 +65,8 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
 
         // 根据动作修改状态
         try events.applyAction(action, deps, &state);
+        // 检查和处理后台任务
+        try events.checkHandleTask(deps, &state);
         // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
         advanceAnimation(deps, &state);
         // 根据状态执行渲染

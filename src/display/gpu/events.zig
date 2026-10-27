@@ -1,12 +1,14 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const Key = sdl.Key;
+const ui = @import("../../ui.zig");
+const RenderDeps = @import("RenderDeps.zig");
 const Task = @import("../Task.zig");
 const Modifiers = @import("../Modifiers.zig");
-const RenderDeps = @import("RenderDeps.zig");
+const Device = @import("../../Device.zig");
+const Size2D = @import("shared").Size2D;
 const State = @import("State.zig");
 const Screenshot = @import("../../Screenshot.zig");
-const ui = @import("../../ui.zig");
 const Error = @import("../errors.zig").Error;
 
 pub const Context = struct {
@@ -78,6 +80,32 @@ const ActionDeps = struct {
     is_busy: bool,
     is_playing: bool,
 };
+
+/// 检查和处理后台任务，失败会在横幅显示错误消息。
+pub fn checkHandleTask(deps: *RenderDeps, state: *State) Error!void {
+    if (state.task) |t| if (t.poll() == .done) {
+        defer {
+            t.finish();
+            state.task = null;
+            state.is_busy = false;
+            state.dirty = false;
+        }
+        if (t.result) |*res| switch (res.*) {
+            .success => |s| {
+                std.log.info("Task result is reading...", .{});
+                const mask_ptr = s.data_ptr; // 获取遮罩数据指针
+                const mask_size: Size2D(u32) = .{ .w = s.width, .h = s.height };
+                const uploader = try Device.getUploader();
+                const new_mask = try uploader.uploadTextureBorrowed(&deps.offscreen_info, mask_ptr, mask_size);
+                try uploader.submit();
+                if (state.tex_mask) |tex| deps.device.releaseGPUTexture(tex); // 释放旧遮罩纹理
+                state.tex_mask = new_mask;
+                std.log.info("Task result read complete", .{});
+            },
+            .failure => |err| try state.showError(deps, "任务出错：{s}", .{@errorName(err)}),
+        };
+    };
+}
 
 /// 处理截图相关事件
 pub fn handleScreenshot(deps: *RenderDeps, state: *State) Error!void {
