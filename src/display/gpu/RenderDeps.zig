@@ -167,7 +167,7 @@ pub fn init(
     // 基础着色器（负责图像渲染）
     const base_pl = try device.createGPUGraphicsPipeline(&pipeline_info);
     // 构造背景
-    const background = try pipelines.Background.init(device, color_target_desc.format);
+    const background = try pipelines.Background.init(color_target_desc.format);
 
     // 创建离屏渲染纹理 A 和 B
     // type / sample_count / props 留空：分别为 2D、单采样、0（zeroInit 清零）

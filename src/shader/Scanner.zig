@@ -18,6 +18,7 @@ const io = std.Io.Threaded.global_single_threaded.io();
 
 /// 内建背景着色器的名字和 @embedFile 的映射
 pub const BUILTIN_BG_SHADERS = std.StaticStringMap([]const u8).initComptime(.{
+    .{ "black", @embedFile("black_bg.frag.spv") },
     .{ "classic", @embedFile("checker_bg.frag.spv") },
     .{ "rainbow", @embedFile("rainbow_bg.frag.spv") },
     .{ "tiles", @embedFile("tiles_bg.frag.spv") },

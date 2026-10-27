@@ -3,27 +3,30 @@ const sdl = @import("sdl");
 const c = sdl.c;
 const h = sdl.h;
 const zeroInit = std.mem.zeroInit;
-const Gpu = @import("sdl").Gpu;
 const shader_loader = @import("../shader/loader.zig");
 const Device = @import("../Device.zig");
 const Error = @import("errors.zig").Error;
 const Self = @This();
 
-gpu: *const Gpu,
-pipeline: *c.SDL_GPUGraphicsPipeline,
-vert_shader: *c.SDL_GPUShader,
-frag_shader: *c.SDL_GPUShader,
+gpu: *const sdl.Gpu,
+pipeline: *sdl.GPUGraphicsPipeline,
+vert_shader: *sdl.GPUShader,
+frag_shader: *sdl.GPUShader,
 frag_from_user: bool,
-render_pass: ?*c.SDL_GPURenderPass = null,
+pass: ?*sdl.GPURenderPass = null,
 
-pub fn init(gpu: *const Gpu, format: c.SDL_GPUTextureFormat) Error!Self {
+pub fn init(format: c.SDL_GPUTextureFormat) Error!Self {
+    const gpu = try Device.getGpu();
+    const existing_frag = Device.getBackgroundShader();
     var frag_from_user = false;
-    // 构造背景管线
+    var frag_shader: *sdl.GPUShader = undefined;
     const vert_shader = try shader_loader.load(gpu, @embedFile("background.vert.spv"), "main", .vertex, .{ .samplers = 0, .buffers = 0 });
-    const frag_shader = if (Device.getBackgroundShader()) |shader| blk: {
+    if (existing_frag) |shader| {
         frag_from_user = true;
-        break :blk shader;
-    } else try shader_loader.load(gpu, @embedFile("checker_bg.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
+        frag_shader = shader;
+    } else {
+        frag_shader = try shader_loader.load(gpu, @embedFile("checker_bg.frag.spv"), "main", .fragment, .{ .samplers = 0, .buffers = 0 });
+    }
     const color_target_desc: c.SDL_GPUColorTargetDescription = .{
         .format = format,
         // 垫底混合：把背景画到已有内容下面（内容为预乘 Alpha）
@@ -75,18 +78,18 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn bind(self: *Self, render_pass: *c.SDL_GPURenderPass) void {
-    c.SDL_BindGPUGraphicsPipeline(render_pass, self.pipeline);
-    self.render_pass = render_pass;
+pub fn bind(self: *Self, pass: *sdl.GPURenderPass) void {
+    c.SDL_BindGPUGraphicsPipeline(pass, self.pipeline);
+    self.pass = pass;
 }
 
 pub fn draw(self: *const Self) void {
     // 绘制 3 个顶点覆盖整个屏幕
-    c.SDL_DrawGPUPrimitives(self.render_pass, 3, 1, 0, 0);
+    c.SDL_DrawGPUPrimitives(self.pass, 3, 1, 0, 0);
 }
 
 /// 链上的一趟：在已有内容上垫入背景（混合状态见 init）
-pub fn composite(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, target: *c.SDL_GPUTexture) Error!void {
+pub fn composite(self: *Self, cmd: *c.SDL_GPUCommandBuffer, target: *sdl.GPUTexture) Error!void {
     const color_target = zeroInit(sdl.GPUColorTargetInfo, .{
         // 渲染目标纹理：叠加背景的目标纹理（链上已有内容）
         .texture = target,
@@ -95,8 +98,8 @@ pub fn composite(self: *Self, cmd_buf: *c.SDL_GPUCommandBuffer, target: *c.SDL_G
         // 离开渲染通道时如何存储结果：保留混合后的内容
         .store_op = sdl.GPU_STOREOP_STORE,
     });
-    self.render_pass = try h.check(c.SDL_BeginGPURenderPass(cmd_buf, &color_target, 1, null));
-    c.SDL_BindGPUGraphicsPipeline(self.render_pass, self.pipeline);
-    c.SDL_DrawGPUPrimitives(self.render_pass, 3, 1, 0, 0);
-    c.SDL_EndGPURenderPass(self.render_pass);
+    self.pass = try h.check(c.SDL_BeginGPURenderPass(cmd, &color_target, 1, null));
+    c.SDL_BindGPUGraphicsPipeline(self.pass, self.pipeline);
+    c.SDL_DrawGPUPrimitives(self.pass, 3, 1, 0, 0);
+    c.SDL_EndGPURenderPass(self.pass);
 }

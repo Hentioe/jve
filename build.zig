@@ -296,6 +296,7 @@ pub fn build(b: *std.Build) void {
         "text.frag.slang",
         "welcome.frag.slang",
         "diag.frag.slang",
+        "black_bg.frag.slang", // 纯黑背景
         "checker_bg.frag.slang", // 经典背景
         "rainbow_bg.frag.slang", // 彩虹背景
         "tiles_bg.frag.slang", // 砖块背景

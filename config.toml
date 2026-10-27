@@ -23,9 +23,9 @@ image_switch = true
 
 [shaders]
 dir = "test/shaders"
-# 预设: classic | rainbow | tiles
+# 预设: black | classic | rainbow | tiles
 # 或自定义 .slang, 背景着色器需放在 background 目录
-background = "tiles"
+background = "black"
 
 # 手动激活的着色器（绑定快捷键）
 [shaders.custom.d]
