@@ -164,7 +164,7 @@ pub fn render(deps: *RenderDeps, state: *State) Error!void {
     // 绘制组件
     for (deps.widgets) |*widget| widget.draw(cmd, deps.screen.render_pass);
     // 绘制错误横幅
-    if (state.show_error) deps.error_banner.draw(cmd, deps.screen.render_pass);
+    if (state.banner_timer.started) deps.banner.draw(cmd, deps.screen.render_pass);
     // 结束屏幕绘制
     deps.screen.end();
     // 提交命令，渲染到屏幕

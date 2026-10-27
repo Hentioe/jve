@@ -28,26 +28,16 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         if (state.tex_mask) |tex| deps.device.releaseGPUTexture(tex);
     }
 
-    var last_iteration_tick: ?u64 = null;
-
     while (state.running) {
-        const iteration_tick = sdl.getTicks();
-        if (!first_stall_logged and state.playback.playing) if (last_iteration_tick) |last| {
-            const gap = iteration_tick - last;
-            if (gap >= 50) {
-                first_stall_logged = true;
-                std.log.debug("First loop stall: {d} ms since previous iteration", .{gap});
-            }
-        };
-        last_iteration_tick = iteration_tick;
-
-        // 计算 delta
-        delta.update();
+        delta.update(); // 计算 delta
         defer action = .none; // 重置动作
+
         // 推进提示动画
         if (state.overflow_hint.isRunning()) state.overflow_hint.nextStep(delta.value);
         // 繁忙、提示动画或动图播放时保持渲染循环刷新
         state.dirty = state.is_busy or state.overflow_hint.isRunning() or state.playback.playing;
+        // 推进定时器（会更新 dirty）
+        state.updateTimers();
 
         if (!state.dirty) {
             var wait_event: sdl.Event = undefined;
@@ -55,7 +45,7 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
                 events.handle(&wait_event, &action, deps, &state); // 处理事件
                 if (ui.Event.fromSdl(&wait_event)) |ui_event| for (deps.widgets) |*w| w.event(&ui_event); // 分发 ui 事件给所有 widget
             }
-            delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
+            // delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
 
         while (sdl.pollEvent(&event)) {
@@ -69,7 +59,7 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         try events.checkHandleTask(deps, &state);
         // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
         advanceAnimation(deps, &state);
-        // 根据状态执行渲染
+        // 执行渲染
         try frame.render(deps, &state);
         // 处理截图保存和复制
         if (state.screenshot.action != .none) try events.handleScreenshot(deps, &state);

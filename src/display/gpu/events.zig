@@ -125,7 +125,7 @@ pub fn handleScreenshot(deps: *RenderDeps, state: *State) Error!void {
 }
 
 /// 处理按键绑定事件
-pub fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *State) bool {
+fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *State) bool {
     var iter = deps.manuals.keyIterator();
     while (iter.next()) |item| if (item.*.keybinding) |binding| {
         var matched = false;

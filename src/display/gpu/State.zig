@@ -8,6 +8,7 @@ const Delta = @import("../Delta.zig");
 const Modifiers = @import("../Modifiers.zig");
 const OverflowHint = @import("../OverflowHint.zig");
 const Playback = @import("../Playback.zig");
+const Timer = @import("../../animation//Timer.zig");
 const Task = @import("../Task.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const Error = @import("../errors.zig").Error;
@@ -63,7 +64,7 @@ tex_dst: *sdl.GPUTexture,
 // 手动触发的管线
 manual: ?*pipelines.Post = null,
 // 是否显示错误
-show_error: bool = false,
+banner_timer: Timer = .init(0),
 
 pub fn init(deps: *const RenderDeps, delta: *const Delta) Self {
     var state = Self{
@@ -82,9 +83,13 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
+pub fn updateTimers(self: *Self) void {
+    if (self.banner_timer.tick(self.delta.value_ms)) self.dirty = true;
+}
+
 pub fn showError(self: *Self, deps: *RenderDeps, comptime fmt: []const u8, args: anytype) Error!void {
     const message = try std.fmt.allocPrint(deps.allocator, fmt, args);
     defer deps.allocator.free(message);
-    try deps.error_banner.setText(message);
-    self.show_error = true;
+    try deps.banner.setText(message);
+    self.banner_timer.start(3000); // 开启计时
 }

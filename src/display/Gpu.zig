@@ -124,8 +124,8 @@ pub fn show(self: *Self) Error!ExitAction {
     self.window.updateFit(); // 窗口状态可能已脏，始终重新计算 fit 尺寸
 
     // 创建错误横幅
-    var error_banner: ui.TextBanner = try .init(self.gpa, &self.ass_renderer, self.window.fit_size, .{});
-    defer error_banner.deinit();
+    var banner: ui.TextBanner = try .init(self.gpa, &self.ass_renderer, self.window.fit_size, .{});
+    defer banner.deinit();
 
     // 组件列表
     var widgets_buf: [MAX_WIDGETS]ui.Widget = undefined;
@@ -153,7 +153,7 @@ pub fn show(self: *Self) Error!ExitAction {
         image,
         self.shaders,
         widgets.items,
-        &error_banner,
+        &banner,
     );
     errdefer deps.deinit();
     app_env.traceMark("RenderDeps.init");

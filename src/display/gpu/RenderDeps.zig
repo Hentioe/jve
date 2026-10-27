@@ -56,7 +56,7 @@ manuals: Manuals,
 // 组件列表
 widgets: []ui.Widget,
 // 错误消息横幅
-error_banner: *ui.TextBanner,
+banner: *ui.TextBanner,
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -273,7 +273,7 @@ pub fn init(
         .custom = custom,
         .manuals = manuals,
         .widgets = widgets,
-        .error_banner = error_banner,
+        .banner = error_banner,
     };
 }
 
