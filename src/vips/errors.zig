@@ -1,4 +1,5 @@
 const std = @import("std");
+const CStringError = @import("shared").CString.Error;
 
 pub const VipsError = error{VipsFailed};
 
@@ -10,4 +11,4 @@ pub const CustomError = error{
     AnimationNoSource, // 动图源已释放，无法再解码新帧
 };
 
-pub const Error = VipsError || CustomError || std.mem.Allocator.Error;
+pub const Error = VipsError || CustomError || CStringError || std.mem.Allocator.Error;

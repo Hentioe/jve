@@ -1,6 +1,7 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const slang = @import("slang");
+const CString = @import("shared").CString;
 const Error = @import("errors.zig").Error;
 
 const Stage = enum(c_uint) {
@@ -10,14 +11,7 @@ const Stage = enum(c_uint) {
 
 const ShaderOptions = struct { samplers: u32, buffers: u32 };
 
-pub fn loadSlangFile(
-    allocator: std.mem.Allocator,
-    gpu: *const sdl.Gpu,
-    file_path: []const u8,
-    entrypoint: []const u8,
-    stage: Stage,
-    options: ShaderOptions,
-) Error!*sdl.c.SDL_GPUShader {
+pub fn loadSlangFile(allocator: std.mem.Allocator, gpu: *const sdl.Gpu, file_path: []const u8, entry: []const u8, stage: Stage, options: ShaderOptions) Error!*sdl.c.SDL_GPUShader {
     // 正在加载着色器
     std.log.info("Loading shader: {s}", .{file_path});
     // 检查文件是否可访问
@@ -25,32 +19,18 @@ pub fn loadSlangFile(
     const file = try std.Io.Dir.cwd().openFile(file_path, .{});
     defer file.close();
     const stat = try file.stat();
-    const source = std.Io.Dir.cwd().readFileAllocOptions(
-        allocator,
-        file_path,
-        stat.size,
-        null,
-        .of(u8),
-        0,
-    ) catch return Error.ShaderReadFailed;
+    const source = std.Io.Dir.cwd().readFileAllocOptions(allocator, file_path, stat.size, null, .of(u8), 0) catch return Error.ShaderReadFailed;
     defer allocator.free(source);
 
-    var compiled = try slang.compileToSpirv(allocator, file_path, source, .{ .entry = entrypoint });
+    var compiled = try slang.compileToSpirv(allocator, file_path, source, .{ .entry = entry });
     defer compiled.deinit();
 
-    const entrypoint_z = try allocator.dupeSentinel(u8, entrypoint, 0);
-    defer allocator.free(entrypoint_z);
+    const c_entry = try CString.fromShort(entry);
 
-    return load(gpu, compiled.bytes(), entrypoint_z, stage, options);
+    return load(gpu, compiled.bytes(), c_entry.data(), stage, options);
 }
 
-pub fn load(
-    gpu: *const sdl.Gpu,
-    bytes: []const u8,
-    entrypoint: [*:0]const u8,
-    stage: Stage,
-    options: ShaderOptions,
-) Error!*sdl.c.SDL_GPUShader {
+pub fn load(gpu: *const sdl.Gpu, bytes: []const u8, entrypoint: [*:0]const u8, stage: Stage, options: ShaderOptions) Error!*sdl.c.SDL_GPUShader {
     const create_info = sdl.c.SDL_GPUShaderCreateInfo{
         .code = bytes.ptr,
         .code_size = bytes.len,

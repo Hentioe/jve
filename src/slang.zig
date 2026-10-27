@@ -1,6 +1,7 @@
 const std = @import("std");
-const shared = @import("shared");
 const c = @import("slang_c");
+const shared = @import("shared");
+const CString = shared.CString;
 const Compiler = @import("slang/Compiler.zig");
 
 pub const Error = @import("slang/errors.zig").Error;
@@ -52,15 +53,10 @@ pub const Compiled = struct {
 
 /// `name` 同时作为模块名和诊断信息里显示的文件名。
 /// 返回的 Compiled 直接引用 Slang 的内存，用完调用 deinit。
-pub fn compileToSpirv(allocator: std.mem.Allocator, name: []const u8, source: [:0]const u8, options: Options) !Compiled {
-    // 只用于临时的 NUL 结尾拷贝，函数返回前全部释放
-    var arena_state = std.heap.ArenaAllocator.init(allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-
-    const name_z = try arena.dupeSentinel(u8, name, 0);
-    const entry_z = try arena.dupeSentinel(u8, options.entry, 0);
-    const profile_z = try arena.dupeSentinel(u8, options.profile, 0);
+pub fn compileToSpirv(name: []const u8, source: [:0]const u8, options: Options) !Compiled {
+    const c_name = try CString.fromName(name);
+    const c_entry = try CString.fromShort(options.entry);
+    const c_profile = try CString.fromShort(options.profile);
 
     var code: c.SlangShimBlob = .{ .data = null, .size = 0, .handle = null };
     var diag: [*c]u8 = null;
@@ -68,10 +64,10 @@ pub fn compileToSpirv(allocator: std.mem.Allocator, name: []const u8, source: [:
 
     const rc = c.slang_shim_compile_spirv(
         compiler.handle,
-        name_z.ptr,
+        c_name.data(),
         source.ptr,
-        entry_z.ptr,
-        profile_z.ptr,
+        c_entry.data(),
+        c_profile.data(),
         &code,
         &diag,
     );

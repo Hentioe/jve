@@ -5,11 +5,13 @@ const shared = @import("shared");
 const consts = @import("consts.zig");
 const Allocator = std.mem.Allocator;
 const Image = @import("Image.zig");
-const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
+const CString = shared.CString;
 const Size2D = shared.Size2D;
 const milliTimestamp = shared.milliTimestamp;
 const Error = @import("errors.zig").Error;
 const Self = @This();
+
+const VIPS_ARGUMENT_NULL = consts.VIPS_ARGUMENT_NULL;
 
 pub const Format = enum { gif, webp, jxl };
 
@@ -42,7 +44,7 @@ pub const FrameView = struct {
 
 allocator: std.mem.Allocator,
 /// 文件路径（C 字符串，供重新打开 roll 使用）
-path: [:0]u8,
+path: CString,
 format: Format,
 mode: Mode,
 width: i32,
@@ -71,7 +73,7 @@ scratch: ?Image.Out,
 pub fn init(allocator: Allocator, path: []const u8, options: Options) Error!?Self {
     const format = detectFormat(path) orelse return null;
 
-    const path_z = try allocator.dupeSentinel(u8, path, 0);
+    const c_path = try CString.fromPath(path);
     var roll: ?*c.VipsImage = null;
     var delays_ms: []u32 = &.{};
     var pts_ms: []u64 = &.{};
@@ -79,7 +81,6 @@ pub fn init(allocator: Allocator, path: []const u8, options: Options) Error!?Sel
     var keep = false;
     defer if (!keep) {
         if (roll) |r| c.g_object_unref(r);
-        allocator.free(path_z);
         if (delays_ms.len > 0) allocator.free(delays_ms);
         if (pts_ms.len > 0) allocator.free(pts_ms);
         if (frames.len > 0) {
@@ -88,7 +89,7 @@ pub fn init(allocator: Allocator, path: []const u8, options: Options) Error!?Sel
         }
     };
 
-    roll = try openRoll(path_z, format);
+    roll = try openRoll(c_path.data(), format);
 
     const width = c.vips_image_get_width(roll.?);
     const total_height = c.vips_image_get_height(roll.?);
@@ -96,7 +97,7 @@ pub fn init(allocator: Allocator, path: []const u8, options: Options) Error!?Sel
     const n_pages = c.vips_image_get_n_pages(roll.?);
     if (width <= 0 or page_height <= 0 or n_pages <= 1) return null;
     if (@as(i64, page_height) * @as(i64, n_pages) != total_height) {
-        std.log.warn("Animation {s} has inconsistent page layout, treated as static", .{path_z});
+        std.log.warn("Animation {f} has inconsistent page layout, treated as static", .{c_path});
         return null;
     }
     const count: usize = @intCast(n_pages);
@@ -105,7 +106,7 @@ pub fn init(allocator: Allocator, path: []const u8, options: Options) Error!?Sel
     var delay_ptr: [*c]c_int = null;
     var delay_len: c_int = 0;
     if (c.vips_image_get_array_int(roll.?, "delay", &delay_ptr, &delay_len) != 0 or delay_len <= 0) {
-        std.log.warn("Animation {s} has no frame delay metadata, treated as static", .{path_z});
+        std.log.warn("Animation {f} has no frame delay metadata, treated as static", .{c_path});
         return null;
     }
 
@@ -138,7 +139,7 @@ pub fn init(allocator: Allocator, path: []const u8, options: Options) Error!?Sel
 
     var self = Self{
         .allocator = allocator,
-        .path = path_z,
+        .path = c_path,
         .format = format,
         .mode = options.mode,
         .width = width,
@@ -180,7 +181,7 @@ pub fn init(allocator: Allocator, path: []const u8, options: Options) Error!?Sel
 
     std.log.info(
         "Animation loaded: {s}, {d} frame(s), {d}x{d}, cache={s}, loop={d}",
-        .{ std.fs.path.basename(self.path), self.count, self.width, self.page_height, @tagName(self.mode), self.loop_count },
+        .{ std.fs.path.basename(self.path.data()), self.count, self.width, self.page_height, @tagName(self.mode), self.loop_count },
     );
 
     keep = true;
@@ -196,7 +197,6 @@ pub fn deinit(self: *Self) void {
     self.allocator.free(self.delays_ms);
     self.allocator.free(self.pts_ms);
     self.releaseRoll();
-    self.allocator.free(self.path);
     self.* = undefined;
 }
 
@@ -270,7 +270,7 @@ fn openRoll(path: [:0]const u8, format: Format) Error!*c.VipsImage {
 
 fn reopenRoll(self: *Self) Error!void {
     self.releaseRoll();
-    self.roll = try openRoll(self.path, self.format);
+    self.roll = try openRoll(self.path.data(), self.format);
     self.next_seq = 0;
 }
 

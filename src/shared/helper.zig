@@ -28,9 +28,13 @@ pub fn strdup(s: []const u8) Allocator.Error![*:0]u8 {
     return buf.ptr;
 }
 
-/// 字节转 KB(1 KB = 1024 字节)，直接截断小数部分。
-pub fn bytesToKb(bytes: u64) u64 {
-    return bytes / 1024;
+/// 数据大小单位
+pub const DataSizeUnit = enum { kb };
+/// 字节转到指定单位，直接截断小数部分。
+pub fn bytesTo(unit: DataSizeUnit, bytes: u64) u64 {
+    return switch (unit) {
+        .kb => bytes / 1024,
+    };
 }
 
 /// 用系统默认浏览器打开 URL（Linux，依赖 xdg-open）

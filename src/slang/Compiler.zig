@@ -1,12 +1,12 @@
 const c = @import("slang_c");
-const Error = @import("errors.zig").Error;
+const SlangError = @import("errors.zig").SlangError;
 const Self = @This();
 
 handle: *c.SlangShimCompiler,
 
-pub fn init() Error!Self {
+pub fn init() SlangError!Self {
     return .{
-        .handle = c.slang_shim_compiler_create() orelse return Error.SlangInitFailed,
+        .handle = c.slang_shim_compiler_create() orelse return SlangError.SlangInitFailed,
     };
 }
 

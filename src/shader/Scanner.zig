@@ -164,7 +164,7 @@ fn resolveSpirv(allocator: Allocator, cache: *Cache, name: []const u8, full_path
 
     // 重新编译着色器
     try slang.init(name); // 由外部 deinit
-    var compiled = try slang.compileToSpirv(allocator, full_path, source, .{ .entry = "main" });
+    var compiled = try slang.compileToSpirv(full_path, source, .{ .entry = "main" });
     defer compiled.deinit();
 
     const bytes = try allocator.dupe(u8, compiled.bytes());
