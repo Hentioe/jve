@@ -4,6 +4,8 @@ const CString = shared.CString;
 const Io = std.Io;
 const Threaded = Io.Threaded;
 
+pub const PollHandler = @import("tasks/PollHandler.zig");
+
 pub const CustomError = error{FutureNotFound};
 pub const ConcurrencyError = error{ConcurrencyUnavailable};
 pub const QueueGetError = error{ Canceled, Closed };

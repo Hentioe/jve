@@ -25,6 +25,11 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
     var threaded = Io.Threaded.init(deps.allocator, .{});
     var task_sched = tasks.Scheduler.init(&threaded);
     defer task_sched.deinit();
+    var poll_handler = tasks.PollHandler{
+        .task_sched = &task_sched,
+        .deps = deps,
+        .state = &state,
+    };
     ui_ctx.bindEvents(&state);
     var event_ctx = events.Context{
         .deps = deps,
@@ -70,25 +75,8 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
         try events.checkHandleTask(deps, &state);
         // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
         advanceAnimation(deps, &state);
-        // 检查任务
-        for (try task_sched.poll()) |t| {
-            switch (t.result) {
-                .cstr => |cstr| {
-                    if (t.name == .save_screenshot)
-                        try state.showSuccess(deps, "截图已保存：{f}", .{cstr});
-                },
-                .ok => {
-                    if (t.name == .copy_screenshot)
-                        try state.showSuccess(deps, "已复制到剪切板", .{});
-                },
-                .err => |err| {
-                    try state.showError(deps, "{s}", .{@errorName(err)});
-                },
-            }
-            switch (t.name) {
-                .copy_screenshot, .save_screenshot => state.screenshot = .default, // 重置截图状态
-            }
-        }
+        // 检查并处理任务
+        try poll_handler.pollHandle();
         // 执行渲染
         try frame.render(deps, &state);
         // 处理截图保存和复制
