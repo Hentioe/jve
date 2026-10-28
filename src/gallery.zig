@@ -1,5 +1,6 @@
 const std = @import("std");
 const root = @import("root.zig");
+const app_env = @import("app_env.zig");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const LImage = @import("vips").LImage;
@@ -51,6 +52,7 @@ pub fn init(allocator: Allocator, file_path: []const u8) Error!void {
     // 加载图片
     std.log.info("Loading image: {s}", .{file_path});
     const image = try root.load(io, allocator, file_path);
+    app_env.traceMark("image_loading");
     // 输出图像信息
     std.log.info("Current image: {s}", .{base});
     std.log.info("Image shape: {f}", .{image.shape});
