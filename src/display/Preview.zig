@@ -2,6 +2,7 @@ const std = @import("std");
 const sdl = @import("sdl");
 const gallery = @import("../gallery.zig");
 const app_env = @import("../app_env.zig");
+const Io = std.Io;
 const Window = @import("window.zig");
 const RenderDeps = @import("preview/RenderDeps.zig");
 const loop = @import("preview/loop.zig");
@@ -12,7 +13,7 @@ const Self = @This();
 window: *Window,
 renderer: sdl.Renderer,
 
-pub fn init(allocator: std.mem.Allocator) Error!Self {
+pub fn init(_: Io, allocator: std.mem.Allocator) Error!Self {
     // 初始化「预览」模式
     std.log.info("Initializing preview mode", .{});
     const image = try gallery.current();

@@ -50,7 +50,7 @@ pub fn init(allocator: Allocator, file_path: []const u8) Error!void {
     if (!scanner.select(base)) return Error.GalleryCurrentFileNotFound;
     // 加载图片
     std.log.info("Loading image: {s}", .{file_path});
-    const image = try root.load(allocator, file_path);
+    const image = try root.load(io, allocator, file_path);
     // 输出图像信息
     std.log.info("Current image: {s}", .{base});
     std.log.info("Image shape: {f}", .{image.shape});
@@ -125,7 +125,7 @@ fn reloadCurrent() Error!void {
         // 更新缓存中的路径
         cache.freeOldAndupdateFullPath(full_path);
         // 加载图片
-        const image = try root.load(cache.allocator, full_path);
+        const image = try root.load(io, cache.allocator, full_path);
         // 缓存图片
         cache.image = image;
         std.log.info("Current image: {s}", .{image.file_name});

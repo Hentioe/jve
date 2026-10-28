@@ -2,10 +2,12 @@ const std = @import("std");
 const sdl = @import("sdl");
 const app_env = @import("../../app_env.zig");
 const ui = @import("../../ui.zig");
+const Io = std.Io;
 const Delta = @import("../Delta.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const events = @import("events.zig");
 const State = @import("State.zig");
+const Tasks = @import("Tasks.zig");
 const frame = @import("frame.zig");
 const ExitAction = @import("../enums.zig").ExitAction;
 const Error = @import("../errors.zig").Error;
@@ -14,12 +16,19 @@ const Error = @import("../errors.zig").Error;
 var first_stall_logged = false;
 var first_render_logged = false;
 
-pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
+pub fn run(io: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction {
     var event: sdl.c.SDL_Event = undefined;
     var delta: Delta = .init();
     var state: State = .init(deps, &delta);
     defer state.deinit();
-    context.bindEvents(&state);
+    var tasks = Tasks.init(io);
+    defer tasks.deinit();
+    ui_ctx.bindEvents(&state);
+    var event_ctx = events.Context{
+        .deps = deps,
+        .state = &state,
+        .tasks = &tasks,
+    };
 
     var action: events.EventAction = .none;
     // 确保退出时释放任务与遮罩纹理
@@ -42,14 +51,14 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         if (!state.dirty) {
             var wait_event: sdl.Event = undefined;
             if (sdl.waitEvent(&wait_event)) {
-                events.handle(&wait_event, &action, deps, &state); // 处理事件
+                event_ctx.handle(&wait_event, &action); // 处理事件
                 if (ui.Event.fromSdl(&wait_event)) |ui_event| for (deps.widgets) |*w| w.event(&ui_event); // 分发 ui 事件给所有 widget
             }
             // delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
 
         while (sdl.pollEvent(&event)) {
-            events.handle(&event, &action, deps, &state); // 处理事件
+            event_ctx.handle(&event, &action); // 处理事件
             if (ui.Event.fromSdl(&event)) |ui_event| for (deps.widgets) |*w| w.event(&ui_event); // 分发 ui 事件给所有 widget
         }
 
@@ -59,10 +68,29 @@ pub fn run(deps: *RenderDeps, context: *events.Context) Error!ExitAction {
         try events.checkHandleTask(deps, &state);
         // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
         advanceAnimation(deps, &state);
+        // 检查任务
+        for (try tasks.poll()) |t| {
+            switch (t.result) {
+                .cstr => |cstr| {
+                    if (t.name == .save_screenshot)
+                        try state.showSuccess(deps, "截图已保存：{f}", .{cstr});
+                },
+                .ok => {
+                    if (t.name == .copy_screenshot)
+                        try state.showSuccess(deps, "已复制到剪切板", .{});
+                },
+                .fail => |err| {
+                    try state.showError(deps, "{s}", .{@errorName(err)});
+                },
+            }
+            switch (t.name) {
+                .copy_screenshot, .save_screenshot => state.screenshot = .default, // 重置截图状态
+            }
+        }
         // 执行渲染
         try frame.render(deps, &state);
         // 处理截图保存和复制
-        if (state.screenshot.action != .none) try events.handleScreenshot(deps, &state);
+        if (!state.screenshot.running and state.screenshot.action != .none) try event_ctx.handleScreenshot();
         // 记录首次渲染完成
         if (!first_render_logged) {
             app_env.traceMark("first_rendering");

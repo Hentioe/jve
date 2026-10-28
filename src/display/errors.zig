@@ -9,8 +9,10 @@ const ShaderError = @import("../shader.zig").Error;
 const PipelineError = @import("../pipelines/errors.zig").Error;
 const GalleryError = @import("../gallery.zig").Error;
 const StepTraceError = @import("../StepTrace.zig").Error;
+const GpuTasksError = @import("gpu/Tasks.zig").Error;
 
 const CustomError = error{};
 
-pub const Error = CustomError || SdlError || AssError || SizeError || OrtError || GalleryError || AiError || UiError || ShaderError || PipelineError || StepTraceError ||
+pub const Error = CustomError || SdlError || AssError || SizeError || OrtError ||
+    GalleryError || AiError || UiError || ShaderError || PipelineError || StepTraceError || GpuTasksError ||
     std.mem.Allocator.Error || std.Thread.SpawnError || std.Io.File.OpenError;

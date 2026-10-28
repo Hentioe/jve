@@ -5,6 +5,7 @@ const config = @import("../../config.zig");
 const pipelines = @import("../../pipelines.zig");
 const Point = shared.Point(f32);
 const Delta = @import("../Delta.zig");
+const Screenshot = @import("../../Screenshot.zig");
 const Modifiers = @import("../Modifiers.zig");
 const OverflowHint = @import("../OverflowHint.zig");
 const Playback = @import("../Playback.zig");
@@ -16,9 +17,8 @@ const Self = @This();
 
 /// 截图输入状态
 pub const ScreenshotInput = struct {
-    pub const Action = enum { save, copy, none };
-
-    action: Action = .none, // 截图动作
+    action: Screenshot.Action = .none, // 截图动作
+    running: bool = false, // 是否正在进行中
     include_bg: bool = false, // 是否包含背景
 
     pub const default: ScreenshotInput = .{};

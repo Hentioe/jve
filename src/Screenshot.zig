@@ -13,6 +13,7 @@ const clipboard = @import("clipboard.zig");
 const Self = @This();
 
 pub const Error = error{CreateScreenshotDirFailed} || CString.Error || extractor.Error || vips.Error || config.Error || std.mem.Allocator.Error;
+pub const Action = enum { save, copy, none };
 
 const io = std.Io.Threaded.global_single_threaded.io();
 

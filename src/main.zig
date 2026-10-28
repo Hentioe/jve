@@ -36,7 +36,7 @@ pub fn main(init: std.process.Init) !void {
         // 启动子系统
         try subsystems.start();
         // 显示图片
-        try jve.show(init.gpa, res.args.display);
+        try jve.show(init.io, init.gpa, res.args.display);
     } else if (res.args.display) |d| (if (std.mem.eql(u8, d, "diag")) {
         // 启动子系统（基本显示）
         subsystems.fillSystems(.initMany(&.{ .app_env, .ui, .display }));

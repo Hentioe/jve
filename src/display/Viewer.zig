@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const ExitAction = @import("enums.zig").ExitAction;
 const DisplayMode = @import("../config.zig").DisplayMode;
@@ -35,10 +36,10 @@ ptr: *anyopaque,
 vtable: *const VTable,
 allocator: Allocator,
 
-pub fn create(allocator: Allocator, mode: DisplayMode) Error!Self {
+pub fn create(io: Io, allocator: Allocator, mode: DisplayMode) Error!Self {
     return switch (mode) {
-        .gpu => return make(allocator, Gpu),
-        .preview => return make(allocator, Preview),
+        .gpu => return make(io, allocator, Gpu),
+        .preview => return make(io, allocator, Preview),
     };
 }
 
@@ -50,10 +51,10 @@ pub fn show(self: Self) Error!ExitAction {
     return self.vtable.show(self.ptr);
 }
 
-fn make(allocator: Allocator, T: type) Error!Self {
+fn make(io: Io, allocator: Allocator, T: type) Error!Self {
     const ptr = try allocator.create(T); // 新增 Allocator.Error
     errdefer allocator.destroy(ptr);
-    ptr.* = try T.init(allocator);
+    ptr.* = try T.init(io, allocator);
 
     return .{ .ptr = ptr, .vtable = VTable.of(T), .allocator = allocator };
 }

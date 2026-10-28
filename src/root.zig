@@ -20,8 +20,6 @@ pub const StepTrace = @import("StepTrace.zig");
 
 const DisplayMode = config.DisplayMode;
 
-const io = std.Io.Threaded.global_single_threaded.io();
-
 // glibc 为每个线程维护独立的 malloc arena。工作线程释放大块内存后，
 // 内存会滞留在各自的 arena 中不归还操作系统，导致轮换图片时 RSS 持续上涨。
 // 限制 arena 数量即可让这些缓冲被复用（此为 glibc 常量 M_ARENA_MAX）。
@@ -140,7 +138,7 @@ pub fn clearDeadCache(allocator: Allocator, config_path: ?[]const u8) !void {
     }
 }
 
-pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
+pub fn load(io: Io, allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
     // 检查文件的可访问性
     const stat = Io.Dir.cwd().statFile(io, file_path, .{}) catch |err| return err;
     // 检查输入是否为文件
@@ -148,7 +146,7 @@ pub fn load(allocator: Allocator, file_path: []const u8) LoadError!vips.LImage {
     return try vips.loader.load(allocator, file_path);
 }
 
-pub fn show(allocator: Allocator, display_mode: ?[]const u8) !void {
+pub fn show(io: Io, allocator: Allocator, display_mode: ?[]const u8) !void {
     var mode: DisplayMode = undefined;
     if (display_mode) |s| (if (DisplayMode.parse(s)) |m| {
         mode = m;
@@ -159,7 +157,7 @@ pub fn show(allocator: Allocator, display_mode: ?[]const u8) !void {
         mode = config.get().display_mode;
     }
     std.log.info("Display mode: {s}", .{@tagName(mode)});
-    display.show(allocator, mode) catch |err| {
+    display.show(io, allocator, mode) catch |err| {
         app_env.ensureFatal(err);
         try showDiag(allocator);
     };

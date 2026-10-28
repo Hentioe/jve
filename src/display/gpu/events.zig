@@ -4,14 +4,14 @@ const Key = sdl.Key;
 const ui = @import("../../ui.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const Task = @import("../Task.zig");
+const Tasks = @import("Tasks.zig");
 const Modifiers = @import("../Modifiers.zig");
 const Device = @import("../../Device.zig");
 const Size2D = @import("shared").Size2D;
 const State = @import("State.zig");
-const Screenshot = @import("../../Screenshot.zig");
 const Error = @import("../errors.zig").Error;
 
-pub const Context = struct {
+pub const UIContext = struct {
     deps: *RenderDeps,
     title_bar: *?ui.TitleBar,
     state: *State = undefined,
@@ -81,6 +81,39 @@ const ActionDeps = struct {
     is_playing: bool,
 };
 
+pub const Context = struct {
+    deps: *RenderDeps,
+    state: *State,
+    tasks: *Tasks,
+
+    // 从事件中更新动作（可跨多个事件累积）
+    pub fn handle(ctx: *Context, event: *const sdl.Event, action: *EventAction) void {
+        if (handleBinding(event, ctx.deps, ctx.state)) return; // 绑定的事件触发，直接跳过后续事件处理
+        const action_deps: ActionDeps = .{
+            .modifiers = &ctx.state.modifiers,
+            .is_sliding = ctx.state.is_sliding,
+            .is_busy = ctx.state.is_busy,
+            .is_playing = ctx.state.playback.playing,
+        };
+        ctx.state.modifiers.input(event); // 更新修饰键状态（在动作更新之前）
+        updateAction(action, event.*, action_deps); // 更新动作
+        if (ctx.state.modifiers.takePrimaryPressedChanged()) { // 如果主修饰键按下状态发生变化
+            ctx.deps.window.is_draggable = !ctx.state.modifiers.primaryPressed(); // 窗口在主 mod 未按下时才能拖动
+        }
+    }
+
+    pub fn handleScreenshot(self: *Context) Error!void {
+        self.state.screenshot.running = true;
+        try self.tasks.laucnhScreenshot(
+            self.deps.allocator,
+            self.deps.device,
+            self.state.tex_src,
+            &self.deps.image,
+            self.state.screenshot.action,
+        );
+    }
+};
+
 /// 检查和处理后台任务，失败会在横幅显示错误消息。
 pub fn checkHandleTask(deps: *RenderDeps, state: *State) Error!void {
     if (state.task) |t| if (t.poll() == .done) {
@@ -107,29 +140,6 @@ pub fn checkHandleTask(deps: *RenderDeps, state: *State) Error!void {
     };
 }
 
-/// 处理截图相关事件
-pub fn handleScreenshot(deps: *RenderDeps, state: *State) Error!void {
-    // 创建截图器
-    var s = Screenshot.init(deps.allocator, deps.device, state.tex_src, &deps.image) catch |err| {
-        try state.showError(deps, "截图失败：{s}", .{@errorName(err)});
-        return;
-    };
-
-    defer s.deinit();
-    const action = state.screenshot.action;
-    if (action == .save) if (s.saveToFile()) |saved| {
-        try state.showSuccess(deps, "截图已保存：{f}", .{saved.filepath});
-    } else |err| {
-        try state.showError(deps, "保存失败：{s}", .{@errorName(err)});
-    };
-    if (action == .copy) if (s.copyToClipboard()) {
-        try state.showSuccess(deps, "已复制到剪切板", .{});
-    } else |err| try state.showError(deps, "复制失败：{s}", .{@errorName(err)});
-
-    // 重置截图输入
-    state.screenshot = .default;
-}
-
 /// 处理按键绑定事件
 fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *State) bool {
     var iter = deps.manuals.keyIterator();
@@ -147,22 +157,7 @@ fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *State
     return false;
 }
 
-// 从事件中更新动作（可跨多个事件累积）
-pub fn handle(event: *const sdl.Event, action: *EventAction, deps: *RenderDeps, state: *State) void {
-    if (handleBinding(event, deps, state)) return; // 绑定的事件触发，直接跳过后续事件处理
-    const action_deps: ActionDeps = .{
-        .modifiers = &state.modifiers,
-        .is_sliding = state.is_sliding,
-        .is_busy = state.is_busy,
-        .is_playing = state.playback.playing,
-    };
-    state.modifiers.input(event); // 更新修饰键状态（在动作更新之前）
-    updateAction(action, event.*, action_deps); // 更新动作
-    if (state.modifiers.takePrimaryPressedChanged()) { // 如果主修饰键按下状态发生变化
-        deps.window.is_draggable = !state.modifiers.primaryPressed(); // 窗口在主 mod 未按下时才能拖动
-    }
-}
-
+// tood: 合并到上下文中
 /// 根据动作修改状态。
 pub fn applyAction(action: EventAction, deps: *const RenderDeps, state: *State) Error!void {
     switch (action) {

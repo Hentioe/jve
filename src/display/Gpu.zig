@@ -7,6 +7,7 @@ const config = @import("../config.zig");
 const gallery = @import("../gallery.zig");
 const ui = @import("../ui.zig");
 const shader = @import("../shader.zig");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const Window = @import("window.zig");
 const Device = @import("../Device.zig");
@@ -21,13 +22,14 @@ const Self = @This();
 // UI 组件总量
 const MAX_WIDGETS = 1; // 当前仅有 title_bar 组件
 
+io: Io,
 gpa: Allocator,
 window: *Window,
 device: *const sdl.Gpu,
 shaders: ?shader.loaded.All,
 ass_renderer: ass.Renderer,
 
-pub fn init(allocator: Allocator) Error!Self {
+pub fn init(io: Io, allocator: Allocator) Error!Self {
     // 初始化 GPU 模式
     std.log.info("Initializing GPU mode", .{});
     const image = try gallery.current();
@@ -85,6 +87,7 @@ pub fn init(allocator: Allocator) Error!Self {
     app_env.traceMark("ass_init");
 
     return Self{
+        .io = io,
         .gpa = allocator,
         .window = window,
         .device = device,
@@ -158,12 +161,12 @@ pub fn show(self: *Self) Error!ExitAction {
     errdefer deps.deinit();
     app_env.traceMark("RenderDeps.init");
 
-    var context = events.Context.init(&deps, &title_bar);
+    var context = events.UIContext.init(&deps, &title_bar);
     // 显示窗口
     try self.window.show();
     app_env.traceMark("window.show");
     // 启动循环
-    const action = try loop.run(&deps, &context);
+    const action = try loop.run(self.io, &deps, &context);
     // 正常退出时释放本次会话的渲染依赖
     deps.deinit();
     return action;
