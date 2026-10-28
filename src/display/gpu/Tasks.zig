@@ -4,6 +4,7 @@ const shared = @import("shared");
 const CString = shared.CString;
 const Allocator = std.mem.Allocator;
 const Io = std.Io;
+const Threaded = Io.Threaded;
 const Results = std.ArrayList(Elem);
 const Screenshot = @import("../../Screenshot.zig");
 const vips = @import("vips");
@@ -28,11 +29,11 @@ var queue_buffer: [NameSet.len]Elem = undefined;
 var results_buffer: [NameSet.len]Elem = undefined;
 
 io: Io,
-queue: Io.Queue(Elem) = .init(&queue_buffer),
 futures: [NameSet.len]?Io.Future(void) = @splat(null),
+queue: Io.Queue(Elem) = .init(&queue_buffer),
 
-pub fn init(io: Io) Self {
-    return Self{ .io = io };
+pub fn init(threaded: *Threaded) Self {
+    return Self{ .io = threaded.io() };
 }
 
 pub fn deinit(self: *Self) void {

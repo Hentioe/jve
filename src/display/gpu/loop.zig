@@ -16,12 +16,14 @@ const Error = @import("../errors.zig").Error;
 var first_stall_logged = false;
 var first_render_logged = false;
 
-pub fn run(io: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction {
+pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction {
     var event: sdl.c.SDL_Event = undefined;
     var delta: Delta = .init();
     var state: State = .init(deps, &delta);
     defer state.deinit();
-    var tasks = Tasks.init(io);
+    // 强制任务使用基于线程池的 io
+    var threaded = Io.Threaded.init(deps.allocator, .{});
+    var tasks = Tasks.init(&threaded);
     defer tasks.deinit();
     ui_ctx.bindEvents(&state);
     var event_ctx = events.Context{
