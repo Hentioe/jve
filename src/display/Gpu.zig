@@ -136,7 +136,7 @@ pub fn show(self: *Self) Error!ExitAction {
     defer if (title_bar) |*tb| tb.deinit();
     if (self.window.borderless) {
         title_bar = try ui.TitleBar.init(self.gpa, self.window.fit_size, .{
-            .color = .rgba(0.0, 0.0, 0.0, config.get().titlebar.opacity),
+            .color = .rgba01(0.0, 0.0, 0.0, config.get().titlebar.opacity),
         });
         app_env.traceMark("TitleBar.init");
         title_bar.?.bindEvents(); // 调用绑定不能用临时的栈变量

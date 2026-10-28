@@ -66,7 +66,7 @@ pub fn show(self: *Self) Error!ExitAction {
     // 错误消息横幅
     var banner = try ui.TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, .{
         .placement = .center,
-        .color = .rgba(0.5, 0.0, 0.0, 0.5),
+        .color = .rgba01(0.5, 0.0, 0.0, 0.5),
         .padding_y = 10.0,
     });
     defer banner.deinit();

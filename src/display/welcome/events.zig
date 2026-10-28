@@ -49,7 +49,7 @@ pub const Context = struct {
         self.deps.window.is_draggable = !is_hover; // 当鼠标悬停在横幅上时，窗口不可拖动（避免丢失点击事件）
         const banner = self.deps.banner;
         if (is_hover) {
-            banner.setColor(.rgba(1.0, 1.0, 1.0, 0.15));
+            banner.setColor(.rgba01(1.0, 1.0, 1.0, 0.15));
             // 切换到手型光标
             sdl.setCursor(self.pointer_cursor) catch |err| std.log.err("Failed to set pointer cursor: {}", .{err});
         } else {
@@ -62,7 +62,7 @@ pub const Context = struct {
         std.log.debug("Banner clicked", .{});
         shared.openUrl("https://github.com/Hentioe/jve") catch {
             self.deps.banner.setText("打开仓库链接失败了") catch |err| std.log.err("Failed to set banner text: {}", .{err});
-            self.deps.banner.setColor(.rgba(1.0, 0.0, 0.0, 0.5));
+            self.deps.banner.setColor(.rgba01(1.0, 0.0, 0.0, 0.5));
         };
     }
 };

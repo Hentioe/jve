@@ -37,7 +37,7 @@ const TITLE_FRAME = FrameSize{ .w = 4096, .h = text_renderer.PLAY_RES_Y };
 /// 最终地址后调用一次 `bindEvents`（与 `events.Context.bindEvents` 同理）。
 pub const Options = struct {
     /// 背景色（RGBA，0..1），默认深色半透明，确保在深色背景上可见。
-    color: Color = .rgba(0.15, 0.15, 0.15, 0.75),
+    color: Color = .rgba01(0.15, 0.15, 0.15, 0.75),
     /// 标题栏高度（像素）。按钮为边长等于栏高的正方形，图标在其中居中。
     height: f32 = 44.0,
     /// 内部图标的配置。图标边长应小于栏高，二者之差即为按钮四周的等边距。
@@ -48,14 +48,14 @@ pub const Options = struct {
     /// 标题文字与两侧按钮之间的留白（像素）。
     title_margin: f32 = 8.0,
     /// close 按钮悬停时的背景色（默认半透明红）。
-    hover_close: Color = .rgba(1.0, 0.0, 0.0, 0.5),
+    hover_close: Color = .rgba01(1.0, 0.0, 0.0, 0.5),
     /// minimize 按钮悬停时的背景色（默认半透明灰）。
-    hover_minimize: Color = .rgba(0.5, 0.5, 0.5, 0.5),
+    hover_minimize: Color = .rgba01(0.5, 0.5, 0.5, 0.5),
     /// 调试开关：为背景与按钮叠加红色。
     debug: bool = false,
 };
 
-const transparent = Color.rgba(0.0, 0.0, 0.0, 0.0);
+const transparent = Color.rgba01(0.0, 0.0, 0.0, 0.0);
 
 allocator: Allocator,
 frame_size: FrameSize,

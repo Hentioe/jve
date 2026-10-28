@@ -117,8 +117,14 @@ pub fn handleScreenshot(deps: *RenderDeps, state: *State) Error!void {
 
     defer s.deinit();
     const action = state.screenshot.action;
-    if (action == .save) s.saveToFile() catch |err| try state.showError(deps, "保存失败：{s}", .{@errorName(err)});
-    if (action == .copy) s.copyToClipboard();
+    if (action == .save) if (s.saveToFile()) |saved| {
+        try state.showSuccess(deps, "截图已保存：{f}", .{saved.filepath});
+    } else |err| {
+        try state.showError(deps, "保存失败：{s}", .{@errorName(err)});
+    };
+    if (action == .copy) if (s.copyToClipboard()) {
+        try state.showSuccess(deps, "已复制到剪切板", .{});
+    } else |err| try state.showError(deps, "复制失败：{s}", .{@errorName(err)});
 
     // 重置截图输入
     state.screenshot = .default;

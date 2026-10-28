@@ -94,7 +94,7 @@ pub fn show(self: *Self) Error!ExitAction {
 
     // 底部横幅（背景默认红色，测试文本）；帧渲染中一直显示
     var banner = try TextBanner.init(self.allocator, &self.ass_renderer, WINDOW_SIZE, .{
-        .color = .rgba(1.0, 1.0, 1.0, 0), // 半透明白色
+        .color = .rgba01(1.0, 1.0, 1.0, 0), // 半透明白色
     });
     defer banner.deinit();
     try banner.setText(WELCOME_TEXT);

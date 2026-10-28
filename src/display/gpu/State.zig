@@ -88,8 +88,17 @@ pub fn updateTimers(self: *Self) void {
 }
 
 pub fn showError(self: *Self, deps: *RenderDeps, comptime fmt: []const u8, args: anytype) Error!void {
-    const message = try std.fmt.allocPrint(deps.allocator, fmt, args);
-    defer deps.allocator.free(message);
+    var buffer: [1024]u8 = undefined;
+    const message = try std.fmt.bufPrint(&buffer, fmt, args);
+    deps.banner.setColor(.rgb(239, 68, 68));
     try deps.banner.setText(message);
-    self.banner_timer.start(3000); // 开启计时
+    self.banner_timer.start(3000); // 显示 3 秒
+}
+
+pub fn showSuccess(self: *Self, deps: *RenderDeps, comptime fmt: []const u8, args: anytype) Error!void {
+    var buffer: [1024]u8 = undefined;
+    const message = try std.fmt.bufPrint(&buffer, fmt, args);
+    deps.banner.setColor(.rgb(16, 185, 129));
+    try deps.banner.setText(message);
+    self.banner_timer.start(2500); // 显示 2.5 秒
 }

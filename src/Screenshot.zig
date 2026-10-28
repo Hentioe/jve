@@ -36,7 +36,12 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
-pub fn saveToFile(self: *const Self) Error!void {
+const Saved = struct {
+    filepath: CString,
+    size_kb: u64,
+};
+
+pub fn saveToFile(self: *const Self) Error!Saved {
     var arena_state = std.heap.ArenaAllocator.init(self.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -44,30 +49,22 @@ pub fn saveToFile(self: *const Self) Error!void {
     const filename = try CString.fromPath(try generateOutfileName(arena, self.image.file_name));
     // 写入到文件
     const data = self.extracted.data;
-    // todo: 用 vips.Image 取代
-    try writer.savePixelsToFile(data.ptr, self.image.shape, filename.data());
-    // 输出消息
-    std.log.info("Screenshot saved to: {f} ({d}KB)", .{ filename, bytesTo(.kb, data.len) });
+    try writer.saveToFile(data.ptr, self.image.shape, filename.data());
+    return .{
+        .filepath = filename,
+        .size_kb = bytesTo(.kb, data.len),
+    };
 }
 
-// todo: 不要在函数内部输出日志，直接返回错误
-/// 复制到剪切板
-pub fn copyToClipboard(self: *const Self) void {
-    const pixels_ptr = self.extracted.data.ptr;
+/// 复制到剪切板（目前仅支持 PNG）
+pub fn copyToClipboard(self: *const Self) Error!void {
     // 创建编码器
-    var encoder = writer.Encoder.init(pixels_ptr, self.image.shape);
-    defer encoder.deinit();
+    var encoder = writer.Encoder.init(.png);
     // 编码图片
-    if (encoder.encode()) {
-        // 复制到剪切板
-        if (clipboard.copyImage(self.allocator, encoder.encoded.?, .png)) {
-            std.log.info("Screenshot copied to clipboard, format: {s}", .{"png"});
-        } else |err| {
-            std.log.err("Failed to copy screenshot to clipboard: {}", .{err});
-        }
-    } else |err| {
-        std.log.err("Failed to encode screenshot: {}", .{err});
-    }
+    const data_ptr = self.extracted.data.ptr;
+    const encoded = try encoder.encode(data_ptr, self.image.shape);
+    // 复制到剪切板
+    try clipboard.copyImage(self.allocator, encoded.data, .png);
 }
 
 /// 生成一个输出文件名（路径），基于原始文件名和当前时间戳。

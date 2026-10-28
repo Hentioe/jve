@@ -25,7 +25,7 @@ pub const Placement = enum { top, bottom, center };
 /// 显示与否由外部决定：不调用 `draw` 即自然消失，因此通常作为独立字段传递。
 pub const Options = struct {
     /// 背景色（RGBA，0..1）。
-    color: Color = .rgba(1.0, 0.0, 0.0, 1.0),
+    color: Color = .rgba01(1.0, 0.0, 0.0, 1.0),
     /// 文字距横幅上下边缘的留白（像素）。
     padding_y: f32 = 8.0,
     /// 纵向落点。

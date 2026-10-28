@@ -23,7 +23,7 @@ pub const Options = struct {
     /// 图标四周的等边距（像素）。
     padding: f32 = 6.0,
     /// 背景色（RGBA，0..1），默认全透明。
-    color: Color = .rgba(0.0, 0.0, 0.0, 0.0),
+    color: Color = .rgba01(0.0, 0.0, 0.0, 0.0),
     /// 内部图标组件的配置。
     icon: icon_renderer.Options = .{},
     /// 调试开关：为背景与图标叠加红色。
