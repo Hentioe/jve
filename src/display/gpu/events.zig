@@ -2,9 +2,9 @@ const std = @import("std");
 const sdl = @import("sdl");
 const Key = sdl.Key;
 const ui = @import("../../ui.zig");
+const tasks = @import("tasks.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const Task = @import("../Task.zig");
-const Tasks = @import("Tasks.zig");
 const Modifiers = @import("../Modifiers.zig");
 const Device = @import("../../Device.zig");
 const Size2D = @import("shared").Size2D;
@@ -84,7 +84,7 @@ const ActionDeps = struct {
 pub const Context = struct {
     deps: *RenderDeps,
     state: *State,
-    tasks: *Tasks,
+    task_sched: *tasks.Scheduler,
 
     // 从事件中更新动作（可跨多个事件累积）
     pub fn handle(ctx: *Context, event: *const sdl.Event, action: *EventAction) void {
@@ -103,14 +103,15 @@ pub const Context = struct {
     }
 
     pub fn handleScreenshot(self: *Context) Error!void {
+        if (self.state.screenshot.action == .none) return;
         self.state.screenshot.running = true;
-        try self.tasks.laucnhScreenshot(
+        const task: tasks.Name = if (self.state.screenshot.action == .save) .save_screenshot else .copy_screenshot;
+        try self.task_sched.launch(task, .{ .screenshot = .{
             self.deps.allocator,
             self.deps.device,
             self.state.tex_src,
             &self.deps.image,
-            self.state.screenshot.action,
-        );
+        } });
     }
 };
 

@@ -9,7 +9,7 @@ const ShaderError = @import("../shader.zig").Error;
 const PipelineError = @import("../pipelines/errors.zig").Error;
 const GalleryError = @import("../gallery.zig").Error;
 const StepTraceError = @import("../StepTrace.zig").Error;
-const GpuTasksError = @import("gpu/Tasks.zig").Error;
+const GpuTasksError = @import("gpu/tasks.zig").Error;
 
 const CustomError = error{};
 

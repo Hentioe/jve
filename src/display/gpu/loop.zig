@@ -2,12 +2,12 @@ const std = @import("std");
 const sdl = @import("sdl");
 const app_env = @import("../../app_env.zig");
 const ui = @import("../../ui.zig");
+const tasks = @import("tasks.zig");
 const Io = std.Io;
 const Delta = @import("../Delta.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const events = @import("events.zig");
 const State = @import("State.zig");
-const Tasks = @import("Tasks.zig");
 const frame = @import("frame.zig");
 const ExitAction = @import("../enums.zig").ExitAction;
 const Error = @import("../errors.zig").Error;
@@ -23,13 +23,13 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
     defer state.deinit();
     // 强制任务使用基于线程池的 io
     var threaded = Io.Threaded.init(deps.allocator, .{});
-    var tasks = Tasks.init(&threaded);
-    defer tasks.deinit();
+    var task_sched = tasks.Scheduler.init(&threaded);
+    defer task_sched.deinit();
     ui_ctx.bindEvents(&state);
     var event_ctx = events.Context{
         .deps = deps,
         .state = &state,
-        .tasks = &tasks,
+        .task_sched = &task_sched,
     };
 
     var action: events.EventAction = .none;
@@ -71,7 +71,7 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
         // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
         advanceAnimation(deps, &state);
         // 检查任务
-        for (try tasks.poll()) |t| {
+        for (try task_sched.poll()) |t| {
             switch (t.result) {
                 .cstr => |cstr| {
                     if (t.name == .save_screenshot)
@@ -81,7 +81,7 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
                     if (t.name == .copy_screenshot)
                         try state.showSuccess(deps, "已复制到剪切板", .{});
                 },
-                .fail => |err| {
+                .err => |err| {
                     try state.showError(deps, "{s}", .{@errorName(err)});
                 },
             }
