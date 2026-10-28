@@ -12,6 +12,7 @@ pub fn handle(event: *sdl.Event, state: *State) void {
 }
 
 pub const Context = struct {
+    io: std.Io,
     allocator: Allocator,
     deps: *RenderDeps,
     state: *State = undefined,
@@ -22,8 +23,9 @@ pub const Context = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator, deps: *RenderDeps) Error!Self {
+    pub fn init(io: std.Io, allocator: Allocator, deps: *RenderDeps) Error!Self {
         return Self{
+            .io = io,
             .allocator = allocator,
             .deps = deps,
             .initial_banner_color = deps.banner.options.color,
@@ -60,7 +62,8 @@ pub const Context = struct {
 
     pub fn bannerClick(self: *Self, _: void) void {
         std.log.debug("Banner clicked", .{});
-        shared.openUrl("https://github.com/Hentioe/jve") catch {
+        shared.opener.open(self.io, "https://github.com/Hentioe/jve") catch |reason| {
+            std.log.err("Failed to open URL: {}", .{reason});
             self.deps.banner.setText("打开仓库链接失败了") catch |err| std.log.err("Failed to set banner text: {}", .{err});
             self.deps.banner.setColor(.rgba01(1.0, 0.0, 0.0, 0.5));
         };

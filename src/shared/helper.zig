@@ -1,8 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
-const errors = @import("errors.zig");
-const OpenUrlError = errors.OpenUrlError;
 
 const io = std.Io.Threaded.global_single_threaded.io();
 
@@ -35,22 +33,6 @@ pub fn bytesTo(unit: DataSizeUnit, bytes: u64) u64 {
     return switch (unit) {
         .kb => bytes / 1024,
     };
-}
-
-/// 用系统默认浏览器打开 URL（Linux，依赖 xdg-open）
-pub fn openUrl(url: []const u8) OpenUrlError!void {
-    var child = try std.process.spawn(io, .{
-        .argv = &.{ "xdg-open", url },
-        .stdin = .ignore,
-        .stdout = .ignore,
-        .stderr = .ignore,
-    });
-
-    const term = try child.wait(io);
-    switch (term) {
-        .exited => |code| if (code != 0) return OpenUrlError.OpenUrlFailed,
-        else => return OpenUrlError.OpenUrlFailed,
-    }
 }
 
 /// 当前 Unix 毫秒时间戳(挂钟时间,可能被 NTP 调整,不保证单调)

@@ -165,8 +165,8 @@ pub fn show(allocator: Allocator, display_mode: ?[]const u8) !void {
     };
 }
 
-pub fn showWelcome(allocator: Allocator) !void {
-    var welcome = try display.Welcome.init(allocator);
+pub fn showWelcome(runtime_io: Io, allocator: Allocator) !void {
+    var welcome = try display.Welcome.init(runtime_io, allocator);
     defer welcome.deinit();
 
     std.debug.assert(try welcome.show() == .quit);

@@ -48,6 +48,6 @@ pub fn main(init: std.process.Init) !void {
         subsystems.fillSystems(.initMany(&.{ .app_env, .ui, .display }));
         try subsystems.start();
         // 显示欢迎界面
-        try jve.showWelcome(init.gpa);
+        try jve.showWelcome(init.io, init.gpa);
     }
 }

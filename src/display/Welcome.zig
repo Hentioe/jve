@@ -2,6 +2,7 @@ const std = @import("std");
 const sdl = @import("sdl");
 const ass = @import("ass");
 const builtin = @import("builtin");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const Size2D = @import("shared").Size2D;
 const Window = @import("window.zig");
@@ -29,11 +30,12 @@ const WELCOME_TEXT = "JVE 是一个图像查看器";
 const debug = builtin.mode == .debug;
 
 allocator: Allocator,
+io: Io,
 window: *Window,
 gpu: *const sdl.Gpu, // Gpu 是全局共享的，不属于 Viewer 管理
 ass_renderer: ass.Renderer,
 
-pub fn init(allocator: Allocator) Error!Self {
+pub fn init(io: Io, allocator: Allocator) Error!Self {
     // 初始化「欢迎」模式
     std.log.info("Initializing welcome mode", .{});
     // 创建窗口
@@ -52,6 +54,7 @@ pub fn init(allocator: Allocator) Error!Self {
 
     return Self{
         .allocator = allocator,
+        .io = io,
         .window = window,
         .gpu = gpu,
         .ass_renderer = ass_renderer,
@@ -102,7 +105,7 @@ pub fn show(self: *Self) Error!ExitAction {
     var deps = try RenderDeps.init(self.allocator, self.window, self.gpu, &widgets, &banner);
     defer deps.deinit();
 
-    var context = try events.Context.init(self.allocator, &deps);
+    var context = try events.Context.init(self.io, self.allocator, &deps);
     defer context.deinit();
 
     try self.window.show();
