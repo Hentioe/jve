@@ -36,6 +36,27 @@ mkShell {
     onnxruntime-rocm # ONNX 推理引擎
     shader-slang # slang 着色器支持
     libass # 文字支持
+    # -- libvips 依赖列表 --
+    expat
+    zlib
+    libjpeg
+    libpng
+    libtiff
+    libwebp
+    libheif
+    libjxl
+    libhwy
+    lcms2
+    libexif
+    libimagequant
+    cgif
+    libspng
+    fftw
+    libarchive
+    cairo
+    pango
+    fontconfig
+    imagemagick
   ];
 
   ZVM_SET_CU = 1; # 禁止 zvm 升级检查

@@ -88,7 +88,8 @@
           "${zigDeps}"
           "-Dcpu=baseline"
           "-Doptimize=ReleaseFast"
-          "-Dslang-mode=system" # 动态链接系统 slang 库
+          "-Dslang-mode=system" # 链接系统 slang 库
+          "-Dvips-mode=system" # 链接系统 vips 库
         ]
         ++ map (p: "--fork=fork-${p}") zigDeps.pathDependencyPackages;
         zigCheckFlags = finalAttrs.zigBuildFlags;

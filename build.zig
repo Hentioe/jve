@@ -3,11 +3,17 @@ const Translator = @import("translate_c").Translator;
 const Import = std.Build.Module.Import;
 
 const SlangMode = enum {
-    /// 使用内置 Slang 依赖，生成 libslang.so；主程序保留纯 Zig 调用层。
+    /// 使用内置 Slang 依赖，生成 libslang.so，主程序保留纯 Zig 调用层。
     builtin_dynamic,
     /// 使用内置 Slang 依赖，把 Slang、shim 和 libc++ 全部静态链进主程序。
     builtin_static,
     /// 使用系统 slang，把 shim 和 libc++ 链进主程序。
+    system,
+};
+const VipsMode = enum {
+    // 使用内置 libvips 依赖，生成 libvips.so。
+    builtin_dynamic,
+    // 使用系统 libvips。
     system,
 };
 
@@ -16,6 +22,11 @@ pub fn build(b: *std.Build) void {
         SlangMode,
         "slang-mode",
         "Slang integration mode: builtin_dynamic, builtin_static, or system",
+    ) orelse .system;
+    const vips_mode: VipsMode = b.option(
+        VipsMode,
+        "vips-mode",
+        "libvips integration mode: builtin_dynamic or system",
     ) orelse .system;
 
     const target = b.standardTargetOptions(.{});
@@ -101,13 +112,6 @@ pub fn build(b: *std.Build) void {
     });
 
     // libvips 相关模块
-    const vips_c_translator: Translator = .init(translate_c, .{
-        .c_source_file = b.path("src/vips/c.h"),
-        .target = target,
-        .optimize = optimize,
-        .link_system_libs = &.{.{ .name = "vips" }},
-    });
-    const vips_c_mod = vips_c_translator.mod;
     const vips_mod = b.addModule("vips", .{
         .root_source_file = b.path("src/vips.zig"),
         .target = target,
@@ -115,10 +119,33 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .imports = &.{
             shared_import,
-            .{ .name = "vips_c", .module = vips_c_mod },
         },
     });
-
+    if (vips_mode == .builtin_dynamic) {
+        const vips_dep = b.dependency("libvips", .{
+            .target = target,
+            .optimize = c_dep_optimize,
+            .shared = true,
+            // 可选：关闭不需要的依赖，例如：
+            // .heif = false,
+            // .jxl = false,
+            // .magick = false,
+        });
+        const vips_c_mod = vips_dep.module("vips");
+        vips_mod.addImport("vips_c", vips_c_mod);
+        const libvips = vips_dep.artifact("vips");
+        vips_mod.linkLibrary(libvips);
+        b.installArtifact(libvips);
+    } else {
+        const vips_c_translator: Translator = .init(translate_c, .{
+            .c_source_file = b.path("src/vips/c.h"),
+            .target = target,
+            .optimize = optimize,
+            .link_system_libs = &.{.{ .name = "vips" }},
+        });
+        const vips_c_mod = vips_c_translator.mod;
+        vips_mod.addImport("vips_c", vips_c_mod);
+    }
     // ORT 相关模块
     const ort_c_translator: Translator = .init(translate_c, .{
         .c_source_file = b.path("src/ort/c.h"),
@@ -243,8 +270,8 @@ pub fn build(b: *std.Build) void {
         },
         .link_libc = true,
     });
-    // 安装后的目录布局是 bin/ + lib/，让可执行文件在没有 Zig 缓存路径时也能找到 libslang.so。
-    if (slang_mode == .builtin_dynamic and target.result.os.tag == .linux) {
+    // 安装后的目录布局是 bin/ + lib/，让可执行文件在没有 Zig 缓存路径时也能找到 libslang.so/libvips.so。
+    if ((slang_mode == .builtin_dynamic or vips_mode == .builtin_dynamic) and target.result.os.tag == .linux) {
         exe_mod.addRPathSpecial("$ORIGIN/../lib");
     }
     const exe = b.addExecutable(.{
