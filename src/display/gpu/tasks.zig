@@ -1,32 +1,43 @@
 const std = @import("std");
 const shared = @import("shared");
 const CString = shared.CString;
+const Mask = LaunchableTasks.remover.Mask;
 const Io = std.Io;
 const Threaded = Io.Threaded;
 
 pub const PollHandler = @import("tasks/PollHandler.zig");
 
 pub const CustomError = error{FutureNotFound};
-pub const ConcurrencyError = error{ConcurrencyUnavailable};
+pub const ConcurrencyError = error{ ConcurrencyUnavailable, TaskAlreadyRunning };
 pub const QueueGetError = error{ Canceled, Closed };
 pub const PollError = error{OutOfMemory};
 pub const Error = CustomError || ConcurrencyError || QueueGetError || PollError;
 
-pub const Name = enum { save_screenshot, copy_screenshot };
+pub const Name = enum { save_screenshot, copy_screenshot, remove_bg };
 pub const NameSet = std.EnumSet(Name);
 pub const Result = union(enum) {
     cstr: CString,
+    mask: Mask,
     ok: void,
     err: anyerror,
+
+    pub fn deinit(self: *Result) void {
+        switch (self.*) {
+            .mask => |*mask| mask.deinit(),
+            else => {},
+        }
+    }
 };
 pub const Elem = struct { name: Name, result: Result };
 
 const LaunchableTasks = struct {
     pub const screenshot = @import("tasks/screenshot.zig");
+    pub const remover = @import("tasks/remover.zig");
 };
 
 pub const LaunchArgs = union(enum) {
     screenshot: DropPrefix(LaunchableTasks.screenshot.args),
+    remover: DropPrefix(LaunchableTasks.remover.args),
 
     fn fieldTypes(comptime T: type) [@typeInfo(T).@"struct".field_types.len]type {
         const field_types = @typeInfo(T).@"struct".field_types;
@@ -64,14 +75,15 @@ pub const Scheduler = struct {
 
     pub fn deinit(self: *Self) void {
         for (&self.jobs) |*slot| if (slot.*) |*future| {
-            _ = future.cancel(self.io); // 销毁 future
+            var result = future.cancel(self.io); // 销毁 future 并回收结果
+            result.deinit(); // 释放任务返回的所有权数据（如模型输出）
         };
         self.done.close(self.io);
     }
 
     pub fn launch(self: *Self, name: Name, args: LaunchArgs) ConcurrencyError!void {
         const idx = @backingInt(name);
-        if (self.jobs[idx] != null) return;
+        if (self.jobs[idx] != null) return ConcurrencyError.TaskAlreadyRunning;
         switch (args) {
             inline else => |tuple, tag| {
                 const task = @field(LaunchableTasks, @tagName(tag));

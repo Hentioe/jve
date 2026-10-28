@@ -10,7 +10,6 @@ const Modifiers = @import("../Modifiers.zig");
 const OverflowHint = @import("../OverflowHint.zig");
 const Playback = @import("../Playback.zig");
 const Timer = @import("../../animation//Timer.zig");
-const Task = @import("../Task.zig");
 const RenderDeps = @import("RenderDeps.zig");
 const Error = @import("../errors.zig").Error;
 const Self = @This();
@@ -53,8 +52,7 @@ is_sliding: bool = false,
 slide_value: f32 = 0,
 // 标记
 marker_pos: ?Point = null,
-// 任务（后台调用模型）
-task: ?*Task = null,
+// 任务输出的遮罩纹理（后台模型任务完成前为 null）
 tex_mask: ?*sdl.GPUTexture = null,
 // 超出提示动画（图片过大被限制尺寸时，屏幕边缘显示提示）
 overflow_hint: OverflowHint,

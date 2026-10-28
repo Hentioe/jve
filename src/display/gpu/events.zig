@@ -4,10 +4,8 @@ const Key = sdl.Key;
 const ui = @import("../../ui.zig");
 const tasks = @import("tasks.zig");
 const RenderDeps = @import("RenderDeps.zig");
-const Task = @import("../Task.zig");
 const Modifiers = @import("../Modifiers.zig");
-const Device = @import("../../Device.zig");
-const Size2D = @import("shared").Size2D;
+const extractor = @import("../../extractor.zig");
 const State = @import("State.zig");
 const Error = @import("../errors.zig").Error;
 
@@ -106,40 +104,17 @@ pub const Context = struct {
         if (self.state.screenshot.action == .none) return;
         self.state.screenshot.running = true;
         const task: tasks.Name = if (self.state.screenshot.action == .save) .save_screenshot else .copy_screenshot;
-        try self.task_sched.launch(task, .{ .screenshot = .{
+        self.task_sched.launch(task, .{ .screenshot = .{
             self.deps.allocator,
             self.deps.device,
             self.state.tex_src,
             &self.deps.image,
-        } });
+        } }) catch |err| {
+            self.state.screenshot = .default;
+            try self.state.showError(self.deps, "截图失败：{s}", .{@errorName(err)});
+        };
     }
 };
-
-/// 检查和处理后台任务，失败会在横幅显示错误消息。
-pub fn checkHandleTask(deps: *RenderDeps, state: *State) Error!void {
-    if (state.task) |t| if (t.poll() == .done) {
-        defer {
-            t.finish();
-            state.task = null;
-            state.is_busy = false;
-            state.dirty = false;
-        }
-        if (t.result) |*res| switch (res.*) {
-            .success => |s| {
-                std.log.info("Task result is reading...", .{});
-                const mask_ptr = s.data_ptr; // 获取遮罩数据指针
-                const mask_size: Size2D(u32) = .{ .w = s.width, .h = s.height };
-                const uploader = try Device.getUploader();
-                const new_mask = try uploader.uploadTextureBorrowed(&deps.offscreen_info, mask_ptr, mask_size);
-                try uploader.submit();
-                if (state.tex_mask) |tex| deps.device.releaseGPUTexture(tex); // 释放旧遮罩纹理
-                state.tex_mask = new_mask;
-                std.log.info("Task result read complete", .{});
-            },
-            .failure => |err| try state.showError(deps, "任务出错：{s}", .{@errorName(err)}),
-        };
-    };
-}
 
 /// 处理按键绑定事件
 fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *State) bool {
@@ -160,7 +135,7 @@ fn handleBinding(event: *const sdl.Event, deps: *const RenderDeps, state: *State
 
 // tood: 合并到上下文中
 /// 根据动作修改状态。
-pub fn applyAction(action: EventAction, deps: *const RenderDeps, state: *State) Error!void {
+pub fn applyAction(action: EventAction, deps: *RenderDeps, state: *State, task_sched: *tasks.Scheduler) Error!void {
     switch (action) {
         .none => {},
         .quit => state.running = false,
@@ -182,18 +157,28 @@ pub fn applyAction(action: EventAction, deps: *const RenderDeps, state: *State) 
         },
         .copy_screenshot => state.screenshot.action = .copy,
         .start_task => {
-            if (state.task == null) {
-                state.is_busy = true;
+            if (!state.is_busy) {
                 // 点击区域需要转换回原图坐标
                 const click = if (state.marker_pos) |p| try deps.window.toImagePoint(p.x, p.y) else null;
-                if (Task.start(deps.allocator, deps.device, state.tex_src, .{ .shape = deps.image.shape, .click = click })) |t| {
-                    std.log.info("Task started successfully", .{});
-                    state.task = t;
-                    if (deps.animation != null) state.playback.setPlaying(sdl.getTicks(), false); // 暂停动图播放
-                } else |err| {
+                // 纹理提取必须在循环线程完成，避免任务线程访问已失效的 GPU 资源
+                var extracted = extractor.extract(deps.allocator, deps.device, state.tex_src, deps.image.shape.to(u32)) catch |err| {
+                    std.log.err("Failed to extract texture for task: {}", .{err});
+                    try state.showError(deps, "任务出错：{s}", .{@errorName(err)});
+                    return;
+                };
+                task_sched.launch(.remove_bg, .{ .remover = .{
+                    deps.allocator,
+                    extracted,
+                    click,
+                } }) catch |err| {
                     std.log.err("Failed to start task: {}", .{err});
-                    state.is_busy = false;
-                }
+                    extracted.deinit(); // 任务未启动，释放已提取的数据
+                    try state.showError(deps, "任务出错：{s}", .{@errorName(err)});
+                    return;
+                };
+                std.log.info("Task started successfully", .{});
+                state.is_busy = true;
+                if (deps.animation != null) state.playback.setPlaying(sdl.getTicks(), false); // 暂停动图播放
             }
         },
         .toggle_custom_shader => state.custom_shader_enabled = !state.custom_shader_enabled,

@@ -32,5 +32,6 @@ pub fn launch(
         } else |err| {
             return sched.buildDone(name, .{ .err = err });
         },
+        else => unreachable, // 其它任务不会走截图入口
     }
 }

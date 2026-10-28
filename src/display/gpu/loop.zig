@@ -38,9 +38,8 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
     };
 
     var action: events.EventAction = .none;
-    // 确保退出时释放任务与遮罩纹理
+    // 确保退出时释放遮罩纹理
     defer {
-        if (state.task) |t| t.finish();
         if (state.tex_mask) |tex| deps.device.releaseGPUTexture(tex);
     }
 
@@ -70,9 +69,7 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
         }
 
         // 根据动作修改状态
-        try events.applyAction(action, deps, &state);
-        // 检查和处理后台任务
-        try events.checkHandleTask(deps, &state);
+        try events.applyAction(action, deps, &state, &task_sched);
         // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
         advanceAnimation(deps, &state);
         // 检查并处理任务
