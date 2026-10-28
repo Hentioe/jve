@@ -1,7 +1,6 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const c = sdl.c;
-const h = sdl.h;
 const shared = @import("shared");
 const Allocator = std.mem.Allocator;
 const Shape = shared.IShape(u32);
