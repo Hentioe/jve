@@ -40,7 +40,7 @@ pub fn primaryPressed(self: *const Self) bool {
 }
 
 /// 主修饰键和指定键是否都按下。
-pub fn primaryPressedBoth(self: *const Self, event: sdl.Event, key: sdl.Key) bool {
+pub fn primaryPressedBoth(self: *const Self, event: *const sdl.Event, key: sdl.Key) bool {
     return self.primaryPressed() and event.type == sdl.EVENT_KEY_DOWN and key.matches(event.key.key);
 }
 

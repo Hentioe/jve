@@ -37,7 +37,7 @@ pub fn handle(event: *const sdl.Event, action: *EventAction, state: *State) void
         .is_dragging = state.is_dragging,
     };
     state.modifiers.input(event); // 更新修饰键状态（在动作更新之前）
-    updateAction(action, event.*, action_deps); // 更新动作
+    updateAction(action, event, action_deps); // 更新动作
 }
 
 // 根据动作修改状态
@@ -132,32 +132,32 @@ pub fn apply(action: EventAction, deps: *RenderDeps, state: *State) Error!void {
     }
 }
 
-fn updateAction(ptr: *EventAction, event: sdl.Event, deps: ActionDeps) void {
+fn updateAction(action: *EventAction, event: *const sdl.Event, deps: ActionDeps) void {
     if (isQuitEvent(event)) {
-        ptr.* = .quit;
+        action.* = .quit;
     } else if (isToggleEvent(event, deps.dst_rect)) {
-        ptr.* = .toggle;
+        action.* = .toggle;
     } else if (isDragStartEvent(event, deps.dst_rect)) {
-        ptr.* = .{ .drag_start = .{ .button_x = event.button.x, .button_y = event.button.y } };
+        action.* = .{ .drag_start = .{ .button_x = event.button.x, .button_y = event.button.y } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_UP and event.button.button == sdl.c.SDL_BUTTON_LEFT) {
-        ptr.* = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
+        action.* = .{ .drag_stop = .{ .button_x = event.button.x, .button_y = event.button.y } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_MOTION and deps.is_dragging) {
-        handleDragingEvent(event, ptr);
+        handleDragingEvent(event, action);
     } else if (rotateKey(event)) |key| {
-        ptr.* = .{ .rotate = .{ .key = key } };
+        action.* = .{ .rotate = .{ .key = key } };
     } else if (deps.modifiers.primaryPressedBoth(event, Key.d)) {
-        ptr.* = .delete;
+        action.* = .delete;
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_WHEEL and (sdl.c.SDL_GetModState() & sdl.c.SDL_KMOD_CTRL) != 0) {
-        ptr.* = .{ .scale = .{ .wheel_y = event.wheel.y } };
+        action.* = .{ .scale = .{ .wheel_y = event.wheel.y } };
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_WHEEL) {
-        ptr.* = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
+        action.* = .{ .next_or_prev = .{ .wheel_y = event.wheel.y } };
     } else if (event.type == sdl.c.SDL_EVENT_KEY_DOWN and Key.slash.matches(event.key.key)) {
-        ptr.* = .reset;
+        action.* = .reset;
     }
 }
 
 // 是否是退出事件
-fn isQuitEvent(event: sdl.c.SDL_Event) bool {
+fn isQuitEvent(event: *const sdl.Event) bool {
     if (event.type == sdl.c.SDL_EVENT_QUIT) { // 正常退出
         return true;
     }
@@ -168,7 +168,7 @@ fn isQuitEvent(event: sdl.c.SDL_Event) bool {
 }
 
 // 是否是切换事件
-fn isToggleEvent(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
+fn isToggleEvent(event: *const sdl.Event, dst_rect: *sdl.c.SDL_FRect) bool {
     if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_RIGHT) { // 右键
         return true;
     } else if (event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and event.button.button == sdl.c.SDL_BUTTON_LEFT) { // 左键非图片区域
@@ -178,7 +178,7 @@ fn isToggleEvent(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
 }
 
 // 是否是拖拽开始事件
-fn isDragStartEvent(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
+fn isDragStartEvent(event: *const sdl.Event, dst_rect: *sdl.c.SDL_FRect) bool {
     const point = sdl.c.SDL_FPoint{ .x = event.button.x, .y = event.button.y };
     return event.type == sdl.c.SDL_EVENT_MOUSE_BUTTON_DOWN and
         event.button.button == sdl.c.SDL_BUTTON_LEFT and
@@ -188,13 +188,13 @@ fn isDragStartEvent(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
 // 方向键的数组
 const DIRECTION_KEYS = [_]Key{ .up, .down, .left, .right };
 // 旋转事件的按键，非旋转事件返回 null
-fn rotateKey(event: sdl.c.SDL_Event) ?Key {
+fn rotateKey(event: *const sdl.Event) ?Key {
     if (event.type != sdl.c.SDL_EVENT_KEY_DOWN) return null;
     const key = Key.from(event.key.key) orelse return null;
     return if (std.mem.indexOfScalar(Key, &DIRECTION_KEYS, key) != null) key else null;
 }
 
-fn handleDragingEvent(event: sdl.c.SDL_Event, action: *EventAction) void {
+fn handleDragingEvent(event: *const sdl.Event, action: *EventAction) void {
     switch (action.*) {
         .dragging => |*payload| {
             // 如果这一帧里已经有 dragging 动作了，累加位移
@@ -220,7 +220,7 @@ fn mapKeyToAngle(key: Key) ?f64 {
 }
 
 // 判断鼠标位置是否在图片上
-fn isInRect(event: sdl.c.SDL_Event, dst_rect: *sdl.c.SDL_FRect) bool {
+fn isInRect(event: *const sdl.Event, dst_rect: *sdl.c.SDL_FRect) bool {
     const mouse_x = event.button.x;
     const mouse_y = event.button.y;
     return mouse_x >= dst_rect.x and mouse_x <= dst_rect.x + dst_rect.w and

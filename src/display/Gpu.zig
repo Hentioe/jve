@@ -13,7 +13,7 @@ const Window = @import("window.zig");
 const Device = @import("../Device.zig");
 const pipelines = @import("../pipelines.zig");
 const RenderDeps = @import("gpu/RenderDeps.zig");
-const events = @import("gpu/events.zig");
+const handlers = @import("gpu/handlers.zig");
 const loop = @import("gpu/loop.zig");
 const ExitAction = @import("enums.zig").ExitAction;
 const Error = @import("errors.zig").Error;
@@ -161,12 +161,12 @@ pub fn show(self: *Self) Error!ExitAction {
     errdefer deps.deinit();
     app_env.traceMark("RenderDeps.init");
 
-    var context = events.UIContext.init(&deps, &title_bar);
+    var ui_handler = handlers.UIHandler.init(&deps, &title_bar);
     // 显示窗口
     try self.window.show();
     app_env.traceMark("window.show");
     // 启动循环
-    const action = try loop.run(self.io, &deps, &context);
+    const action = try loop.run(self.io, &deps, &ui_handler);
     // 正常退出时释放本次会话的渲染依赖
     deps.deinit();
     return action;

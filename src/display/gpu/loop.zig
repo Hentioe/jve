@@ -1,22 +1,20 @@
 const std = @import("std");
 const sdl = @import("sdl");
 const app_env = @import("../../app_env.zig");
-const ui = @import("../../ui.zig");
 const tasks = @import("tasks.zig");
 const Io = std.Io;
 const Delta = @import("../Delta.zig");
 const RenderDeps = @import("RenderDeps.zig");
-const events = @import("events.zig");
+const handlers = @import("handlers.zig");
 const State = @import("State.zig");
 const frame = @import("frame.zig");
 const ExitAction = @import("../enums.zig").ExitAction;
 const Error = @import("../errors.zig").Error;
 
 /// 临时诊断：首次循环阻塞与首次渲染耗时只输出一次
-var first_stall_logged = false;
 var first_render_logged = false;
 
-pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction {
+pub fn run(_: Io, deps: *RenderDeps, ui_handler: *handlers.UIHandler) Error!ExitAction {
     var event: sdl.c.SDL_Event = undefined;
     var delta: Delta = .init();
     var state: State = .init(deps, &delta);
@@ -30,22 +28,19 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
         .deps = deps,
         .state = &state,
     };
-    ui_ctx.bindEvents(&state);
-    var event_ctx = events.Context{
+    ui_handler.bindEvents(&state);
+    var event_handler = handlers.Handler{
         .deps = deps,
         .state = &state,
         .task_sched = &task_sched,
     };
 
-    var action: events.EventAction = .none;
     // 确保退出时释放遮罩纹理
-    defer {
-        if (state.tex_mask) |tex| deps.device.releaseGPUTexture(tex);
-    }
+    defer if (state.tex_mask) |tex| deps.device.releaseGPUTexture(tex);
 
     while (state.running) {
         delta.update(); // 计算 delta
-        defer action = .none; // 重置动作
+        defer event_handler.action = .none; // 重置动作
 
         // 推进提示动画
         if (state.overflow_hint.isRunning()) state.overflow_hint.nextStep(delta.value);
@@ -55,21 +50,15 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
         state.updateTimers();
 
         if (!state.dirty) {
-            var wait_event: sdl.Event = undefined;
-            if (sdl.waitEvent(&wait_event)) {
-                event_ctx.handle(&wait_event, &action); // 处理事件
-                if (ui.Event.fromSdl(&wait_event)) |ui_event| for (deps.widgets) |*w| w.event(&ui_event); // 分发 ui 事件给所有 widget
-            }
+            var tmp_event: sdl.Event = undefined;
+            if (sdl.waitEvent(&tmp_event)) event_handler.handle(&tmp_event); // 处理事件
             // delta.reset(); // 重置 delta（否则阻塞后唤醒会计算出巨大的 delta 值）
         }
 
-        while (sdl.pollEvent(&event)) {
-            event_ctx.handle(&event, &action); // 处理事件
-            if (ui.Event.fromSdl(&event)) |ui_event| for (deps.widgets) |*w| w.event(&ui_event); // 分发 ui 事件给所有 widget
-        }
+        while (sdl.pollEvent(&event)) event_handler.handle(&event); // 处理事件
 
-        // 根据动作修改状态
-        try events.applyAction(action, deps, &state, &task_sched);
+        // 应用事件动作（修改状态）
+        try event_handler.apply();
         // 推进动图帧（必须在渲染之前，保证纹理与当前 PTS 对应）
         advanceAnimation(deps, &state);
         // 检查并处理任务
@@ -77,7 +66,7 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
         // 执行渲染
         try frame.render(deps, &state);
         // 处理截图保存和复制
-        if (!state.screenshot.running and state.screenshot.action != .none) try event_ctx.handleScreenshot();
+        if (!state.screenshot.running and state.screenshot.action != .none) try event_handler.screenshot();
         // 记录首次渲染完成
         if (!first_render_logged) {
             app_env.traceMark("first_rendering");
@@ -90,11 +79,11 @@ pub fn run(_: Io, deps: *RenderDeps, ui_ctx: *events.UIContext) Error!ExitAction
     try deps.window.hide();
     // 切换模式时，把纹理写入全局缓存
     if (state.toggle) {
-        app_env.writer().writeTexture(
+        try app_env.writer().writeTexture(
             deps.allocator,
             deps.device,
             state.tex_src,
-        ) catch |err| std.log.err("Failed to write texture: {}", .{err});
+        );
     }
 
     return if (state.toggle) .toggle else .quit;
