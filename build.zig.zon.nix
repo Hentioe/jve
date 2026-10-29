@@ -69,11 +69,11 @@ let
       rev = "d1f52c8993a501bd52d4fbd044bfeb9ecdceb9f4";
       hash = "sha256-VBEJ/lhyKqKjVrFVgWPiKD3iXlY+7ofcQCXOm7uwFAg=";
     };
-    "libvips-8.18.8-6V7e22f3jwC-i2mRwpoZ2PiECjV37BCSt76j1l-VBdNW" = fetchZigGit {
+    "libvips-8.18.8-6V7e25P3jwARbFkzkb_NhxkX6UQVuCSwh_krK-nLUH-Q" = fetchZigGit {
       name = "libvips";
       url = "https://github.com/Hentioe/jve-libvips";
-      rev = "89d12125373276ed8eb32729414784bc16d21f7a";
-      hash = "sha256-fMJqV1uFb+TLZyJGuDRVGXTbbzQaXWl+5I+uBkNBiss=";
+      rev = "7f3f03a5ae0f3887ac07ca06f32fdd653b0a04a5";
+      hash = "sha256-sLFZpMtAwsV00/BGEPpbeLOwzIfmDEdf/OTIDd+U4x0=";
     };
     "N-V-__8AALiZGQDddaUgdV3uhZrNpEB06U-GnqDxD3KCIsMG" = fetchZigGit {
       name = "lua";
