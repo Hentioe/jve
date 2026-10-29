@@ -24,6 +24,10 @@
             .url = "git+https://github.com/Hentioe/slang#ffe067d9c53c742d3fa445e0b078112dfb38f0f1",
             .hash = "slang-0.0.0-mZrlVsUZhAFiI3zd_amyTGoPGN6JUsgC1ZuZgTuYUJaF",
         },
+        .libvips = .{
+            .url = "git+https://github.com/Hentioe/jve-libvips#7f3f03a5ae0f3887ac07ca06f32fdd653b0a04a5",
+            .hash = "libvips-8.18.8-6V7e25P3jwARbFkzkb_NhxkX6UQVuCSwh_krK-nLUH-Q",
+        },
     },
     .paths = .{
         "build.zig",

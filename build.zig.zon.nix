@@ -69,6 +69,12 @@ let
       rev = "d1f52c8993a501bd52d4fbd044bfeb9ecdceb9f4";
       hash = "sha256-VBEJ/lhyKqKjVrFVgWPiKD3iXlY+7ofcQCXOm7uwFAg=";
     };
+    "libvips-8.18.8-6V7e22f3jwC-i2mRwpoZ2PiECjV37BCSt76j1l-VBdNW" = fetchZigGit {
+      name = "libvips";
+      url = "https://github.com/Hentioe/jve-libvips";
+      rev = "89d12125373276ed8eb32729414784bc16d21f7a";
+      hash = "sha256-fMJqV1uFb+TLZyJGuDRVGXTbbzQaXWl+5I+uBkNBiss=";
+    };
     "N-V-__8AALiZGQDddaUgdV3uhZrNpEB06U-GnqDxD3KCIsMG" = fetchZigGit {
       name = "lua";
       url = "https://github.com/lua/lua";
