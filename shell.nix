@@ -1,7 +1,7 @@
 with import <nixpkgs> { };
 let
   # 覆盖 Zig 命令，使用 zvm 运行 Zig
-  custom-zig = writeShellScriptBin "zig" "exec zvm run 0.17.0 $@";
+  custom-zig = writeShellScriptBin "zig" "exec zvm run 0.17.1 $@";
   # 启用 ROCm 支持的 ONNX Runtime（此处暂时禁用）
   onnxruntime-rocm = (onnxruntime.override { rocmSupport = false; });
   # 给 webpload 补 sequential flag，避免动画首次访问时全量物化整条 roll

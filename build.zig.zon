@@ -2,7 +2,7 @@
     .name = .jve,
     .version = "0.0.0",
     .fingerprint = 0xfebcdc43c4343364, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.17.0",
+    .minimum_zig_version = "0.17.1",
     .dependencies = .{
         .translate_c = .{
             .url = "git+https://codeberg.org/ziglang/translate-c?ref=2.0.2#c11030012dc325d446474d17b78c242fd1d622ec",
